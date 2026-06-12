@@ -10,6 +10,7 @@ from mcp_baf import installer
 @pytest.mark.parametrize(
     ("source", "want"),
     [
+        (r"C:\Program Files\BAF\8.3.18.1627\bin\1cv8.exe", (3, 18)),
         (r"C:\Program Files\1cv8\8.3.27.1859\bin\1cv8.exe", (3, 27)),
         ("/opt/1cv8/x86_64/8.3.22.1709/1cv8", (3, 22)),
         ("/Applications/1cv8.localized/8.3.25.1000/1cv8.app/Contents/MacOS/1cv8", (3, 25)),
@@ -21,6 +22,13 @@ def test_extract_platform_minor(source, want):
     assert installer.extract_platform_minor(source) == want
 
 
+def test_platform_patterns_baf_first(monkeypatch):
+    monkeypatch.setattr(installer.sys, "platform", "win32")
+    patterns = installer._platform_patterns()
+    assert patterns[0] == r"C:\Program Files\BAF\8.*\bin\1cv8.exe"
+    assert patterns[1] == r"C:\Program Files (x86)\BAF\8.*\bin\1cv8.exe"
+
+
 def test_parse_platform_version_override_priority():
     assert installer.parse_platform_version(
         r"C:\1cv8\8.3.27\bin\1cv8.exe", "8.3.13"
@@ -30,6 +38,7 @@ def test_parse_platform_version_override_priority():
 @pytest.mark.parametrize(
     ("path", "want"),
     [
+        (r"C:\Program Files\BAF\8.3.18.1627\bin\1cv8.exe", "2.11"),
         (r"C:\Program Files\1cv8\8.3.27.1859\bin\1cv8.exe", "2.20"),
         (r"C:\Program Files\1cv8\8.3.25.1394\bin\1cv8.exe", "2.18"),
         (r"C:\Program Files\1cv8\8.3.14.100\bin\1cv8.exe", "2.8"),
