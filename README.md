@@ -68,7 +68,7 @@ mcp-baf --install "C:\шлях\до\бази" --lang ru
 **Швидкий запуск для розробки (тільки Windows):**
 
 ```cmd
-"C:\Program Files\1cv8\8.3.XX.XXXX\bin\1cv8.exe" ENTERPRISE /F "C:\шлях\до\бази" /HTTPPort 8080
+"C:\Program Files\BAF\8.3.XX.XXXX\bin\1cv8.exe" ENTERPRISE /F "C:\шлях\до\бази" /HTTPPort 8080
 ```
 
 > Параметр `/HTTPPort` — недокументований, працює **тільки на Windows** і підходить для швидкої перевірки. На Linux використовуйте Apache або ibsrv, на macOS HTTP-сервіси 1С не підтримуються.

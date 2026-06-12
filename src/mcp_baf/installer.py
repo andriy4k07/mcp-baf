@@ -422,7 +422,7 @@ def _build_designer_args(
 
 
 def find_platform() -> str:
-    """Ищет исполняемый файл платформы 1С в стандартных путях текущей ОС.
+    """Ищет исполняемый файл платформы BAF/1С в стандартных путях текущей ОС.
 
     Возвращает последний (лексикографически — самый новый) из найденных.
     """
@@ -436,6 +436,8 @@ def find_platform() -> str:
 def _platform_patterns() -> list[str]:
     if sys.platform == "win32":
         return [
+            r"C:\Program Files\BAF\8.*\bin\1cv8.exe",
+            r"C:\Program Files (x86)\BAF\8.*\bin\1cv8.exe",
             r"C:\Program Files\1cv8\8.*\bin\1cv8.exe",
             r"C:\Program Files (x86)\1cv8\8.*\bin\1cv8.exe",
             r"C:\Program Files\1cv8t\8.*\bin\1cv8t.exe",
