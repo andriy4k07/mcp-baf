@@ -194,11 +194,6 @@ def test_localize_extension_ua(tmp_path):
     cfg = (ext_dir / "Configuration.xml").read_text(encoding="utf-8-sig")
     assert "<v8:lang>uk</v8:lang>" in cfg
     assert "<v8:content>MCP HTTPService</v8:content>" in cfg
-    # Заимствованный объект языка базы не трогается.
-    lang_xml = (ext_dir / "Languages" / "Русский.xml").read_text(
-        encoding="utf-8-sig"
-    )
-    assert "<LanguageCode>ru</LanguageCode>" in lang_xml
 
 
 def test_localize_extension_ru_is_noop(tmp_path):
@@ -270,7 +265,24 @@ def test_extension_sources_present():
         os.path.join("HTTPServices", "MCPService", "Ext", "Module.bsl"),
         os.path.join("Roles", "MCP_ОсновнаяРоль.xml"),
         os.path.join("Roles", "MCP_ОсновнаяРоль", "Ext", "Rights.xml"),
-        os.path.join("Languages", "Русский.xml"),
     ]
     for rel in expected:
         assert os.path.isfile(os.path.join(installer.EXTENSION_SRC, rel)), rel
+
+
+def test_no_default_language():
+    # DefaultLanguage (ОсновнойЯзык) — контролируемое свойство: оно должно
+    # совпадать с основным языком базы, который заранее неизвестен (BAF —
+    # украинский, другие базы — русский). Поэтому свойство и заимствованный
+    # объект языка из расширения исключены — значение наследуется от базы.
+    cfg = open(
+        os.path.join(installer.EXTENSION_SRC, "Configuration.xml"),
+        encoding="utf-8-sig",
+    ).read()
+    assert "<DefaultLanguage>" not in cfg
+    assert "<Language>" not in cfg
+    dump_info = open(
+        os.path.join(installer.EXTENSION_SRC, "ConfigDumpInfo.xml"),
+        encoding="utf-8-sig",
+    ).read()
+    assert "Language.Русский" not in dump_info
