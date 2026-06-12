@@ -152,9 +152,113 @@ def test_classify_designer_error_compat_mode():
     assert "Оригинальная ошибка DESIGNER" in str(err)
 
 
+def test_classify_designer_error_compat_mode_ukrainian():
+    # Украинская локализация платформы пишет ошибки на украинском.
+    err = installer.classify_designer_error(
+        "1C DESIGNER failed (exit code 1):\n"
+        "Розширення конфігурації з вказаним ім'ям не знайдено!"
+    )
+    assert "режим совместимости конфигурации запрещает расширения" in str(err)
+
+
 def test_classify_designer_error_passthrough():
     err = installer.classify_designer_error("какая-то другая ошибка")
     assert str(err) == "какая-то другая ошибка"
+
+
+def _copy_extension_sources(tmp_path):
+    import shutil
+
+    dst = tmp_path / "ext"
+    shutil.copytree(installer.EXTENSION_SRC, dst)
+    return dst
+
+
+def test_localize_extension_ua(tmp_path):
+    ext_dir = _copy_extension_sources(tmp_path)
+    installer.localize_extension(str(ext_dir), "ua")
+
+    service = (ext_dir / "HTTPServices" / "MCPService.xml").read_text(
+        encoding="utf-8-sig"
+    )
+    # Код языка синонимов сменён на украинский.
+    assert "<v8:lang>ru</v8:lang>" not in service
+    assert "<v8:lang>uk</v8:lang>" in service
+    # Тексты синонимов переведены.
+    assert "<v8:content>Метадані</v8:content>" in service
+    assert "<v8:content>Перевірка запиту</v8:content>" in service
+    assert "<v8:content>Метаданные</v8:content>" not in service
+    # Имена объектов и обработчики не тронуты — они привязаны к Module.bsl.
+    assert "<Name>Метаданные</Name>" in service
+
+    cfg = (ext_dir / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<v8:lang>uk</v8:lang>" in cfg
+    assert "<v8:content>MCP HTTPService</v8:content>" in cfg
+    # Заимствованный объект языка базы не трогается.
+    lang_xml = (ext_dir / "Languages" / "Русский.xml").read_text(
+        encoding="utf-8-sig"
+    )
+    assert "<LanguageCode>ru</LanguageCode>" in lang_xml
+
+
+def test_localize_extension_ru_is_noop(tmp_path):
+    ext_dir = _copy_extension_sources(tmp_path)
+    before = (ext_dir / "HTTPServices" / "MCPService.xml").read_bytes()
+    installer.localize_extension(str(ext_dir), "ru")
+    after = (ext_dir / "HTTPServices" / "MCPService.xml").read_bytes()
+    assert before == after
+
+
+def test_localize_extension_keeps_bom(tmp_path):
+    # Локализация не должна терять UTF-8 BOM там, где он был в исходнике.
+    ext_dir = _copy_extension_sources(tmp_path)
+    bom_before = {}
+    for root, _dirs, files in os.walk(ext_dir):
+        for name in files:
+            if name.lower().endswith(".xml"):
+                path = os.path.join(root, name)
+                with open(path, "rb") as f:
+                    bom_before[path] = f.read(3) == b"\xef\xbb\xbf"
+
+    installer.localize_extension(str(ext_dir), "ua")
+
+    for path, had_bom in bom_before.items():
+        with open(path, "rb") as f:
+            assert (f.read(3) == b"\xef\xbb\xbf") == had_bom, path
+
+
+def test_translations_cover_all_cyrillic_synonyms():
+    # Каждый русский (кириллический) текст синонима в исходниках должен
+    # иметь перевод, иначе после --lang ua останется русский текст с
+    # украинским кодом языка.
+    import re
+
+    for root, _dirs, files in os.walk(installer.EXTENSION_SRC):
+        for name in files:
+            if not name.lower().endswith(".xml"):
+                continue
+            content = open(
+                os.path.join(root, name), encoding="utf-8-sig"
+            ).read()
+            for text in re.findall(r"<v8:content>([^<]+)</v8:content>", content):
+                if re.search(r"[а-яёА-ЯЁ]", text):
+                    assert text in installer._SYNONYM_TRANSLATIONS_UA, (
+                        f"{name}: no Ukrainian translation for {text!r}"
+                    )
+
+
+def test_install_rejects_unknown_lang():
+    with pytest.raises(installer.InstallError, match="unsupported --lang"):
+        installer.install("C:\\db", lang="en")
+
+
+def test_lang_default_and_choices():
+    from mcp_baf import config
+
+    assert config.parse_args([]).lang == "ua"
+    assert config.parse_args(["--lang", "ru"]).lang == "ru"
+    with pytest.raises(SystemExit):
+        config.parse_args(["--lang", "en"])
 
 
 def test_extension_sources_present():
