@@ -99,6 +99,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Install extension into 1C database at given path",
     )
     parser.add_argument(
+        "--lang", default="ua", choices=("ua", "ru"),
+        help="Language of extension synonyms for --install: "
+             "ua (Ukrainian, default) or ru (Russian)",
+    )
+    parser.add_argument(
         "--server", action="store_true",
         help=r"Treat --install value as server connection string (server\database)",
     )

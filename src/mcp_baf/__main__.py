@@ -54,6 +54,7 @@ def main() -> None:
                 db_user=args.db_user,
                 db_password=args.db_password,
                 platform_version=args.platform_version,
+                lang=args.lang,
             )
         except installer.InstallError as exc:
             print(f"Installation error: {exc}", file=sys.stderr)
