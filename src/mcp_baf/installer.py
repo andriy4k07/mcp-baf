@@ -48,6 +48,36 @@ PLATFORM_FORMAT_VERSIONS = [
     (14, "2.8"),
 ]
 
+# Язык синонимов расширения по умолчанию. XML-исходники хранятся с русскими
+# синонимами (v8:lang ru); при "ua" временная копия локализуется перед
+# загрузкой: код языка меняется на uk (код украинского языка в BAF),
+# тексты синонимов переводятся. Имена объектов и обработчики не трогаются —
+# они привязаны к коду Module.bsl.
+DEFAULT_LANG = "ua"
+
+SUPPORTED_LANGS = ("ua", "ru")
+
+# Украинский код языка в XML-выгрузке 1С (значение v8:lang).
+_UA_LANG_CODE = "uk"
+
+# Переводы текстов синонимов (русский -> украинский). Только строки,
+# реально встречающиеся в <v8:content> XML-исходников; латинские
+# синонимы (MCP HTTPService, GET, POST) одинаковы в обоих языках.
+_SYNONYM_TRANSLATIONS_UA = {
+    "Метаданные": "Метадані",
+    "Объект": "Об'єкт",
+    "Запрос": "Запит",
+    "Версия": "Версія",
+    "Форма": "Форма",
+    "Проверка запроса": "Перевірка запиту",
+    "Журнал регистрации": "Журнал реєстрації",
+    "Конфигурация": "Конфігурація",
+    "Расширения": "Розширення",
+}
+
+_LANG_TAG_RU = "<v8:lang>ru</v8:lang>"
+_LANG_TAG_UA = f"<v8:lang>{_UA_LANG_CODE}</v8:lang>"
+
 ROLE_NOTE = (
     "Примечание: роль MCP_ОсновнаяРоль установлена с правами доступа к HTTP-сервису.\n"
     'Пользователям с ролью "Полные права" дополнительных действий не требуется.\n'
@@ -93,11 +123,20 @@ _INHERITED_PROPERTY_RE = re.compile(
 
 # Ошибка DESIGNER, означающая что режим совместимости базы вообще не
 # поддерживает расширения (8.3.8 и старше) — в batch-режиме платформа выдаёт
-# только невнятное «не найдено».
+# только невнятное «не найдено». Локализованные платформы (uk) пишут
+# сообщения на своём языке — учитываем оба варианта.
 _COMPAT_MODE_NOT_FOUND_RE = re.compile(
-    r"расширение\s+конфигурации\s+с\s+указанным\s+именем\s+не\s+найдено",
+    r"расширение\s+конфигурации\s+с\s+указанным\s+именем\s+не\s+найдено"
+    r"|розширення\s+конфігурації\s+(?:з|із)\s+вказаним\s+(?:ім'ям|іменем)\s+не\s+знайдено",
     re.IGNORECASE,
 )
+
+
+def _error_contains(error: str, *needles: str) -> bool:
+    """Регистронезависимый поиск любого из вариантов текста ошибки
+    (русская и украинская локализации DESIGNER)."""
+    lowered = error.lower()
+    return any(needle.lower() in lowered for needle in needles)
 
 
 class InstallError(Exception):
@@ -111,6 +150,7 @@ def install(
     db_user: str = "",
     db_password: str = "",
     platform_version: str = "",
+    lang: str = DEFAULT_LANG,
 ) -> None:
     """Устанавливает расширение MCP в базу 1С.
 
@@ -118,7 +158,13 @@ def install(
     platform_version — необязательное переопределение (например "8.3.13"),
     когда версию нельзя определить из пути. При server_mode=True база
     считается клиент-серверной и DESIGNER вызывается с /S вместо /F.
+    lang — язык синонимов расширения: "ua" (по умолчанию) или "ru".
     """
+    if lang not in SUPPORTED_LANGS:
+        raise InstallError(
+            f"unsupported --lang value: {lang!r} "
+            f"(supported: {', '.join(SUPPORTED_LANGS)})"
+        )
     if not platform_exe:
         platform_exe = find_platform()
     print(f"Platform: {platform_exe}")
@@ -126,7 +172,7 @@ def install(
     ext_dir = tempfile.mkdtemp(prefix="mcp-baf-ext-")
     try:
         _install_from(ext_dir, platform_exe, db_path, server_mode,
-                      db_user, db_password, platform_version)
+                      db_user, db_password, platform_version, lang)
     finally:
         shutil.rmtree(ext_dir, ignore_errors=True)
 
@@ -139,8 +185,13 @@ def _install_from(
     db_user: str,
     db_password: str,
     platform_version: str,
+    lang: str = DEFAULT_LANG,
 ) -> None:
     shutil.copytree(EXTENSION_SRC, ext_dir, dirs_exist_ok=True)
+
+    # Синонимы локализуются до остальных патчей: дальше регулярные
+    # выражения работают уже с целевым языком.
+    localize_extension(ext_dir, lang)
 
     # Версия формата XML подгоняется под целевую платформу.
     patch_format_version(ext_dir, format_version_for_platform(platform_exe))
@@ -177,7 +228,7 @@ def _install_from(
     print("Loading extension into database...")
     error = load()
 
-    if error is not None and "Уже существует" in error:
+    if error is not None and _error_contains(error, "Уже существует", "Вже існує"):
         delete_error = _run_designer(
             platform_exe, db_path, server_mode, db_user, db_password,
             "/ManageCfgExtensions", "-delete", "-Extension", EXTENSION_NAME,
@@ -194,14 +245,16 @@ def _install_from(
         # роли — вырезаем и повторяем.
         if ("KeepMappingToExtendedConfigurationObjectsByIDs" in error
                 or "InternalInfo" in error
-                or "идентификатор класса" in error):
+                or _error_contains(error, "идентификатор класса",
+                                   "ідентифікатор класу")):
             print("Retrying without unsupported XML elements (old platform)...")
             strip_unsupported_elements(ext_dir)
             error = load()
 
         # База без DefaultRunMode=ManagedApplication отвергает расширение
         # с ошибкой про «ОсновнойРежимЗапуска» — убираем свойство.
-        if error is not None and "ОсновнойРежимЗапуска" in error:
+        if error is not None and _error_contains(
+                error, "ОсновнойРежимЗапуска", "ОсновнийРежимЗапуску"):
             print("Retrying without DefaultRunMode property "
                   "(controlled property mismatch)...")
             _patch_file(cfg_path, lambda c: _DEFAULT_RUN_MODE_RE.sub("", c))
@@ -209,12 +262,14 @@ def _install_from(
 
         # Режим совместимости расширения выше, чем у базы: сначала
         # Version8_3_10 (ещё поддерживает роли), затем DontUse.
-        if error is not None and "режим совместимости" in error.lower():
+        if error is not None and _error_contains(
+                error, "режим совместимости", "режим сумісності"):
             print("Retrying with compatibility mode 8.3.10...")
             patch_extension_xml(cfg_path, "Version8_3_10", "")
             error = load()
 
-            if error is not None and "режим совместимости" in error.lower():
+            if error is not None and _error_contains(
+                    error, "режим совместимости", "режим сумісності"):
                 print("Retrying without compatibility mode...")
                 patch_extension_xml(cfg_path, "DontUse", "")
                 error = load()
@@ -222,8 +277,10 @@ def _install_from(
         # Старые конфигурации (совместимость 8.3.13 и ниже) отвергают
         # переопределение заимствованных свойств.
         if (error is not None
-                and "переопределение свойств заимствованных объектов"
-                in error.lower()):
+                and _error_contains(
+                    error,
+                    "переопределение свойств заимствованных объектов",
+                    "перевизначення властивостей запозичених об'єктів")):
             print("Retrying without inherited properties (old compat mode)...")
             strip_inherited_properties(cfg_path)
             error = load()
@@ -242,7 +299,10 @@ def _install_from(
         "/UpdateDBCfg", "-Extension", EXTENSION_NAME,
     )
     if error is not None:
-        if "переопределение свойств заимствованных объектов" in error.lower():
+        if _error_contains(
+                error,
+                "переопределение свойств заимствованных объектов",
+                "перевизначення властивостей запозичених об'єктів"):
             print("Retrying without inherited properties (old compat mode)...")
             strip_inherited_properties(cfg_path)
             reload_error = load()
@@ -452,6 +512,32 @@ def patch_format_version(ext_dir: str, target_version: str) -> None:
                         rf"\g<1>{target_version}\g<2>", c
                     ),
                 )
+
+
+def localize_extension(ext_dir: str, lang: str) -> None:
+    """Локализует синонимы расширения под выбранный язык.
+
+    XML-исходники хранятся по-русски, поэтому "ru" — no-op. Для "ua"
+    код языка синонимов меняется на uk, тексты переводятся по словарю.
+    Перевод привязан к обёртке <v8:content>, чтобы не задеть совпадающие
+    Name/Handler (например, обработчик МетаданныеGET в Module.bsl).
+    """
+    if lang == "ru":
+        return
+
+    def transform(content: str) -> str:
+        content = content.replace(_LANG_TAG_RU, _LANG_TAG_UA)
+        for ru_text, ua_text in _SYNONYM_TRANSLATIONS_UA.items():
+            content = content.replace(
+                f"<v8:content>{ru_text}</v8:content>",
+                f"<v8:content>{ua_text}</v8:content>",
+            )
+        return content
+
+    for root, _dirs, files in os.walk(ext_dir):
+        for name in files:
+            if name.lower().endswith(".xml"):
+                _patch_file(os.path.join(root, name), transform)
 
 
 def _replace_or_insert_xml_tag(content: str, tag: str, value: str) -> str:
