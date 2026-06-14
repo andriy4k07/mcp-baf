@@ -8,7 +8,9 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from mcp_baf_audit import AuditWriter
 from mcp_baf.client import OneCClient
+from mcp_baf.tools.common import traced_text
 
 # Все известные категории метаданных 1С в порядке отображения:
 # (ключ JSON-ответа 1С, отображаемое название).
@@ -45,7 +47,7 @@ METADATA_CATEGORIES = [
 NOISE_SUFFIXES = ("ПрисоединенныеФайлы", "ПрисоединённыеФайлы")
 
 
-def register(mcp: FastMCP, client: OneCClient) -> None:
+def register(mcp: FastMCP, client: OneCClient, audit: AuditWriter) -> None:
     @mcp.tool(
         name="get_metadata_tree",
         title="Дерево метаданных конфигурации",
@@ -66,15 +68,20 @@ def register(mcp: FastMCP, client: OneCClient) -> None:
             "Если не указан — возвращаются все категории."
         ))] = "",
     ) -> str:
-        tree: dict[str, list[str]] = await client.get("/metadata")
-        filter_noise(tree)
+        async def run() -> str:
+            tree: dict[str, list[str]] = await client.get("/metadata")
+            filter_noise(tree)
 
-        if filter:
-            filtered = {filter: tree[filter]} if filter in tree else {}
-            return format_metadata_tree(filtered)
+            if filter:
+                filtered = {filter: tree[filter]} if filter in tree else {}
+                return format_metadata_tree(filtered)
 
-        # Без фильтра — только названия категорий и количество объектов.
-        return format_metadata_summary(tree)
+            # Без фильтра — только названия категорий и количество объектов.
+            return format_metadata_summary(tree)
+
+        return await traced_text(
+            audit, "get_metadata_tree", run, args={"filter": filter}
+        )
 
 
 def _is_noise(name: str) -> bool:

@@ -11,10 +11,12 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from mcp_baf_audit import AuditWriter
 from mcp_baf import bsl
+from mcp_baf.tools.common import traced_text
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: FastMCP, audit: AuditWriter) -> None:
     @mcp.tool(
         name="bsl_syntax_help",
         title="Справочник функций языка 1С",
@@ -31,17 +33,20 @@ def register(mcp: FastMCP) -> None:
         ),
         annotations=ToolAnnotations(readOnlyHint=True),
     )
-    def bsl_syntax_help(
+    async def bsl_syntax_help(
         query: Annotated[str, Field(description=(
             "Название функции на русском или английском, например СтрНайти или StrFind"
         ))],
     ) -> str:
-        results = bsl.search(query)
+        async def run() -> str:
+            results = bsl.search(query)
+            if not results:
+                return f'Функция "{query}" не найдена в справочнике BSL.'
+            return format_functions(results)
 
-        if not results:
-            return f'Функция "{query}" не найдена в справочнике BSL.'
-
-        return format_functions(results)
+        return await traced_text(
+            audit, "bsl_syntax_help", run, args={"query": query}
+        )
 
 
 def format_functions(functions: list[dict[str, str]]) -> str:

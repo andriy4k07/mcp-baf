@@ -8,10 +8,12 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from mcp_baf_audit import AuditWriter
 from mcp_baf.client import OneCClient
+from mcp_baf.tools.common import traced_text
 
 
-def register(mcp: FastMCP, client: OneCClient) -> None:
+def register(mcp: FastMCP, client: OneCClient, audit: AuditWriter) -> None:
     @mcp.tool(
         name="get_object_structure",
         title="Реквизиты и структура объекта",
@@ -43,8 +45,14 @@ def register(mcp: FastMCP, client: OneCClient) -> None:
         if not object_type or not object_name:
             raise ValueError("object_type and object_name are required")
 
-        obj = await client.get(f"/object/{object_type}/{object_name}")
-        return format_object_structure(obj)
+        async def run() -> str:
+            obj = await client.get(f"/object/{object_type}/{object_name}")
+            return format_object_structure(obj)
+
+        return await traced_text(
+            audit, "get_object_structure", run,
+            args={"object_type": object_type, "object_name": object_name},
+        )
 
 
 def format_object_structure(obj: dict[str, Any]) -> str:
