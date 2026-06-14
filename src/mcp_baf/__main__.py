@@ -3,37 +3,59 @@
 from __future__ import annotations
 
 import logging
+import logging.handlers
 import os
 import sys
 
+from mcp_baf_audit import default_cache_dir
 from mcp_baf.config import load_config, parse_args
-from mcp_baf.dumpindex.cache import user_cache_dir
 from mcp_baf.server import create_server
+
+SERVER_LOG_NAME = "server.log"
+SERVER_LOG_MAX_BYTES = 5 * (1 << 20)
+SERVER_LOG_BACKUPS = 3
 
 
 def _setup_logging(debug: bool, cache_dir: str) -> None:
     """Настраивает логирование.
 
-    MCP-клиенты показывают каждую строку stderr как [error], поэтому по
-    умолчанию туда попадает только ERROR и выше. С --debug всё уходит в
-    файл server.log в кэш-каталоге на уровне INFO.
+    MCP-клиенты показывают каждую строку stderr как [error], поэтому туда
+    попадает только ERROR и выше. Операционный журнал всегда пишется в
+    server.log в кэш-каталоге (ротация по размеру, журнал переживает
+    рестарты) на уровне INFO; --debug поднимает уровень до DEBUG и
+    включает подробности httpx. Бизнес-аудит ведётся отдельно в audit.log
+    через mcp-baf-audit.
     """
-    if not debug:
-        logging.basicConfig(stream=sys.stderr, level=logging.ERROR)
-        return
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG if debug else logging.INFO)
 
-    log_dir = cache_dir or os.path.join(user_cache_dir(), "mcp-baf")
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setLevel(logging.ERROR)
+    stderr_handler.setFormatter(
+        logging.Formatter("%(levelname)s %(name)s %(message)s")
+    )
+    root.addHandler(stderr_handler)
+
+    if not debug:
+        # httpx дублирует наши строки клиента — оставляем только WARNING.
+        for noisy in ("httpx", "httpcore"):
+            logging.getLogger(noisy).setLevel(logging.WARNING)
+
+    log_dir = cache_dir or default_cache_dir("mcp-baf")
     try:
         os.makedirs(log_dir, exist_ok=True)
-        logging.basicConfig(
-            filename=os.path.join(log_dir, "server.log"),
-            filemode="w",
-            level=logging.INFO,
-            format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        file_handler = logging.handlers.RotatingFileHandler(
+            os.path.join(log_dir, SERVER_LOG_NAME),
+            maxBytes=SERVER_LOG_MAX_BYTES,
+            backupCount=SERVER_LOG_BACKUPS,
+            encoding="utf-8",
         )
     except OSError:
-        # Не удалось создать лог-файл — остаёмся на ERROR-only stderr.
-        logging.basicConfig(stream=sys.stderr, level=logging.ERROR)
+        return  # не удалось создать лог-файл — остаёмся на ERROR-only stderr
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+    )
+    root.addHandler(file_handler)
 
 
 def main() -> None:

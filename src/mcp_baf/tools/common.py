@@ -2,7 +2,46 @@
 
 from __future__ import annotations
 
+import time
+from collections.abc import Awaitable, Callable
 from typing import Any
+
+from mcp_baf_audit import AuditWriter
+
+
+async def traced_text(
+    audit: AuditWriter,
+    tool: str,
+    call: Callable[[], Awaitable[str]],
+    *,
+    args: dict[str, Any] | None = None,
+) -> str:
+    """Выполняет инструмент со сквозным аудитом и возвращает его текст как есть.
+
+    Аналог mcp_baf_audit.traced, но для инструментов mcp-baf, которые
+    возвращают готовый markdown, а не dict: текст НЕ оборачивается в JSON.
+    Каждый вызов оставляет событие tool_call (tool, args, ok, duration_ms)
+    либо tool_error с текстом исключения. trace_id берётся из contextvar
+    (writer проставляет его автоматически). Сбой аудита не ломает инструмент.
+    """
+    start = time.monotonic()
+    try:
+        result = await call()
+    except Exception as exc:
+        audit.write(
+            "tool_error",
+            level="error",
+            tool=tool, args=args or {}, error=str(exc),
+            duration_ms=int((time.monotonic() - start) * 1000),
+        )
+        raise
+
+    audit.write(
+        "tool_call",
+        tool=tool, args=args or {}, ok=True,
+        duration_ms=int((time.monotonic() - start) * 1000),
+    )
+    return result
 
 
 def clamp_limit(value: int, default: int, maximum: int) -> int:
