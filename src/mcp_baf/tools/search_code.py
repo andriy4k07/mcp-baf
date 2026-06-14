@@ -9,14 +9,15 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from mcp_baf_audit import AuditWriter
 from mcp_baf.dumpindex import DumpIndex, Match, SearchParams
-from mcp_baf.tools.common import clamp_limit
+from mcp_baf.tools.common import clamp_limit, traced_text
 
 DEFAULT_SEARCH_LIMIT = 50
 MAX_SEARCH_LIMIT = 500
 
 
-def register(mcp: FastMCP, index: DumpIndex) -> None:
+def register(mcp: FastMCP, index: DumpIndex, audit: AuditWriter) -> None:
     @mcp.tool(
         name="search_code",
         title="Поиск по коду модулей",
@@ -62,23 +63,39 @@ def register(mcp: FastMCP, index: DumpIndex) -> None:
         if not query:
             raise ValueError("query is required")
 
-        params = SearchParams(
-            query=query,
-            category=category,
-            module=module,
-            mode=mode,
-            limit=clamp_limit(limit, DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT),
+        effective_limit = clamp_limit(
+            limit, DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT
         )
-        # Поиск ходит в SQLite и сканирует строки — уводим из event loop.
-        matches, total = await asyncio.to_thread(index.search, params)
 
-        if total == 0 and index.module_count() == 0:
-            return (
-                "Индекс пуст: в директории --dump не найдено .bsl файлов. "
-                "Проверьте путь к выгрузке конфигурации."
+        async def run() -> str:
+            params = SearchParams(
+                query=query,
+                category=category,
+                module=module,
+                mode=mode,
+                limit=effective_limit,
             )
+            # Поиск ходит в SQLite и сканирует строки — уводим из event loop.
+            matches, total = await asyncio.to_thread(index.search, params)
 
-        return format_search_result(matches, total, query, mode)
+            if total == 0 and index.module_count() == 0:
+                return (
+                    "Индекс пуст: в директории --dump не найдено .bsl файлов. "
+                    "Проверьте путь к выгрузке конфигурации."
+                )
+
+            return format_search_result(matches, total, query, mode)
+
+        return await traced_text(
+            audit, "search_code", run,
+            args={
+                "query": query,
+                "mode": mode,
+                "category": category,
+                "module": module,
+                "limit": effective_limit,
+            },
+        )
 
 
 def format_search_result(

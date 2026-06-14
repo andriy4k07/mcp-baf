@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 
 from mcp.server.fastmcp import FastMCP
 
+from mcp_baf_audit import AuditLog
 from mcp_baf import prompts
 from mcp_baf.client import OneCClient
 from mcp_baf.config import Config
@@ -28,10 +29,10 @@ from mcp_baf.tools import (
 logger = logging.getLogger(__name__)
 
 # Версия расширения 1С, с которой совместим этот сервер.
-EXPECTED_EXTENSION_VERSION = "0.4.1"
+EXPECTED_EXTENSION_VERSION = "0.4.2"
 
 
-async def _check_extension_version(client: OneCClient) -> None:
+async def _check_extension_version(client: OneCClient, audit: AuditLog) -> None:
     """Сверяет версию расширения 1С с ожидаемой.
 
     Эндпоинт /version может отсутствовать в старых расширениях —
@@ -48,10 +49,18 @@ async def _check_extension_version(client: OneCClient) -> None:
             'Update: mcp-baf --install "path\\to\\db"',
             version, EXPECTED_EXTENSION_VERSION,
         )
+        audit.write(
+            "extension_version_mismatch",
+            got=version, expected=EXPECTED_EXTENSION_VERSION,
+        )
 
 
 def create_server(config: Config) -> FastMCP:
     client = OneCClient(config)
+    audit = AuditLog(
+        config.cache_dir, config.audit_max_size_mib, config.audit_archives,
+        service="mcp-baf",
+    )
 
     # Индекс строится в фоновом потоке — сервер стартует, не дожидаясь его.
     index = None
@@ -65,7 +74,16 @@ def create_server(config: Config) -> FastMCP:
 
     @asynccontextmanager
     async def lifespan(_server: FastMCP) -> AsyncIterator[None]:
-        version_check = asyncio.create_task(_check_extension_version(client))
+        from mcp_baf import __version__
+
+        # Пароль в аудит не попадает — только адрес и имя пользователя.
+        audit.write(
+            "server_start",
+            version=__version__, base_url=config.base_url, user=config.user,
+        )
+        version_check = asyncio.create_task(
+            _check_extension_version(client, audit)
+        )
         try:
             yield
         finally:
@@ -73,6 +91,7 @@ def create_server(config: Config) -> FastMCP:
             await client.aclose()
             if index is not None:
                 index.close()
+            audit.write("server_stop")
 
     mcp = FastMCP(
         name="mcp-baf",
@@ -83,17 +102,17 @@ def create_server(config: Config) -> FastMCP:
     )
 
     # Порядок регистрации совпадает с Go-версией (server/server.go).
-    metadata.register(mcp, client)
-    object_structure.register(mcp, client)
-    query.register(mcp, client)
+    metadata.register(mcp, client, audit)
+    object_structure.register(mcp, client, audit)
+    query.register(mcp, client, audit)
     if index is not None:
-        search_code.register(mcp, index)
+        search_code.register(mcp, index, audit)
     # dump-директория позволяет form-инструменту обогащать ответ из Form.xml.
-    form.register(mcp, client, config.dump_dir)
-    validate_query.register(mcp, client)
-    eventlog.register(mcp, client)
-    configuration_info.register(mcp, client)
-    bsl_help.register(mcp)
+    form.register(mcp, client, audit, config.dump_dir)
+    validate_query.register(mcp, client, audit)
+    eventlog.register(mcp, client, audit)
+    configuration_info.register(mcp, client, audit)
+    bsl_help.register(mcp, audit)
     prompts.register(mcp)
 
     return mcp

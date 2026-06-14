@@ -7,7 +7,9 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from mcp_baf_audit import AuditWriter
 from mcp_baf.client import OneCClient
+from mcp_baf.tools.common import traced_text
 
 _MODE_NAMES = {
     "file": "Файловый",
@@ -15,7 +17,7 @@ _MODE_NAMES = {
 }
 
 
-def register(mcp: FastMCP, client: OneCClient) -> None:
+def register(mcp: FastMCP, client: OneCClient, audit: AuditWriter) -> None:
     @mcp.tool(
         name="get_configuration_info",
         title="Информация о конфигурации",
@@ -27,8 +29,11 @@ def register(mcp: FastMCP, client: OneCClient) -> None:
         annotations=ToolAnnotations(readOnlyHint=True),
     )
     async def get_configuration_info() -> str:
-        info = await client.get("/configuration")
-        return format_configuration_info(info)
+        async def run() -> str:
+            info = await client.get("/configuration")
+            return format_configuration_info(info)
+
+        return await traced_text(audit, "get_configuration_info", run)
 
 
 def format_configuration_info(info: dict[str, Any]) -> str:
