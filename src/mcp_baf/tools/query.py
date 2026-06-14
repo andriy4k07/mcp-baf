@@ -8,14 +8,15 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from mcp_baf_audit import AuditWriter
 from mcp_baf.client import OneCClient
-from mcp_baf.tools.common import clamp_limit, escape_pipe, format_cell
+from mcp_baf.tools.common import clamp_limit, escape_pipe, format_cell, traced_text
 
 DEFAULT_QUERY_LIMIT = 100
 MAX_QUERY_LIMIT = 1000
 
 
-def register(mcp: FastMCP, client: OneCClient) -> None:
+def register(mcp: FastMCP, client: OneCClient, audit: AuditWriter) -> None:
     @mcp.tool(
         name="execute_query",
         title="Выполнить запрос к данным",
@@ -55,15 +56,24 @@ def register(mcp: FastMCP, client: OneCClient) -> None:
         if not prefix.startswith("ВЫБРАТЬ") and not prefix.startswith("SELECT"):
             raise ValueError("только SELECT/ВЫБРАТЬ запросы разрешены")
 
-        body: dict[str, Any] = {
-            "query": query,
-            "limit": clamp_limit(limit, DEFAULT_QUERY_LIMIT, MAX_QUERY_LIMIT),
-        }
-        if parameters:
-            body["parameters"] = parameters
+        effective_limit = clamp_limit(limit, DEFAULT_QUERY_LIMIT, MAX_QUERY_LIMIT)
 
-        result = await client.post("/query", body)
-        return format_query_result(result)
+        async def run() -> str:
+            body: dict[str, Any] = {"query": query, "limit": effective_limit}
+            if parameters:
+                body["parameters"] = parameters
+
+            result = await client.post("/query", body)
+            return format_query_result(result)
+
+        return await traced_text(
+            audit, "execute_query", run,
+            args={
+                "query": query,
+                "limit": effective_limit,
+                "parameters": sorted(parameters) if parameters else [],
+            },
+        )
 
 
 def format_query_result(r: dict[str, Any]) -> str:

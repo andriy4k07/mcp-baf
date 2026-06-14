@@ -17,14 +17,17 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from mcp_baf_audit import AuditWriter
 from mcp_baf.client import OneCClient, OneCError
 from mcp_baf.dumpindex import formparser
-from mcp_baf.tools.common import escape_pipe
+from mcp_baf.tools.common import escape_pipe, traced_text
 
 logger = logging.getLogger(__name__)
 
 
-def register(mcp: FastMCP, client: OneCClient, dump_dir: str = "") -> None:
+def register(
+    mcp: FastMCP, client: OneCClient, audit: AuditWriter, dump_dir: str = ""
+) -> None:
     @mcp.tool(
         name="get_form_structure",
         title="Структура формы объекта",
@@ -51,41 +54,52 @@ def register(mcp: FastMCP, client: OneCClient, dump_dir: str = "") -> None:
         if not object_type or not object_name:
             raise ValueError("object_type and object_name are required")
 
-        # HTTP-endpoint отдаёт имя и заголовок формы (синоним из конфигурации).
-        form: dict[str, Any] = {}
-        http_error: Exception | None = None
-        try:
-            form = await client.get(f"/form/{object_type}/{object_name}")
-        except OneCError as exc:
-            http_error = exc
-
-        if dump_dir:
+        async def run() -> str:
+            # HTTP-endpoint отдаёт имя и заголовок формы (синоним из конфигурации).
+            form: dict[str, Any] = {}
+            http_error: Exception | None = None
             try:
-                dump_form = await asyncio.to_thread(
-                    form_from_dump, dump_dir, object_type, object_name, form_name
-                )
-            except Exception as dump_error:  # noqa: BLE001
-                if http_error is not None:
-                    # Оба источника упали — возвращаем комбинированную ошибку,
-                    # чтобы было видно, почему показать нечего.
-                    raise OneCError(
-                        f"fetching form structure from 1C: {http_error} "
-                        f"(dump fallback: {dump_error})"
-                    ) from http_error
-                # HTTP дал хотя бы имя и заголовок, но обогащение из dump
-                # не сработало — логируем, чтобы пользователь заметил.
-                logger.warning(
-                    "Form dump enrichment failed: object=%s.%s form=%s error=%s",
-                    object_type, object_name, form_name, dump_error,
-                )
-            else:
-                merge_dump_into_form(form, dump_form)
-        elif http_error is not None:
-            raise OneCError(
-                f"fetching form structure from 1C: {http_error}"
-            ) from http_error
+                form = await client.get(f"/form/{object_type}/{object_name}")
+            except OneCError as exc:
+                http_error = exc
 
-        return format_form_structure(form)
+            if dump_dir:
+                try:
+                    dump_form = await asyncio.to_thread(
+                        form_from_dump,
+                        dump_dir, object_type, object_name, form_name,
+                    )
+                except Exception as dump_error:  # noqa: BLE001
+                    if http_error is not None:
+                        # Оба источника упали — возвращаем комбинированную ошибку,
+                        # чтобы было видно, почему показать нечего.
+                        raise OneCError(
+                            f"fetching form structure from 1C: {http_error} "
+                            f"(dump fallback: {dump_error})"
+                        ) from http_error
+                    # HTTP дал хотя бы имя и заголовок, но обогащение из dump
+                    # не сработало — логируем, чтобы пользователь заметил.
+                    logger.warning(
+                        "Form dump enrichment failed: object=%s.%s form=%s error=%s",
+                        object_type, object_name, form_name, dump_error,
+                    )
+                else:
+                    merge_dump_into_form(form, dump_form)
+            elif http_error is not None:
+                raise OneCError(
+                    f"fetching form structure from 1C: {http_error}"
+                ) from http_error
+
+            return format_form_structure(form)
+
+        return await traced_text(
+            audit, "get_form_structure", run,
+            args={
+                "object_type": object_type,
+                "object_name": object_name,
+                "form_name": form_name,
+            },
+        )
 
 
 def form_from_dump(

@@ -11,6 +11,11 @@ import os
 import sys
 from dataclasses import dataclass
 
+from mcp_baf_audit import (
+    DEFAULT_AUDIT_ARCHIVES,
+    DEFAULT_AUDIT_MAX_SIZE_MIB,
+)
+
 DEFAULT_BASE_URL = "http://localhost:8080/hs/mcp-baf"
 
 # Лимит размера ответа 1С по умолчанию, в мебибайтах (MiB).
@@ -39,6 +44,9 @@ class Config:
     debug: bool = False
     # Управление прогрессом на stderr: True => выводить (терминальный запуск).
     show_progress: bool = False
+    # Ротация audit.log: лимит размера (MiB) и число хранимых архивов.
+    audit_max_size_mib: int = DEFAULT_AUDIT_MAX_SIZE_MIB
+    audit_archives: int = DEFAULT_AUDIT_ARCHIVES
 
 
 def _env_int(name: str, default: int) -> int:
@@ -135,6 +143,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
              f"Default: {DEFAULT_REQUEST_TIMEOUT}.",
     )
     parser.add_argument(
+        "--audit-max-size", type=int, default=0, metavar="MIB",
+        help="Rotate audit.log when it exceeds this size, in MiB. "
+             f"Default: {DEFAULT_AUDIT_MAX_SIZE_MIB}.",
+    )
+    parser.add_argument(
+        "--audit-archives", type=int, default=0, metavar="N",
+        help="Number of rotated audit-*.log archives to keep. "
+             f"Default: {DEFAULT_AUDIT_ARCHIVES}.",
+    )
+    parser.add_argument(
         "--version", action="version", version=f"mcp-baf {_version()}",
     )
     return parser.parse_args(argv)
@@ -156,6 +174,10 @@ def load_config(args: argparse.Namespace) -> Config:
             "mcp_baf_MAX_RESPONSE_SIZE", DEFAULT_MAX_RESPONSE_SIZE_MIB
         ),
         request_timeout=_env_int("mcp_baf_REQUEST_TIMEOUT", DEFAULT_REQUEST_TIMEOUT),
+        audit_max_size_mib=_env_int(
+            "mcp_baf_AUDIT_MAX_SIZE", DEFAULT_AUDIT_MAX_SIZE_MIB
+        ),
+        audit_archives=_env_int("mcp_baf_AUDIT_ARCHIVES", DEFAULT_AUDIT_ARCHIVES),
     )
 
     if args.base:
@@ -170,6 +192,10 @@ def load_config(args: argparse.Namespace) -> Config:
         cfg.max_response_size_mib = args.max_response_size
     if args.request_timeout > 0:
         cfg.request_timeout = args.request_timeout
+    if args.audit_max_size > 0:
+        cfg.audit_max_size_mib = args.audit_max_size
+    if args.audit_archives > 0:
+        cfg.audit_archives = args.audit_archives
 
     cfg.cache_dir = args.cache_dir or os.environ.get("mcp_baf_CACHE_DIR", "")
     cfg.reindex = args.reindex
