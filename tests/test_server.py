@@ -43,10 +43,10 @@ def test_lifespan_writes_server_start_stop(tmp_path):
         for line in (tmp_path / "audit.log").read_text("utf-8").splitlines()
     ]
     names = [e["event"] for e in events]
-    assert "server_start" in names
-    assert "server_stop" in names
+    assert "server.start" in names
+    assert "server.stop" in names
 
-    start = next(e for e in events if e["event"] == "server_start")
+    start = next(e for e in events if e["event"] == "server.start")
     assert start["service"] == "mcp-baf"
     assert start["base_url"] == "http://test/hs/mcp-baf"
     # Пароль в аудит не попадает.
