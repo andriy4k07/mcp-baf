@@ -2,7 +2,7 @@
 
 В отличие от mcp_baf_audit.traced, инструменты mcp-baf возвращают готовый
 markdown, поэтому traced_text не оборачивает результат в JSON — он отдаётся
-как есть, а в audit.log пишется событие tool_call/tool_error.
+как есть, а в audit.log пишется каноническое событие tool.call/tool.error.
 """
 
 import asyncio
@@ -32,11 +32,13 @@ def test_traced_text_returns_markdown_unchanged(tmp_path):
     assert out == "# Заголовок\n\n- пункт\n"
 
     event = last_event(tmp_path)
-    assert event["event"] == "tool_call"
+    assert event["event"] == "tool.call"
     assert event["tool"] == "get_metadata_tree"
     assert event["args"] == {"filter": "Справочники"}
     assert event["ok"] is True
     assert isinstance(event["duration_ms"], int)
+    # trace_id фиксируется и не null (контракт v2)
+    assert event["trace_id"]
 
 
 def test_traced_text_logs_tool_error_on_exception(tmp_path):
@@ -51,7 +53,7 @@ def test_traced_text_logs_tool_error_on_exception(tmp_path):
         ))
 
     event = last_event(tmp_path)
-    assert event["event"] == "tool_error"
+    assert event["event"] == "tool.error"
     assert event["tool"] == "execute_query"
     assert event["level"] == "error"
     assert "1C недоступна" in event["error"]
