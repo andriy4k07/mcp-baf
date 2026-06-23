@@ -9,10 +9,11 @@ requires-python = ">=3.11"
 dependencies = [
     "mcp>=1.9",
     "httpx>=0.27",
-    # Общий контракт аудита. В монорепо ставится из ../mcp-baf-audit
-    # (pip install -e ../mcp-baf-audit); пин по тегу: mcp-baf-audit==0.1.0
-    # (pip install "git+<repo>/mcp-baf-audit.git@v0.1.0").
-    "mcp-baf-audit>=0.1",
+    # Общий контракт аудита (schema v2: канонические события, one_c.http,
+    # сквозной trace_id). В монорепо ставится из ../mcp-baf-audit
+    # (pip install -e ../mcp-baf-audit); пин по тегу: mcp-baf-audit==0.2.1
+    # (pip install "git+<repo>/mcp-baf-audit.git@v0.2.1").
+    "mcp-baf-audit>=0.2.1",
 ]
 
 [project.optional-dependencies]

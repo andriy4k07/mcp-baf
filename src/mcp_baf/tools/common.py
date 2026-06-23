@@ -6,7 +6,7 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from mcp_baf_audit import AuditWriter
+from mcp_baf_audit import AuditWriter, get_trace_id, new_trace_id, set_trace_id
 
 
 async def traced_text(
@@ -20,17 +20,24 @@ async def traced_text(
 
     Аналог mcp_baf_audit.traced, но для инструментов mcp-baf, которые
     возвращают готовый markdown, а не dict: текст НЕ оборачивается в JSON.
-    Каждый вызов оставляет событие tool_call (tool, args, ok, duration_ms)
-    либо tool_error с текстом исключения. trace_id берётся из contextvar
-    (writer проставляет его автоматически). Сбой аудита не ломает инструмент.
+    Каждый вызов оставляет событие tool.call (tool, args, ok, duration_ms)
+    либо tool.error с текстом исключения.
+
+    trace_id фиксируется в начале (унаследованный из contextvar или новый,
+    никогда не null) и записывается в события инструмента; вложенные события
+    того же контекста (one_c.http из клиента) наследуют его через contextvar.
+    Сбой аудита не ломает инструмент.
     """
+    trace_id = get_trace_id() or new_trace_id()
+    set_trace_id(trace_id)
+
     start = time.monotonic()
     try:
         result = await call()
     except Exception as exc:
         audit.write(
             "tool_error",
-            level="error",
+            level="error", trace_id=trace_id,
             tool=tool, args=args or {}, error=str(exc),
             duration_ms=int((time.monotonic() - start) * 1000),
         )
@@ -38,6 +45,7 @@ async def traced_text(
 
     audit.write(
         "tool_call",
+        trace_id=trace_id,
         tool=tool, args=args or {}, ok=True,
         duration_ms=int((time.monotonic() - start) * 1000),
     )
