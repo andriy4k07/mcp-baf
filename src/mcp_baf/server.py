@@ -56,11 +56,13 @@ async def _check_extension_version(client: OneCClient, audit: AuditLog) -> None:
 
 
 def create_server(config: Config) -> FastMCP:
-    client = OneCClient(config)
     audit = AuditLog(
         config.cache_dir, config.audit_max_size_mib, config.audit_archives,
         service="mcp-baf",
     )
+    # Клиент получает audit → каждый вызов 1С оставляет событие one_c.http,
+    # наследующее trace_id текущего инструмента (см. tools.common.traced_text).
+    client = OneCClient(config, audit=audit)
 
     # Индекс строится в фоновом потоке — сервер стартует, не дожидаясь его.
     index = None
