@@ -16,6 +16,12 @@ def mk_bsl(root, rel_path, content):
     path.write_text(content, encoding="utf-8-sig")
 
 
+def rm_bsl(root, rel_path):
+    # Зеркало mk_bsl: на POSIX бэкслеши — часть имени одного файла,
+    # на Windows pathlib разбирает их как разделители.
+    os.remove(root / rel_path.replace("/", "\\"))
+
+
 def build(dump_dir, cache_dir, reindex=False):
     idx = DumpIndex(str(dump_dir), cache_dir=str(cache_dir), reindex=reindex)
     assert idx.wait_ready(BUILD_TIMEOUT), idx.build_error()
@@ -53,7 +59,7 @@ def test_incremental_add_modify_delete(tmp_path):
     # mtime-гранулярность: гарантируем отличие метки времени.
     time.sleep(0.01)
 
-    os.remove(dump / "Catalogs" / "Старый" / "Ext" / "ObjectModule.bsl")
+    rm_bsl(dump, "Catalogs/Старый/Ext/ObjectModule.bsl")
     mk_bsl(dump, "Catalogs/Меняется/Ext/ObjectModule.bsl", "ПослеИзменения = 2;\n")
     mk_bsl(dump, "Catalogs/Новый/Ext/ObjectModule.bsl", "НовоеСодержимое = 3;\n")
 

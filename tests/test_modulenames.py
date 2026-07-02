@@ -6,7 +6,11 @@
 
 import pytest
 
-from mcp_baf.dumpindex.modulenames import bsl_path_to_module_name, parse_module_name
+from mcp_baf.dumpindex.modulenames import (
+    bsl_path_to_module_name,
+    nfc,
+    parse_module_name,
+)
 
 
 @pytest.mark.parametrize(
@@ -48,3 +52,28 @@ def test_parse_module_name_form_path():
 def test_parse_module_name_simple():
     parts = parse_module_name("Справочник.Номенклатура.МодульОбъекта")
     assert parts == ("Справочник", "Номенклатура", "МодульОбъекта")
+
+
+# ── NFC-нормализация (порт fix(dump) NFC из Go-версии) ──
+# NFD-строки записаны escape-последовательностями (база + комбинируемый
+# знак), чтобы точные байты пережили пересохранение файла редактором.
+
+
+def test_nfc_composes_all_decomposable_letters():
+    # Все четыре кириллические буквы 1С-идентификаторов, разложимые в NFD:
+    # й, ё и их заглавные варианты.
+    nfd = "\u0438\u0306 \u0435\u0308 \u0418\u0306 \u0415\u0308"
+    assert nfc(nfd) == "\u0439 \u0451 \u0419 \u0401"
+
+
+@pytest.mark.parametrize("s", ["", "ObjectModule", "Настройки", "Йогурт"])
+def test_nfc_returns_nfc_input_unchanged(s):
+    assert nfc(s) is s
+
+
+def test_bsl_path_to_module_name_normalizes_nfd():
+    # macOS хранит имена файлов в NFD — имя модуля должно выйти в NFC,
+    # иначе оно не совпадёт с именами из запросов и HTTP-ответов 1С.
+    nfd_object = "\u0418\u0306огурт"  # "Йогурт" в NFD
+    got = bsl_path_to_module_name(f"Catalogs/{nfd_object}/Ext/ObjectModule.bsl")
+    assert got == "Справочник.Йогурт.МодульОбъекта"
