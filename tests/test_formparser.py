@@ -169,3 +169,16 @@ def test_find_form_files_rejects_traversal(tmp_path):
         formparser.find_form_files(str(tmp_path), "Catalog", "..\\evil")
     with pytest.raises(ValueError, match="unknown object type"):
         formparser.find_form_files(str(tmp_path), "Nonsense", "Тест")
+
+
+def test_find_form_files_normalizes_nfd_entries(tmp_path):
+    # macOS отдаёт listdir в NFD — ключ словаря должен быть NFC, чтобы
+    # form_name из запроса (NFC) находил форму; путь хранит сырое имя.
+    nfd_form = "ФормаНастрои\u0306ки"  # "ФормаНастройки" в NFD
+    form_xml = tmp_path / "Catalogs" / "Тест" / "Forms" / nfd_form / "Ext" / "Form.xml"
+    form_xml.parent.mkdir(parents=True)
+    form_xml.write_text("<Form/>", encoding="utf-8")
+
+    files = formparser.find_form_files(str(tmp_path), "Catalog", "Тест")
+    assert list(files) == ["ФормаНастройки"]  # NFC
+    assert files["ФормаНастройки"] == str(form_xml)
