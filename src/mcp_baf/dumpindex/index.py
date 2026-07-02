@@ -27,13 +27,20 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 from mcp_baf.dumpindex.cache import index_db_path
-from mcp_baf.dumpindex.modulenames import bsl_path_to_module_name, parse_module_name
+from mcp_baf.dumpindex.modulenames import (
+    bsl_path_to_module_name,
+    nfc,
+    parse_module_name,
+)
 from mcp_baf.dumpindex.synonyms import build_synonym_map
 
 logger = logging.getLogger(__name__)
 
 # Версия схемы кэша. Несовпадение -> кэш отбрасывается и строится заново.
-SCHEMA_VERSION = 1
+# v2: имена модулей NFC-нормализованы — кэш, построенный до фикса на macOS,
+# хранит NFD-ключи, которые NFC-запрос никогда не найдёт, поэтому он
+# перестраивается (аналог bump dumpIndexSchemaVersion в Go-версии).
+SCHEMA_VERSION = 2
 
 # Окно контекста вокруг найденной строки, в строках с каждой стороны.
 CONTEXT_WINDOW = 2
@@ -363,10 +370,13 @@ class DumpIndex:
         if limit <= 0:
             limit = 50
         limit = min(limit, 500)
+        # Аргументы поиска нормализуются в NFC, как и ключи индекса:
+        # NFD-строка (например, скопированная из macOS-выгрузки) иначе
+        # никогда не совпадёт с NFC-значениями в базе.
         params = SearchParams(
-            query=params.query,
-            category=params.category,
-            module=params.module,
+            query=nfc(params.query),
+            category=nfc(params.category),
+            module=nfc(params.module),
             mode=params.mode or "smart",
             limit=limit,
         )

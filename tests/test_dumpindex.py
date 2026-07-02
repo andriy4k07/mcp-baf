@@ -125,3 +125,33 @@ def test_bom_stripped(index):
     matches, _ = index.search(SearchParams(query="ПередЗаписью", mode="exact"))
     assert matches[0].line == 1
     assert matches[0].context.startswith("Процедура")
+
+
+def test_nfd_dump_names_resolve_to_nfc(tmp_path):
+    # macOS распаковывает выгрузку с NFD-именами (Й = И + комбинируемый знак).
+    # Имена модулей и фильтры должны сходиться в NFC, иначе фильтр по
+    # NFC-значению никогда не найдёт NFD-ключ из пути на диске.
+    nfd_object = "И\u0306огурт"  # "Йогурт" в NFD
+    mk_bsl(
+        tmp_path,
+        f"InformationRegisters/{nfd_object}/Ext/RecordSetModule.bsl",
+        "Процедура ПередЗаписью(Отказ, Замещение)\nКонецПроцедуры\n",
+    )
+    idx = DumpIndex(str(tmp_path), use_cache=False)
+    assert idx.wait_ready(BUILD_TIMEOUT)
+    try:
+        # Фильтры переданы в NFD (например, скопированы из macOS-выгрузки) —
+        # search() нормализует аргументы так же, как ключи индекса.
+        matches, total = idx.search(
+            SearchParams(
+                query="ПередЗаписью",
+                mode="exact",
+                category="РегистрСведении\u0306",   # "РегистрСведений" в NFD
+                module="МодульНабораЗаписеи\u0306",  # "МодульНабораЗаписей" в NFD
+            )
+        )
+        assert total == 1
+        # Имя модуля в результате — NFC ("Йогурт" одним символом Й).
+        assert matches[0].module == "РегистрСведений.Йогурт.МодульНабораЗаписей"
+    finally:
+        idx.close()

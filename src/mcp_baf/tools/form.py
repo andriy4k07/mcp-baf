@@ -20,6 +20,7 @@ from pydantic import Field
 from mcp_baf_audit import AuditWriter
 from mcp_baf.client import OneCClient, OneCError
 from mcp_baf.dumpindex import formparser
+from mcp_baf.dumpindex.modulenames import nfc
 from mcp_baf.tools.common import escape_pipe, traced_text
 
 logger = logging.getLogger(__name__)
@@ -106,6 +107,8 @@ def form_from_dump(
     dump_dir: str, object_type: str, object_name: str, form_name: str
 ) -> dict[str, Any]:
     """Загружает структуру формы из Form.xml dump-выгрузки."""
+    # Ключи find_form_files — NFC; NFD-имя из запроса нормализуется так же.
+    form_name = nfc(form_name)
     form_files = formparser.find_form_files(dump_dir, object_type, object_name)
     if not form_files:
         raise OneCError(f"no forms found in dump for {object_type}.{object_name}")

@@ -28,7 +28,7 @@ import os
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 
-from mcp_baf.dumpindex.modulenames import OBJECT_TYPE_TO_DUMP_DIR
+from mcp_baf.dumpindex.modulenames import OBJECT_TYPE_TO_DUMP_DIR, nfc
 
 
 @dataclass
@@ -138,7 +138,9 @@ def find_form_files(
     for entry in entries:
         form_xml = os.path.join(forms_dir, entry, "Ext", "Form.xml")
         if os.path.isfile(form_xml):
-            result[entry] = form_xml
+            # Ключ — NFC-имя формы (macOS отдаёт listdir в NFD, а form_name
+            # из запроса приходит в NFC); путь хранит сырое имя с диска.
+            result[nfc(entry)] = form_xml
     return result
 
 
