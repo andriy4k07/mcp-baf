@@ -18,9 +18,8 @@ def register(mcp: FastMCP, client: OneCClient, audit: AuditWriter) -> None:
         name="validate_query",
         title="Проверка синтаксиса запроса",
         description=(
-            "Проверить синтаксис запроса 1С без выполнения, найдёт ошибки в ВЫБРАТЬ/SELECT. "
-            "Используй перед execute_query чтобы валидировать запрос. "
-            "Всегда вызывай перед execute_query для проверки синтаксиса."
+            "Проверить синтаксис запроса 1С без выполнения — найдёт ошибки "
+            "в ВЫБРАТЬ/SELECT. Всегда вызывай перед execute_query."
         ),
         annotations=ToolAnnotations(readOnlyHint=True),
     )
