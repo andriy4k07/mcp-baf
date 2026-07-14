@@ -174,6 +174,7 @@ def load_config(args: argparse.Namespace) -> Config:
             "mcp_baf_MAX_RESPONSE_SIZE", DEFAULT_MAX_RESPONSE_SIZE_MIB
         ),
         request_timeout=_env_int("mcp_baf_REQUEST_TIMEOUT", DEFAULT_REQUEST_TIMEOUT),
+        dump_dir=os.environ.get("mcp_baf_DUMP_DIR", ""),
         audit_max_size_mib=_env_int(
             "mcp_baf_AUDIT_MAX_SIZE", DEFAULT_AUDIT_MAX_SIZE_MIB
         ),
