@@ -13,6 +13,7 @@ build/
 dist/
 *.egg-info/
 .eggs/
+uv.lock
 
 # Test / lint caches
 .pytest_cache/
