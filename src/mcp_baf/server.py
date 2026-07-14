@@ -31,6 +31,51 @@ logger = logging.getLogger(__name__)
 # Версия расширения 1С, с которой совместим этот сервер.
 EXPECTED_EXTENSION_VERSION = "0.4.2"
 
+_INSTRUCTIONS = (
+    "MCP-сервер для ЧТЕНИЯ базы 1С:Предприятие (BAF) через HTTP-сервис: "
+    "метаданные, запросы, полнотекстовый поиск по коду, журнал регистрации, "
+    "справка BSL. Записи в базу нет.\n"
+    "Порядок работы с незнакомой базой: get_configuration_info (что за "
+    "конфигурация) -> get_metadata_tree (какие объекты есть) -> "
+    "get_object_structure (точные имена реквизитов/табличных частей) -> "
+    "validate_query -> execute_query. Имена объектов и полей бери из этих "
+    "инструментов, не угадывай.\n"
+    "Код конфигурации ищи через search_code (требует запуска с --dump); "
+    "синтаксис встроенных функций BSL — bsl_syntax_help; структура форм — "
+    "get_form_structure (полная тоже требует --dump); ошибки и действия "
+    "пользователей — get_event_log."
+)
+
+
+def _strip_schema_titles(schema: dict) -> None:
+    """Убирает автогенерированные pydantic'ом "title" из JSON-схемы.
+
+    Смысла для модели они не несут ("object_name" -> "Object Name"), но
+    раздувают init-payload. Чистятся только узлы схемы; ключи словаря
+    properties (имена параметров) не трогаются.
+    """
+    schema.pop("title", None)
+    props = schema.get("properties")
+    if isinstance(props, dict):
+        for sub in props.values():
+            if isinstance(sub, dict):
+                _strip_schema_titles(sub)
+    for key in ("items", "additionalProperties"):
+        sub = schema.get(key)
+        if isinstance(sub, dict):
+            _strip_schema_titles(sub)
+    for key in ("anyOf", "oneOf", "allOf", "prefixItems"):
+        subs = schema.get(key)
+        if isinstance(subs, list):
+            for sub in subs:
+                if isinstance(sub, dict):
+                    _strip_schema_titles(sub)
+    defs = schema.get("$defs")
+    if isinstance(defs, dict):
+        for sub in defs.values():
+            if isinstance(sub, dict):
+                _strip_schema_titles(sub)
+
 
 async def _check_extension_version(client: OneCClient, audit: AuditLog) -> None:
     """Сверяет версию расширения 1С с ожидаемой.
@@ -97,9 +142,7 @@ def create_server(config: Config) -> FastMCP:
 
     mcp = FastMCP(
         name="mcp-baf",
-        instructions=(
-            "MCP-сервер для работы с базой 1С:Предприятие через HTTP-сервис."
-        ),
+        instructions=_INSTRUCTIONS,
         lifespan=lifespan,
     )
 
@@ -116,5 +159,10 @@ def create_server(config: Config) -> FastMCP:
     configuration_info.register(mcp, client, audit)
     bsl_help.register(mcp, audit)
     prompts.register(mcp)
+
+    # Схемы чистятся после регистрации всех инструментов; валидацию вызовов
+    # это не задевает (она идёт по fn_metadata, а не по этому dict).
+    for tool in mcp._tool_manager._tools.values():  # noqa: SLF001
+        _strip_schema_titles(tool.parameters)
 
     return mcp
