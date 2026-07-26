@@ -44,3 +44,13 @@ Entry point `__main__.py:main` has two modes: `--install` runs `installer.py` (l
 - Branch per task named after the actual work (`fix/<what>`, `feature/<N>-<name>`); commit in logical blocks (several commits grouped by file/feature); commit messages in English; PR title in English (body may be Ukrainian). He often asks for the PR title+description as markdown text to paste himself.
 - Only the owner can install the extension on the live base (`--install`; supports `--lang ua|ru`, default Ukrainian — the target base's primary language is Ukrainian). Remember the `EXPECTED_EXTENSION_VERSION` sync rule above on every `extension_src/` change.
 - Ecosystem context: this is the read side; the write side is the sibling `baf-write-mcp`, shared logging is `mcp-baf-audit` (PyPI), and both feed `baf-ops-dashboard` and the remote hermes-agent. Everything is branded "baf" — don't reintroduce "1c" into URLs, names, or docs.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
