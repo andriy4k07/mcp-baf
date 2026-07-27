@@ -35,6 +35,9 @@ stderr.log
 .DS_Store
 Thumbs.db
 
+# claude
+.claude/settings.json
+
 # graphify (graph.json, GRAPH_REPORT.md, manifest.json are committed)
 graphify-out/cost.json
 graphify-out/graph.html
