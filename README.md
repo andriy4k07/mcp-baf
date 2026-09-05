@@ -10,7 +10,7 @@ Python-порт [feenlace/mcp-1c](https://github.com/feenlace/mcp-1c) (Go, MIT):
 
 mcp-baf не прив'язаний до конкретної нейромережі. Працює з будь-яким MCP-сумісним клієнтом:
 
-- **Локальні моделі** (Ollama, LM Studio, llama.cpp) — дані не покидають вашу мережу
+- **Локальні моделі** (Ollama, LM Studio, llama.cpp, vLLM) — дані не покидають вашу мережу
 - **Хмарні сервіси** (Claude, GPT та інші) — через відповідні MCP-клієнти
 - **IDE з AI** (Cursor, VS Code + Continue/Cline, JetBrains)
 
