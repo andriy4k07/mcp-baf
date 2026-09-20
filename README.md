@@ -85,8 +85,8 @@ mcp-baf --install "C:\шлях\до\бази" --lang ru
       "command": "/шлях/до/.venv/bin/mcp-baf",
       "args": ["--base", "http://localhost:8080/hs/mcp-baf"],
       "env": {
-        "mcp_baf_USER": "Адміністратор",
-        "mcp_baf_PASSWORD": "пароль"
+        "mcp_baf_USER": "username",
+        "mcp_baf_PASSWORD": "password"
       }
     }
   }
