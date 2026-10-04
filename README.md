@@ -139,7 +139,7 @@ claude mcp add mcp-baf \
 | `bsl_analyze` | Базові перевірки тексту BSL власним Python-аналізатором; доступний завжди |
 | `bsl_format` | Вирівнює відступи тексту BSL, зберігає токени й не змінює вихідні файли; доступний завжди |
 
-Без опцій зареєстровано 13 інструментів; `--dump` додає один, `--help-dir` — два. Максимум — 16. HTTP-інструменти показуються лише за доступності відповідних методів. Потрібне розширення **0.5.5** з `/capabilities`; зі старим або недоступним розширенням працюють локальні інструменти. Прямий виклик прихованого HTTP-інструмента також відхиляється.
+Без опцій зареєстровано 13 інструментів; `--dump` додає один, `--help-dir` — два. Максимум — 16. HTTP-інструменти показуються лише за доступності відповідних методів. Потрібне розширення **0.5.6** з `/capabilities`; зі старим або недоступним розширенням працюють локальні інструменти. Прямий виклик прихованого HTTP-інструмента також відхиляється.
 
 Плюс 11 промптів: `review_module`, `write_posting`, `optimize_query`, `explain_config`, `analyze_error`, `find_duplicates`, `write_report`, `explain_object`, `1c_query_syntax`, `1c_metadata_navigation`, `1c_development_workflow`.
 
@@ -216,7 +216,7 @@ mcp-baf --base http://localhost:8080/hs/mcp-baf \
 .venv\Scripts\python -m pytest tests      # тести
 ```
 
-Ручна e2e-перевірка (`scripts/e2e_check.py`) працює з HTTP-сервісом розширення 0.5.5; URL задається через `--base`. Для нових контрактів є локальні тести на MockTransport.
+Ручна e2e-перевірка (`scripts/e2e_check.py`) працює з HTTP-сервісом розширення 0.5.6; URL задається через `--base`. Для нових контрактів є локальні тести на MockTransport.
 
 Довідник BSL-функцій (`src/mcp_baf/bsl/_functions_data.py`) генерується з [`bsl/functions.go` у feenlace/mcp-1c](https://github.com/feenlace/mcp-1c): `python scripts/gen_bsl_data.py <шлях/до/functions.go>`.
 

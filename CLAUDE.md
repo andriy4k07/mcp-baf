@@ -16,7 +16,7 @@ Code comments and docstrings are in Russian, the README is in Ukrainian — foll
 .venv/bin/python -m pytest tests/test_server.py::test_registered_tools  # single test
 ```
 
-There is no linter or formatter configured. Manual e2e check (`scripts/e2e_check.py --base <url>`) uses the 0.5.5 extension; pytest provides local mocked contract checks.
+There is no linter or formatter configured. Manual e2e check (`scripts/e2e_check.py --base <url>`) uses the 0.5.6 extension; pytest provides local mocked contract checks.
 
 The dependency `mcp-baf-audit` is a sibling repo: in local development install it with `pip install -e ../mcp-baf-audit`; releases pin by git tag.
 
@@ -59,8 +59,8 @@ Rules:
 
 ## New local tools and access control
 
-- `access.py:AccessMCP` filters `list_tools` by GET `/capabilities` and refreshes rights before each HTTP tool call. Missing/unavailable capabilities denies HTTP tools; local tools remain available. Denials are audited without business arguments. Extension handlers check the same effective method permissions.
-- `helpindex/` adapts the MIT HBK container parser from onec-help-mcp; preserve the copyright header and bundled license. The index is SQLite FTS5, built in a background thread, atomically cached by input manifest. It is enabled only by `--help-dir`; section classification is heuristic.
-- `bsl_native/` is an independently implemented Python lexer/parser, eight basic checks and a conservative indentation formatter. Both BSL tools are always registered. It is not a full compiler or BSL Language Server; preprocessor conditions are not evaluated. `src` is code, not a path; no subprocesses or code files are created. Preserve all tokens when formatting, including literals/comments and LF/CRLF. Source text and diagnostics must not enter the audit.
+- `access.py:AccessMCP` filters `list_tools` and gates HTTP tool calls by GET `/capabilities`, cached for 30 s (5 s after a failure) and shared by both — no extra request per call; the extension handler is the authority and returns 403. Every registered tool must be in `access.TOOL_METHODS` or in the explicit local set in `tests/test_server.py`. Missing/unavailable capabilities denies HTTP tools; local tools remain available. Denials are audited without business arguments. Extension handlers check the same effective method permissions.
+- `helpindex/` adapts the MIT HBK container parser from onec-help-mcp; preserve the copyright header and bundled license. The index is SQLite FTS5 with prefix matching, built in a background thread, atomically cached by input manifest; a broken `.hbk` is skipped, not fatal. It is enabled only by `--help-dir`; section classification is heuristic.
+- `bsl_native/` is an independently implemented Python lexer/parser, eight basic checks and a conservative indentation formatter. Both BSL tools are always registered. It is not a full compiler or BSL Language Server; preprocessor conditions are not evaluated. `src` is code, not a path; no subprocesses or code files are created. Preserve all tokens when formatting, including literals/comments and LF/CRLF. Before changing the lexer/parser, run it over real config dumps: a false `ParseError` blocks `bsl_format`. Source text and diagnostics must not enter the audit.
 - Document fill/posting diagnostics and 1C-side tool containers are deferred. Do not enable them implicitly.
-- Maximum 16 tools, 11 prompts. Package version 0.2.0; extension version and EXPECTED_EXTENSION_VERSION 0.5.5. Keep Configuration.xml version and ConfigDumpInfo.xml routes/IDs consistent as well.
+- Maximum 16 tools, 11 prompts. Package version 0.2.0; extension version and EXPECTED_EXTENSION_VERSION 0.5.6. Keep Configuration.xml version and ConfigDumpInfo.xml routes/IDs consistent as well.
