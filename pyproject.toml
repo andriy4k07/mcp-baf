@@ -1,13 +1,13 @@
 [project]
 name = "mcp-baf"
-version = "0.1.0"
-description = "MCP server for 1C:Enterprise (Python port of feenlace/mcp-1c)"
+version = "0.2.0"
+description = "MCP server for BAF data, metadata, platform help and BSL analysis"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "andriy4k07" }]
 requires-python = ">=3.11"
 dependencies = [
-    "mcp>=1.9",
+    "mcp>=2.3,<3",
     "httpx>=0.27",
     # Общий контракт аудита (schema v2: канонические события, one_c.http,
     # сквозной trace_id). В монорепо ставится из ../mcp-baf-audit

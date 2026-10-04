@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -47,7 +47,7 @@ METADATA_CATEGORIES = [
 NOISE_SUFFIXES = ("ПрисоединенныеФайлы", "ПрисоединённыеФайлы")
 
 
-def register(mcp: FastMCP, client: OneCClient, audit: AuditWriter) -> None:
+def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
     @mcp.tool(
         name="get_metadata_tree",
         title="Дерево метаданных конфигурации",
@@ -59,7 +59,7 @@ def register(mcp: FastMCP, client: OneCClient, audit: AuditWriter) -> None:
             "Вызывай первым при работе с незнакомой конфигурацией. "
             "Имена объектов из результата используются в get_object_structure и в запросах."
         ),
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
     async def get_metadata_tree(
         filter: Annotated[str, Field(description=(

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -18,7 +18,7 @@ MAX_EVENT_LOG_LIMIT = 500
 EventLogLevel = Literal["Ошибка", "Предупреждение", "Информация", "Примечание"]
 
 
-def register(mcp: FastMCP, client: OneCClient, audit: AuditWriter) -> None:
+def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
     @mcp.tool(
         name="get_event_log",
         title="Журнал регистрации",
@@ -27,7 +27,7 @@ def register(mcp: FastMCP, client: OneCClient, audit: AuditWriter) -> None:
             "и системных событий. Фильтрация по дате, уровню важности "
             "(Ошибка/Предупреждение/Информация) и пользователю."
         ),
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
     async def get_event_log(
         start_date: Annotated[str, Field(description=(

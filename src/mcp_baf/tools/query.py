@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -16,7 +16,7 @@ DEFAULT_QUERY_LIMIT = 100
 MAX_QUERY_LIMIT = 1000
 
 
-def register(mcp: FastMCP, client: OneCClient, audit: AuditWriter) -> None:
+def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
     @mcp.tool(
         name="execute_query",
         title="Выполнить запрос к данным",
@@ -30,7 +30,7 @@ def register(mcp: FastMCP, client: OneCClient, audit: AuditWriter) -> None:
             "РегистрСведений.X.СрезПоследних(&Период). "
             "Имена полей бери из get_object_structure."
         ),
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
     async def execute_query(
         query: Annotated[str, Field(description=(
