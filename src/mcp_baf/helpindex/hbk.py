@@ -22,7 +22,9 @@ def _number(data: bytes, offset: int) -> int:
     raw = data[offset:offset + 8]
     if len(raw) != 8:
         raise ValueError("Обрезанный заголовок HBK")
-    return int(raw.decode("ascii"), 16)
+    if not re.fullmatch(rb"[0-9a-fA-F]{8}", raw):
+        raise ValueError("Некорректное число в заголовке HBK")
+    return int(raw, 16)
 
 
 def _slice(data: bytes, offset: int, size: int) -> bytes:
@@ -65,7 +67,8 @@ def decode_html(raw: bytes) -> str:
             return raw.decode(encoding)
         except (UnicodeDecodeError, LookupError):
             pass
-    raise ValueError("Не удалось определить кодировку HTML в HBK")
+    # Один неопределённый байт не должен стоить всей страницы.
+    return raw.decode("cp1251", errors="replace")
 
 
 def read_pages(path: Path):
@@ -92,7 +95,10 @@ def read_pages(path: Path):
         for entry in archive.infolist():
             if not entry.filename.lower().endswith((".html", ".htm")):
                 continue
-            unpacked += entry.file_size
-            if entry.file_size > MAX_HTML_BYTES or unpacked > MAX_STORAGE_BYTES:
+            # Заявленному в заголовке размеру не верим: считаем реально распакованное.
+            with archive.open(entry) as stream:
+                raw = stream.read(MAX_HTML_BYTES + 1)
+            unpacked += len(raw)
+            if len(raw) > MAX_HTML_BYTES or unpacked > MAX_STORAGE_BYTES:
                 raise ValueError("Распакованная справка HBK превышает лимит размера")
-            yield entry.filename, decode_html(archive.read(entry))
+            yield entry.filename, decode_html(raw)
