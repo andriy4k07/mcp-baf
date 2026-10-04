@@ -66,7 +66,9 @@ def test_register_key_metadata_uses_platform_property_names():
         if token.text.casefold() == 'мета' and tokens[index + 1].text == '.'
     }
     assert 'периодичностьрегистрасведений' in properties
-    assert properties <= {'периодичностьрегистрасведений', 'регистраторы', 'измерения'}
+    # Подчинение регистратору читается из РежимЗаписи; у регистра расчёта нет Период.
+    assert properties <= {'периодичностьрегистрасведений', 'режимзаписи', 'измерения'}
+    assert '"calculation_registers", "ПериодРегистрации", "Период"' in body
 
 
 def test_all_routes_ids_rights_handlers_and_guards():
@@ -103,6 +105,11 @@ def test_all_routes_ids_rights_handlers_and_guards():
                 assert f'МетодДоступен("{name}", "{methodname}"' in body.group(1), handler
             found.add(route.split('/')[1]+'.'+verb)
     assert set(TOOL_METHODS.values()) <= found
+    # /capabilities обязан объявлять ровно те методы, которых ждёт Python.
+    capabilities = re.search(r'Функция ВозможностиGET\(Запрос\)(.*?)КонецФункции', module, re.S).group(1)
+    declared = dict(re.findall(r'Карта\.Вставить\("(\w+)", "([\w.-]+)"\)', capabilities))
+    assert set(declared.values()) == set(TOOL_METHODS.values())
+    assert set(declared) <= set(names)
     # Право Use принадлежит точке вызова HTTPService.URLTemplate.Method.
     # Роль не выдаёт прав контейнерам метаданных или бизнес-объектам.
     assert grants == expected_grants
@@ -111,6 +118,9 @@ def test_all_routes_ids_rights_handlers_and_guards():
     assert 'УстановитьПривилегированныйРежим' not in new_logic
     assert '.Записать(' not in new_logic
     assert 'УстановитьПараметр("Цель", Цель)' in new_logic
+    # Клиенту не уходят пути модулей и номера строк; сам объект не считается ссылкой на себя.
+    assert 'ОписаниеОшибки()' not in new_logic
+    assert 'Поле.Имя <> "Ссылка"' in new_logic
 
 
 def test_package_and_extension_versions():
