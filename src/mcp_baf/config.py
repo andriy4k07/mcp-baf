@@ -36,6 +36,7 @@ class Config:
     request_timeout: int = DEFAULT_REQUEST_TIMEOUT
     # Путь к выгрузке конфигурации (DumpConfigToFiles); включает search_code.
     dump_dir: str = ""
+    help_dir: str = ""
     # Каталог кэша индекса и логов (по умолчанию платформенный кэш).
     cache_dir: str = ""
     # Принудительная пересборка кэша индекса.
@@ -53,7 +54,7 @@ def _env_int(name: str, default: int) -> int:
     """Читает целое из переменной окружения.
 
     Некорректные или неположительные значения игнорируются —
-    остаётся значение по умолчанию (как в Go-версии).
+    остаётся значение по умолчанию.
     """
     value = os.environ.get(name, "")
     try:
@@ -70,6 +71,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--base", default="", help="Base URL of 1C HTTP service")
     parser.add_argument("--user", default="", help="1C HTTP service user")
+    parser.add_argument("--help-dir", default="", help="Directory with platform .hbk help files")
     parser.add_argument(
         "--pass", "--password", dest="password", default="",
         help="1C HTTP service password",
@@ -175,6 +177,7 @@ def load_config(args: argparse.Namespace) -> Config:
         ),
         request_timeout=_env_int("mcp_baf_REQUEST_TIMEOUT", DEFAULT_REQUEST_TIMEOUT),
         dump_dir=os.environ.get("mcp_baf_DUMP_DIR", ""),
+        help_dir=os.environ.get("mcp_baf_HELP_DIR", ""),
         audit_max_size_mib=_env_int(
             "mcp_baf_AUDIT_MAX_SIZE", DEFAULT_AUDIT_MAX_SIZE_MIB
         ),
@@ -189,6 +192,7 @@ def load_config(args: argparse.Namespace) -> Config:
         cfg.password = args.password
     if args.dump:
         cfg.dump_dir = args.dump
+    cfg.help_dir = args.help_dir or cfg.help_dir
     if args.max_response_size > 0:
         cfg.max_response_size_mib = args.max_response_size
     if args.request_timeout > 0:
