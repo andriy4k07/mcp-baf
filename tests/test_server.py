@@ -79,3 +79,19 @@ def test_lifespan_writes_server_start_stop(tmp_path):
     assert start["base_url"] == "http://test/hs/mcp-baf"
     # Пароль в аудит не попадает.
     assert "password" not in start
+
+
+def test_every_tool_is_classified_as_http_or_local(tmp_path):
+    # Инструмент вне TOOL_METHODS считается локальным и не проверяет права:
+    # новый HTTP-инструмент обязан попасть в карту, а не сюда по умолчанию.
+    local = {"bsl_syntax_help", "bsl_analyze", "bsl_format", "search_code",
+             "search_platform_help", "get_platform_element"}
+    server = create_server(Config(base_url="http://test", cache_dir=str(tmp_path),
+                                  help_dir=str(tmp_path), dump_dir=str(tmp_path)))
+    names = {t.name for t in asyncio.run(MCPServer.list_tools(server))}
+    assert names == set(TOOL_METHODS) | local
+    assert not set(TOOL_METHODS) & local
+    async def close():
+        async with Client(server):
+            pass
+    asyncio.run(close())

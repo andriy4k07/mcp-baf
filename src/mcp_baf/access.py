@@ -39,10 +39,13 @@ class AccessMCP(MCPServer):
         self._access_error = ""
         super().__init__(*args, **kwargs)
 
-    async def _capabilities(self, *, fresh: bool = False) -> set[str]:
+    async def _capabilities(self) -> tuple[set[str], str]:
+        # Кэш общий для list и call: право на метод всё равно проверяет сам
+        # обработчик расширения (403), а второй запрос на каждый вызов
+        # удваивал бы число сеансов базы.
         async with self._access_lock:
-            if not fresh and time.monotonic() < self._expires:
-                return self._allowed
+            if time.monotonic() < self._expires:
+                return self._allowed, self._access_error
             try:
                 result = await asyncio.wait_for(self.access_client.get("/capabilities"), 5)
                 methods = result["methods"]
@@ -54,14 +57,15 @@ class AccessMCP(MCPServer):
                 self._allowed = set()
                 self._access_error = (
                     "Проверка прав /capabilities недоступна. Проверьте подключение, "
-                    "права HTTP-пользователя и установите расширение 0.5.5 или новее."
+                    "права HTTP-пользователя и установите расширение 0.5.6 или новее."
                 )
-            self._expires = time.monotonic() + 30
-            return self._allowed
+            # Отказ держим недолго, чтобы восстановление связи не ждало 30 с.
+            self._expires = time.monotonic() + (30 if self._allowed else 5)
+            return self._allowed, self._access_error
 
     async def list_tools(self):
         tools = await super().list_tools()
-        allowed = await self._capabilities()
+        allowed, _ = await self._capabilities()
         return [t for t in tools if t.name not in TOOL_METHODS or TOOL_METHODS[t.name] in allowed]
 
     async def call_tool(self, name: str, arguments: dict, context: Context | None = None):
@@ -69,9 +73,9 @@ class AccessMCP(MCPServer):
             # HTTP-проверка наследует trace инструмента; успешную проверку
             # не выдаём за второй tool.call, отказ пишем без аргументов/данных.
             set_trace_id(get_trace_id() or new_trace_id())
-            allowed = await self._capabilities(fresh=True)
+            allowed, error = await self._capabilities()
             if TOOL_METHODS[name] not in allowed:
                 async def denied():
-                    raise ToolError(self._access_error or "Нет права использования HTTP-метода инструмента.")
+                    raise ToolError(error or "Нет права использования HTTP-метода инструмента.")
                 return await traced_text(self.access_audit, name, denied, args={"access_denied": True})
         return await super().call_tool(name, arguments, context)
