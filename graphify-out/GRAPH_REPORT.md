@@ -1,16 +1,16 @@
 # Graph Report - mcp-baf  (2026-10-04)
 
 ## Corpus Check
-- 68 files · ~45,185 words
+- 68 files · ~46,283 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 678 nodes · 1255 edges · 38 communities (36 shown, 2 thin omitted)
-- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 43 edges (avg confidence: 0.72)
+- 686 nodes · 1274 edges · 42 communities (39 shown, 3 thin omitted)
+- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 40 edges (avg confidence: 0.73)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `38c31b56`
+- Built from commit: `3e5bf0f8`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -53,17 +53,21 @@
 - test_bsl.py
 - prompts.py
 - configuration_info.py
+- dumpindex/__init__.py
+- bsl/__init__.py
+- .__init__
+- register
 
 ## God Nodes (most connected - your core abstractions)
 1. `OneCClient` - 38 edges
 2. `traced_text()` - 34 edges
 3. `DumpIndex` - 31 edges
 4. `create_server()` - 29 edges
-5. `Parser` - 20 edges
-6. `SearchParams` - 20 edges
-7. `Config` - 18 edges
-8. `load_config()` - 15 edges
-9. `HelpIndex` - 15 edges
+5. `SearchParams` - 20 edges
+6. `Parser` - 19 edges
+7. `Config` - 19 edges
+8. `HelpIndex` - 17 edges
+9. `load_config()` - 15 edges
 10. `_install_from()` - 15 edges
 
 ## Surprising Connections (you probably didn't know these)
@@ -81,11 +85,11 @@
 ## Import Cycles
 - None detected.
 
-## Communities (38 total, 2 thin omitted)
+## Communities (42 total, 3 thin omitted)
 
 ### Community 0 - "MCP Tool Registration Helpers"
 Cohesion: 0.10
-Nodes (25): clamp_limit(), escape_pipe(), format_cell(), Общие помощники для MCP-инструментов., Нормализует пользовательский limit к диапазону [default, maximum]., Экранирует вертикальную черту, чтобы не ломать markdown-таблицы., Преобразует значение ячейки JSON-ответа в строку для markdown-таблицы., format_references() (+17 more)
+Nodes (29): Анализ и форматирование переданного текста без изменения исходников., register(), clamp_limit(), escape_pipe(), format_cell(), Any, AuditWriter, Общие помощники для MCP-инструментов. (+21 more)
 
 ### Community 1 - "1C Extension Installer"
 Cohesion: 0.09
@@ -96,8 +100,8 @@ Cohesion: 0.16
 Nodes (17): NamedTuple, _base_config_module_name(), bsl_path_to_module_name(), ModuleNameParts, nfc(), parse_module_name(), Преобразование путей dump-выгрузки в человекочитаемые имена модулей.  Порт dump/, Приводит строку к Unicode NFC (порт dump.NFC из Go-версии).      macOS распаковы (+9 more)
 
 ### Community 3 - "index.py"
-Cohesion: 0.16
-Nodes (13): _best_line(), _extract_context(), _FileState, _first_line_with_any(), Match, Полнотекстовый индекс BSL-модулей на SQLite FTS5.  Порт dump/index.go из Go-верс, Ищет совпадения в проиндексированных модулях. Диспетчер по mode., Полнотекстовый поиск с BM25-ранжированием через FTS5. (+5 more)
+Cohesion: 0.19
+Nodes (10): _best_line(), _FileState, _first_line_with_any(), Полнотекстовый индекс BSL-модулей на SQLite FTS5.  Порт dump/index.go из Go-верс, Полнотекстовый поиск с BM25-ранжированием через FTS5., Строка с наибольшим числом различных токенов запроса (0 — нет совпадений)., Состояние одного .bsl файла на диске (для diff манифеста)., build_synonym_map() (+2 more)
 
 ### Community 4 - "Package Init & BSL Tests"
 Cohesion: 0.10
@@ -113,23 +117,23 @@ Nodes (7): Connection, DumpIndex, Exception, Собирает состояние
 
 ### Community 7 - "CLI Entry Point & Config"
 Cohesion: 0.17
-Nodes (21): Namespace, _env_int(), load_config(), parse_args(), Конфигурация MCP-сервера.  Приоритет источников (от низшего к высшему): значения, Собирает конфигурацию: defaults -> env -> CLI-флаги., Читает целое из переменной окружения.      Некорректные или неположительные знач, _version() (+13 more)
+Nodes (20): Namespace, _env_int(), load_config(), parse_args(), Собирает конфигурацию: defaults -> env -> CLI-флаги., Читает целое из переменной окружения.      Некорректные или неположительные знач, _version(), main() (+12 more)
 
 ### Community 8 - "Index Disk Cache"
 Cohesion: 0.22
 Nodes (17): cache_path(), index_db_path(), Расположение дискового кэша индекса (порт dump/cache.go).  Кэш каждой dump-выгру, Платформенный каталог кэша пользователя (аналог os.UserCacheDir в Go)., Каталог кэша индекса для данной dump-выгрузки., user_cache_dir(), build(), mk_bsl() (+9 more)
 
 ### Community 9 - "Server Assembly & Config"
-Cohesion: 0.15
-Nodes (16): Доступность HTTP-инструментов по эффективным правам пользователя сервиса., Асинхронный HTTP-клиент для общения с 1С:Предприятие., Config, MCP-сервер для чтения BAF, поиска справки и анализа BSL., create_server(), MCPServer, Сборка MCP-сервера: создание MCPServer и регистрация инструментов., Убирает автогенерированные pydantic'ом "title" из JSON-схемы.      Смысла для мо (+8 more)
+Cohesion: 0.19
+Nodes (15): Асинхронный HTTP-клиент для общения с 1С:Предприятие., Config, Конфигурация MCP-сервера.  Приоритет источников (от низшего к высшему): значения, create_server(), MCPServer, Сборка MCP-сервера: создание MCPServer и регистрация инструментов., Убирает автогенерированные pydantic'ом "title" из JSON-схемы.      Смысла для мо, _strip_schema_titles() (+7 more)
 
 ### Community 10 - "Form Structure Tool"
 Cohesion: 0.29
 Nodes (6): format_event_log(), Any, AuditWriter, MCPServer, Инструмент get_event_log: чтение журнала регистрации 1С., register()
 
 ### Community 11 - "1C HTTP Client"
-Cohesion: 0.19
-Nodes (8): AsyncBaseTransport, OneCClient, Any, AuditWriter, Пишет ровно одно событие one_c.http. Тело запроса/ответа не логируется., HTTP-клиент к HTTP-сервису 1С.      Если задан пользователь, ко всем запросам до, GET-запрос к эндпоинту 1С с разбором JSON-ответа., POST-запрос к эндпоинту 1С с JSON-телом и разбором JSON-ответа.
+Cohesion: 0.28
+Nodes (4): Any, Пишет ровно одно событие one_c.http. Тело запроса/ответа не логируется., GET-запрос к эндпоинту 1С с разбором JSON-ответа., POST-запрос к эндпоинту 1С с JSON-телом и разбором JSON-ответа.
 
 ### Community 12 - "Metadata Tree Tool"
 Cohesion: 0.24
@@ -144,8 +148,8 @@ Cohesion: 0.32
 Nodes (7): _attr_line(), format_object_structure(), Any, AuditWriter, MCPServer, Инструмент get_object_structure: реквизиты и структура объекта метаданных., register()
 
 ### Community 15 - "HTTP Audit Tests"
-Cohesion: 0.19
-Nodes (9): Context, AccessMCP, AuditWriter, MCPServer, Скрывает недоступные инструменты и проверяет прямые вызовы., Проверка list и прямых calls, обновление прав, отказ при недоступности сервиса., test_fail_closed_and_local_tools_survive(), test_list_cache_call_refresh_and_denial_audit() (+1 more)
+Cohesion: 0.15
+Nodes (15): AuditLog, Context, AccessMCP, AuditWriter, MCPServer, Доступность HTTP-инструментов по эффективным правам пользователя сервиса., Скрывает недоступные инструменты и проверяет прямые вызовы., OneCClient (+7 more)
 
 ### Community 16 - "Query Validation Tool"
 Cohesion: 0.29
@@ -165,11 +169,11 @@ Nodes (15): SearchParams, index(), mk_bsl(), Тесты индекса поис�
 
 ### Community 20 - "Async Transport Stub"
 Cohesion: 0.08
-Nodes (34): analyze(), _directives(), format_source(), _inspect(), NativeBSLAnalyzer, Собственные базовые проверки и консервативный форматер BSL на Python.  Никаких в, Проверяет пары директив, не пытаясь вычислять условия препроцессора., _semantic() (+26 more)
+Nodes (38): analyze(), _directives(), format_source(), _inspect(), Собственные базовые проверки и консервативный форматер BSL на Python.  Никаких в, Проверяет пары директив, не пытаясь вычислять условия препроцессора., _semantic(), _walk() (+30 more)
 
 ### Community 22 - "HelpIndex"
-Cohesion: 0.07
-Nodes (33): HTMLParser, Справочник встроенных функций 1С (порт bsl/functions.go).  Файл сгенерирован скр, Справочник встроенных функций языка 1С (BSL).  Порт пакета bsl из Go-версии. Дан, Ищет функции по имени (русскому или английскому), без учёта регистра., search(), build_synonym_map(), Двуязычные BSL-синонимы для полнотекстового поиска.  Порт dump/analyzer.go (buil, Двунаправленная карта синонимов BSL (в нижнем регистре). (+25 more)
+Cohesion: 0.09
+Nodes (30): HTMLParser, _body(), decode_html(), _number(), Path, Чтение HBK: адаптация контейнерного парсера rzateev/onec-help-mcp @ f66860b.  SP, Цепочка блоков контейнера; защита от циклов и неверных размеров., Выдаёт HTML-страницы FileStorage без извлечения файлов на диск. (+22 more)
 
 ### Community 23 - "docs/README.md"
 Cohesion: 0.07
@@ -180,8 +184,8 @@ Cohesion: 0.11
 Nodes (19): 1. Встановити, 2. Встановити розширення в 1С, 3. Запустити HTTP-сервіс 1С, 4. Налаштувати AI-клієнт, `audit.log` — журнал подій (JSONL), mcp-baf, `server.log` — операційний журнал, Доступні інструменти (+11 more)
 
 ### Community 26 - "test_objects.py"
-Cohesion: 0.20
-Nodes (18): AuditLog, _check_extension_version(), Сверяет версию расширения 1С с ожидаемой.      Эндпоинт /version может отсутство, call(), events(), Контракты read-only инструментов: валидация, форматирование, аудит., setup_tools(), test_link_roundtrip_and_escaped_presentation() (+10 more)
+Cohesion: 0.24
+Nodes (15): call(), events(), Контракты read-only инструментов: валидация, форматирование, аудит., setup_tools(), test_link_roundtrip_and_escaped_presentation(), test_missing_object_and_service_error(), test_references_body_grouping_and_privacy(), test_references_invalid_input_no_http() (+7 more)
 
 ### Community 27 - "Швидкий старт"
 Cohesion: 0.12
@@ -204,12 +208,12 @@ Cohesion: 0.18
 Nodes (11): Далі, Кеш, логи та аудит, Конфігурація, Нові локальні опції та доступ HTTP, Параметри режиму встановлення (`--install`), Параметри роботи сервера, Пошуковий індекс (`--dump`), Приклади (+3 more)
 
 ### Community 32 - "traced_text"
-Cohesion: 0.13
-Nodes (14): Анализ и форматирование переданного текста без изменения исходников., register(), AuditWriter, MCPServer, register(), Any, AuditWriter, Выполняет инструмент со сквозным аудитом и возвращает его текст как есть.      А (+6 more)
+Cohesion: 0.29
+Nodes (5): MCP-сервер для чтения BAF, поиска справки и анализа BSL., AuditWriter, MCPServer, Инструмент bsl_syntax_help: справочник встроенных функций языка 1С.  Работает ло, register()
 
 ### Community 33 - "form.py"
-Cohesion: 0.20
-Nodes (9): OneCError, Exception, Ошибка взаимодействия с 1С с понятным пользователю текстом., Индекс полнотекстового поиска по dump-выгрузке конфигурации 1С., format_form_structure(), AuditWriter, MCPServer, Инструмент get_form_structure: структура управляемой формы объекта.  HTTP-endpoi (+1 more)
+Cohesion: 0.25
+Nodes (8): OneCError, Exception, Ошибка взаимодействия с 1С с понятным пользователю текстом., format_form_structure(), AuditWriter, MCPServer, Инструмент get_form_structure: структура управляемой формы объекта.  HTTP-endpoi, register()
 
 ### Community 34 - "test_client.py"
 Cohesion: 0.43
@@ -227,25 +231,37 @@ Nodes (3): MCPServer, MCP-prompts для типовых задач разраб�
 Cohesion: 0.29
 Nodes (6): format_configuration_info(), Any, AuditWriter, MCPServer, Инструмент get_configuration_info: общая информация о базе 1С., register()
 
+### Community 38 - "dumpindex/__init__.py"
+Cohesion: 0.16
+Nodes (11): _extract_context(), Match, Ищет совпадения в проиндексированных модулях. Диспетчер по mode., Построчный поиск (режимы regex и exact)., Одно совпадение поиска в BSL-модуле., Индекс полнотекстового поиска по dump-выгрузке конфигурации 1С., format_search_result(), AuditWriter (+3 more)
+
+### Community 39 - "bsl/__init__.py"
+Cohesion: 0.33
+Nodes (4): Справочник встроенных функций 1С (порт bsl/functions.go).  Файл сгенерирован скр, Справочник встроенных функций языка 1С (BSL).  Порт пакета bsl из Go-версии. Дан, Ищет функции по имени (русскому или английскому), без учёта регистра., search()
+
+### Community 41 - "register"
+Cohesion: 0.67
+Nodes (3): AuditWriter, MCPServer, register()
+
 ## Knowledge Gaps
 - **98 isolated node(s):** `mcp-baf`, `What this is`, `Commands`, `Architecture`, `Development workflow (owner's hard rules)` (+93 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **2 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **3 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `create_server()` connect `Server Assembly & Config` to `traced_text`, `form.py`, `MCP Tool Registration Helpers`, `prompts.py`, `configuration_info.py`, `SQLite FTS5 Index Store`, `CLI Entry Point & Config`, `Form Structure Tool`, `1C HTTP Client`, `Object Structure Tool`, `HTTP Audit Tests`, `Query Validation Tool`, `Async Transport Stub`, `HelpIndex`, `test_objects.py`?**
-  _High betweenness centrality (0.118) - this node is a cross-community bridge._
-- **Why does `DumpIndex` connect `SQLite FTS5 Index Store` to `MCP Tool Registration Helpers`, `form.py`, `index.py`, `Index Disk Cache`, `Server Assembly & Config`, `SearchParams`?**
-  _High betweenness centrality (0.091) - this node is a cross-community bridge._
-- **Why does `OneCClient` connect `1C HTTP Client` to `traced_text`, `form.py`, `MCP Tool Registration Helpers`, `test_client.py`, `configuration_info.py`, `Server Assembly & Config`, `Form Structure Tool`, `Metadata Tree Tool`, `Object Structure Tool`, `HTTP Audit Tests`, `Query Validation Tool`, `test_objects.py`?**
-  _High betweenness centrality (0.060) - this node is a cross-community bridge._
+- **Why does `create_server()` connect `Server Assembly & Config` to `MCP Tool Registration Helpers`, `traced_text`, `form.py`, `prompts.py`, `configuration_info.py`, `SQLite FTS5 Index Store`, `CLI Entry Point & Config`, `dumpindex/__init__.py`, `register`, `Form Structure Tool`, `Object Structure Tool`, `HTTP Audit Tests`, `Query Validation Tool`, `HelpIndex`?**
+  _High betweenness centrality (0.107) - this node is a cross-community bridge._
+- **Why does `DumpIndex` connect `SQLite FTS5 Index Store` to `index.py`, `dumpindex/__init__.py`, `Index Disk Cache`, `Server Assembly & Config`, `SearchParams`?**
+  _High betweenness centrality (0.090) - this node is a cross-community bridge._
+- **Why does `OneCClient` connect `HTTP Audit Tests` to `MCP Tool Registration Helpers`, `form.py`, `test_client.py`, `configuration_info.py`, `.__init__`, `Server Assembly & Config`, `Form Structure Tool`, `1C HTTP Client`, `Metadata Tree Tool`, `register`, `Object Structure Tool`, `Query Validation Tool`, `test_objects.py`?**
+  _High betweenness centrality (0.059) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `OneCClient` (e.g. with `AccessMCP` and `Config`) actually correct?**
   _`OneCClient` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 4 inferred relationships involving `DumpIndex` (e.g. with `build()` and `index()`) actually correct?**
   _`DumpIndex` has 4 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 3 inferred relationships involving `Parser` (e.g. with `NativeBSLAnalyzer` and `Diagnostic`) actually correct?**
-  _`Parser` has 3 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 13 inferred relationships involving `SearchParams` (e.g. with `test_cache_reused_and_search_works()` and `test_incremental_add_modify_delete()`) actually correct?**
+  _`SearchParams` has 13 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `mcp-baf`, `What this is`, `Commands` to the rest of the system?**
   _98 weakly-connected nodes found - possible documentation gaps or missing edges._

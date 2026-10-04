@@ -36,5 +36,9 @@
   "34": "test_client.py",
   "35": "test_bsl.py",
   "36": "prompts.py",
-  "37": "configuration_info.py"
+  "37": "configuration_info.py",
+  "38": "dumpindex/__init__.py",
+  "39": "bsl/__init__.py",
+  "40": ".__init__",
+  "41": "register"
 }
