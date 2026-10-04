@@ -13,7 +13,7 @@ import asyncio
 import logging
 from typing import Annotated, Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 def register(
-    mcp: FastMCP, client: OneCClient, audit: AuditWriter, dump_dir: str = ""
+    mcp: MCPServer, client: OneCClient, audit: AuditWriter, dump_dir: str = ""
 ) -> None:
     @mcp.tool(
         name="get_form_structure",
@@ -41,7 +41,7 @@ def register(
             "(выгрузка конфигурации в файлы), тогда состав элементов, команды и обработчики "
             "берутся из Form.xml. Без --dump возвращаются только имя и заголовок формы."
         ),
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
     async def get_form_structure(
         object_type: Annotated[str, Field(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Annotated, Literal
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -17,7 +17,7 @@ DEFAULT_SEARCH_LIMIT = 50
 MAX_SEARCH_LIMIT = 500
 
 
-def register(mcp: FastMCP, index: DumpIndex, audit: AuditWriter) -> None:
+def register(mcp: MCPServer, index: DumpIndex, audit: AuditWriter) -> None:
     @mcp.tool(
         name="search_code",
         title="Поиск по коду модулей",
@@ -31,7 +31,7 @@ def register(mcp: FastMCP, index: DumpIndex, audit: AuditWriter) -> None:
             "Работает по локальной выгрузке конфигурации (DumpConfigToFiles). "
             "Фильтруй по category и module для сужения результатов."
         ),
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
     async def search_code(
         query: Annotated[str, Field(description=(

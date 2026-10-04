@@ -9,7 +9,6 @@ import sys
 
 from mcp_baf_audit import default_cache_dir
 from mcp_baf.config import load_config, parse_args
-from mcp_baf.server import create_server
 
 SERVER_LOG_NAME = "server.log"
 SERVER_LOG_MAX_BYTES = 5 * (1 << 20)
@@ -38,7 +37,7 @@ def _setup_logging(debug: bool, cache_dir: str) -> None:
 
     if not debug:
         # httpx дублирует наши строки клиента — оставляем только WARNING.
-        for noisy in ("httpx", "httpcore"):
+        for noisy in ("httpx", "httpcore", "httpx2", "httpcore2"):
             logging.getLogger(noisy).setLevel(logging.WARNING)
 
     log_dir = cache_dir or default_cache_dir("mcp-baf")
@@ -83,6 +82,9 @@ def main() -> None:
             sys.exit(1)
         print("Extension installed successfully.")
         return
+
+    # Установка расширения, --help и --version не зависят от API MCP SDK.
+    from mcp_baf.server import create_server
 
     server = create_server(config)
     server.run(transport="stdio")

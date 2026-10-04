@@ -6,7 +6,10 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp_baf_audit import AuditWriter, get_trace_id, new_trace_id, set_trace_id
+
+from mcp_baf.client import OneCError
 
 
 async def traced_text(
@@ -41,6 +44,10 @@ async def traced_text(
             tool=tool, args=args or {}, error=str(exc),
             duration_ms=int((time.monotonic() - start) * 1000),
         )
+        # SDK 2 передаёт клиенту текст только ожидаемых ToolError.
+        # Ошибки входных данных и HTTP-сервиса должны оставаться понятными.
+        if isinstance(exc, (ValueError, PermissionError, OneCError)):
+            raise ToolError(str(exc)) from exc
         raise
 
     audit.write(
