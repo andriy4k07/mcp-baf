@@ -48,3 +48,11 @@ def test_dump_dir_cli_overrides_env(monkeypatch):
     monkeypatch.setenv("mcp_baf_DUMP_DIR", "/dumps/from-env")
     cfg = load_config(parse_args(["--dump", "/dumps/from-cli"]))
     assert cfg.dump_dir == "/dumps/from-cli"
+
+
+def test_local_features_cli_overrides_env(monkeypatch):
+    monkeypatch.setenv("mcp_baf_HELP_DIR", "/help/env")
+    env = load_config(parse_args([]))
+    assert env.help_dir == "/help/env"
+    cli = load_config(parse_args(["--help-dir", "/help/cli"]))
+    assert cli.help_dir == "/help/cli"

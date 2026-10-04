@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
 ObjectType = Annotated[str, Field(
@@ -17,7 +17,7 @@ ObjectType = Annotated[str, Field(
 ObjectName = Annotated[str, Field(description="Имя объекта метаданных")]
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
     @mcp.prompt(name="review_module", description="Ревью кода модуля 1С")
     def review_module(object_type: ObjectType, object_name: ObjectName) -> str:
         return f"""Проведи ревью кода модуля объекта {object_type} "{object_name}".

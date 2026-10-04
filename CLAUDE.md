@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-MCP server that connects AI assistants to 1C:Enterprise databases over the 1C HTTP service. Python port of [feenlace/mcp-1c](https://github.com/feenlace/mcp-1c) (Go); source comments frequently reference the corresponding Go files, and tool registration order intentionally matches the Go version.
+Independent Python MCP server for read-only BAF database access, local platform help and BSL analysis. Implementation and idea attribution is maintained in [docs/sources.md](docs/sources.md); the project does not promise parity with any upstream repository.
 
 Code comments and docstrings are in Russian, the README is in Ukrainian — follow that convention in new code.
 
@@ -16,13 +16,15 @@ Code comments and docstrings are in Russian, the README is in Ukrainian — foll
 .venv/bin/python -m pytest tests/test_server.py::test_registered_tools  # single test
 ```
 
-There is no linter or formatter configured. Manual e2e check (`scripts/e2e_check.py`) requires the mock 1C server from the original Go repo (`go run ./cmd/mock-1c`).
+There is no linter or formatter configured. Manual e2e check (`scripts/e2e_check.py --base <url>`) uses the 0.5.6 extension; pytest provides local mocked contract checks.
 
 The dependency `mcp-baf-audit` is a sibling repo: in local development install it with `pip install -e ../mcp-baf-audit`; releases pin by git tag.
 
 ## Architecture
 
-Entry point `__main__.py:main` has two modes: `--install` runs `installer.py` (loads the 1C extension via DESIGNER), otherwise `server.create_server(config)` builds a FastMCP server and runs it on stdio.
+Entry point `__main__.py:main` has two modes: `--install` runs `installer.py` (loads the 1C extension via DESIGNER), otherwise `server.create_server(config)` builds an AccessMCP (MCPServer subclass, official MCP SDK 2.3+) server and runs it on stdio. The installer/help/version paths do not import the MCP server.
+
+**MCP SDK 2.** Import `MCPServer`/`Context` from `mcp.server.mcpserver`; use snake_case Python fields (`read_only_hint`, `input_schema`, `is_error`). `AccessMCP.call_tool` must forward the request context; the return value is `CallToolResult`. Expected validation/BAF errors become `ToolError` so clients retain their explanation. `scripts/e2e_check.py` uses the public `Client` API. Protocol tests cover modern discovery and legacy initialization; wire fields retain camelCase through `model_dump(by_alias=True)`.
 
 **Tool registration pattern.** Each module in `src/mcp_baf/tools/` exposes `register(mcp, client, audit)`; `server.create_server` calls them in a fixed order. Tools return ready-made markdown strings (not JSON). Every tool body is wrapped in `tools/common.py:traced_text`, which emits a `tool_call`/`tool_error` audit event and pins a `trace_id` in a contextvar.
 
@@ -54,3 +56,11 @@ Rules:
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+
+## New local tools and access control
+
+- `access.py:AccessMCP` filters `list_tools` and gates HTTP tool calls by GET `/capabilities`, cached for 30 s (5 s after a failure) and shared by both — no extra request per call; the extension handler is the authority and returns 403. Every registered tool must be in `access.TOOL_METHODS` or in the explicit local set in `tests/test_server.py`. Missing/unavailable capabilities denies HTTP tools; local tools remain available. Denials are audited without business arguments. Extension handlers check the same effective method permissions.
+- `helpindex/` adapts the MIT HBK container parser from onec-help-mcp; preserve the copyright header and bundled license. The index is SQLite FTS5 with prefix matching, built in a background thread, atomically cached by input manifest; a broken `.hbk` is skipped, not fatal. It is enabled only by `--help-dir`; section classification is heuristic.
+- `bsl_native/` is an independently implemented Python lexer/parser, eight basic checks and a conservative indentation formatter. Both BSL tools are always registered. It is not a full compiler or BSL Language Server; preprocessor conditions are not evaluated. `src` is code, not a path; no subprocesses or code files are created. Preserve all tokens when formatting, including literals/comments and LF/CRLF. Before changing the lexer/parser, run it over real config dumps: a false `ParseError` blocks `bsl_format`. Source text and diagnostics must not enter the audit.
+- Document fill/posting diagnostics and 1C-side tool containers are deferred. Do not enable them implicitly.
+- Maximum 16 tools, 11 prompts. Package version 0.2.0; extension version and EXPECTED_EXTENSION_VERSION 0.5.6. Keep Configuration.xml version and ConfigDumpInfo.xml routes/IDs consistent as well.

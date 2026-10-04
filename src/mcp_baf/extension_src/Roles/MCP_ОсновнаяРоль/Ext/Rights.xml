@@ -1,76 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Rights xmlns="http://v8.1c.ru/8.2/roles" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 	<object>
-		<name>HTTPService.MCPService</name>
-		<right>
-			<name>Use</name>
-			<value>true</value>
-		</right>
-	</object>
-	<object>
-		<name>HTTPService.MCPService.URLTemplate.Метаданные</name>
-		<right>
-			<name>Use</name>
-			<value>true</value>
-		</right>
-	</object>
-	<object>
-		<name>HTTPService.MCPService.URLTemplate.Объект</name>
-		<right>
-			<name>Use</name>
-			<value>true</value>
-		</right>
-	</object>
-	<object>
-		<name>HTTPService.MCPService.URLTemplate.Запрос</name>
-		<right>
-			<name>Use</name>
-			<value>true</value>
-		</right>
-	</object>
-	<object>
-		<name>HTTPService.MCPService.URLTemplate.Версия</name>
-		<right>
-			<name>Use</name>
-			<value>true</value>
-		</right>
-	</object>
-	<object>
-		<name>HTTPService.MCPService.URLTemplate.Форма</name>
-		<right>
-			<name>Use</name>
-			<value>true</value>
-		</right>
-	</object>
-	<object>
-		<name>HTTPService.MCPService.URLTemplate.ПроверкаЗапроса</name>
-		<right>
-			<name>Use</name>
-			<value>true</value>
-		</right>
-	</object>
-	<object>
-		<name>HTTPService.MCPService.URLTemplate.ЖурналРегистрации</name>
-		<right>
-			<name>Use</name>
-			<value>true</value>
-		</right>
-	</object>
-	<object>
-		<name>HTTPService.MCPService.URLTemplate.Конфигурация</name>
-		<right>
-			<name>Use</name>
-			<value>true</value>
-		</right>
-	</object>
-	<object>
-		<name>HTTPService.MCPService.URLTemplate.Расширения</name>
-		<right>
-			<name>Use</name>
-			<value>true</value>
-		</right>
-	</object>
-	<object>
 		<name>HTTPService.MCPService.URLTemplate.Метаданные.Method.GET</name>
 		<right>
 			<name>Use</name>
@@ -132,5 +62,21 @@
 			<name>Use</name>
 			<value>true</value>
 		</right>
+	</object>
+	<object>
+		<name>HTTPService.MCPService.URLTemplate.Возможности.Method.GET</name>
+		<right><name>Use</name><value>true</value></right>
+	</object>
+	<object>
+		<name>HTTPService.MCPService.URLTemplate.Ссылки.Method.POST</name>
+		<right><name>Use</name><value>true</value></right>
+	</object>
+	<object>
+		<name>HTTPService.MCPService.URLTemplate.Навигация.Method.POST</name>
+		<right><name>Use</name><value>true</value></right>
+	</object>
+	<object>
+		<name>HTTPService.MCPService.URLTemplate.ПраваМетаданных.Method.POST</name>
+		<right><name>Use</name><value>true</value></right>
 	</object>
 </Rights>

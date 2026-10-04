@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -16,7 +16,7 @@ from mcp_baf import bsl
 from mcp_baf.tools.common import traced_text
 
 
-def register(mcp: FastMCP, audit: AuditWriter) -> None:
+def register(mcp: MCPServer, audit: AuditWriter) -> None:
     @mcp.tool(
         name="bsl_syntax_help",
         title="Справочник функций языка 1С",
@@ -30,7 +30,7 @@ def register(mcp: FastMCP, audit: AuditWriter) -> None:
             "сигнатуру, параметры или пример использования функции/метода "
             "платформы 1С:Предприятие."
         ),
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
     async def bsl_syntax_help(
         query: Annotated[str, Field(description=(

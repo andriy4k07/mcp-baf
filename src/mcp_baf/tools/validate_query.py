@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -13,7 +13,7 @@ from mcp_baf.client import OneCClient
 from mcp_baf.tools.common import traced_text
 
 
-def register(mcp: FastMCP, client: OneCClient, audit: AuditWriter) -> None:
+def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
     @mcp.tool(
         name="validate_query",
         title="Проверка синтаксиса запроса",
@@ -21,7 +21,7 @@ def register(mcp: FastMCP, client: OneCClient, audit: AuditWriter) -> None:
             "Проверить синтаксис запроса 1С без выполнения — найдёт ошибки "
             "в ВЫБРАТЬ/SELECT. Всегда вызывай перед execute_query."
         ),
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
     async def validate_query(
         query: Annotated[str, Field(
