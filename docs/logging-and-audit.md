@@ -89,7 +89,7 @@ grep '"trace_id": "9f86d081884c7d65"' audit.log
 ### Приклад JSONL (реальні поля з коду)
 
 ```jsonl
-{"schema_version": "2", "ts": "2026-07-14T09:12:03.501+00:00", "service": "mcp-baf", "session": "a1b2c3d4e5f6", "seq": 1, "trace_id": null, "event": "server.start", "level": "info", "version": "0.1.0", "base_url": "http://localhost:8080/hs/mcp-baf", "user": "Адміністратор"}
+{"schema_version": "2", "ts": "2026-07-14T09:12:03.501+00:00", "service": "mcp-baf", "session": "a1b2c3d4e5f6", "seq": 1, "trace_id": null, "event": "server.start", "level": "info", "version": "0.2.0", "base_url": "http://localhost:8080/hs/mcp-baf", "user": "Адміністратор"}
 {"schema_version": "2", "ts": "2026-07-14T09:12:11.884+00:00", "service": "mcp-baf", "session": "a1b2c3d4e5f6", "seq": 4, "trace_id": "9f86d081884c7d65", "event": "tool.call", "level": "info", "tool": "get_metadata_tree", "args": {"filter": "Справочники"}, "ok": true, "duration_ms": 42}
 {"schema_version": "2", "ts": "2026-07-14T09:12:11.901+00:00", "service": "mcp-baf", "session": "a1b2c3d4e5f6", "seq": 5, "trace_id": "9f86d081884c7d65", "event": "one_c.http", "level": "info", "tool": null, "request_id": null, "object": null, "actor": null, "source_channel": null, "ok": true, "duration_ms": 17, "status": 200, "payload": {"method": "GET", "endpoint": "/metadata", "response_bytes": 8341}, "error": null}
 {"schema_version": "2", "ts": "2026-07-14T09:13:47.220+00:00", "service": "mcp-baf", "session": "a1b2c3d4e5f6", "seq": 9, "trace_id": "1c2d3e4f5a6b7c8d", "event": "tool.error", "level": "error", "tool": "execute_query", "args": {"limit": 10}, "error": "executing request to 1C: connection refused", "duration_ms": 3012}
@@ -146,3 +146,7 @@ grep '"event": "tool.error"' audit.log
 # розбіжність версії розширення 1С
 grep '"event": "server.version_mismatch"' audit.log
 ```
+
+## Аудит нових інструментів
+
+`find_object_references` логуює тип, GUID, області й ліміти; знайдені записи не логуються. `get_object_link` не логуює передане посилання чи представлення. BSL-інструменти записують кількість байтів коду й фільтри, без коду й діагностик. Відмови `AccessMCP.call_tool` мають `args.access_denied=true` без переданих бізнес-аргументів. Перевірка `/capabilities` і виконання HTTP-інструмента залишають окремі `one_c.http`-події в одному trace.
