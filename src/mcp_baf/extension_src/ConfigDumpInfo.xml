@@ -1,14 +1,36 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
-<ConfigDumpInfo xmlns="http://v8.1c.ru/8.3/xcf/dumpinfo" xmlns:xen="http://v8.1c.ru/8.3/xcf/enums" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" format="Hierarchical" version="2.10">
+<ConfigDumpInfo xmlns="http://v8.1c.ru/8.3/xcf/dumpinfo" format="Hierarchical" version="2.10">
 	<ConfigVersions>
-		<Metadata name="Configuration.MCP_HTTPService" id="a433a1ba-b9a1-44df-b501-26612e947f96" configVersion="154cf64d0c0ad9f203eb76545d5bea4c9b252a75"/>
-		<Metadata name="HTTPService.MCPService" id="93b52b96-1872-4900-931f-30f172dcdeed" configVersion="ca9592e6aff89ccc175917cf27e1eb6e13477071">
+		<Metadata name="Configuration.MCP_HTTPService" id="a433a1ba-b9a1-44df-b501-26612e947f96" configVersion="a51cb6af734430798178bea91ba84f8251e48ae4"/>
+		<Metadata name="HTTPService.MCPService" id="93b52b96-1872-4900-931f-30f172dcdeed" configVersion="0d40061ea75fe409e31e77feaab001378a44d166">
 			<Metadata name="HTTPService.MCPService.URLTemplate.Метаданные" id="4959a157-4c22-4802-b76b-d4ba8ff3752f"/>
-			<Metadata name="HTTPService.MCPService.URLTemplate.Объект.Method.Получить" id="4e83c9ef-4495-4d42-bbbb-1cfd43923366"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Метаданные.Method.GET" id="dfc323e9-33e4-49a0-b3f5-7264cb26003d"/>
 			<Metadata name="HTTPService.MCPService.URLTemplate.Объект" id="d13eb4cf-e792-41e6-b13a-4ea40b45ea99"/>
-			<Metadata name="HTTPService.MCPService.URLTemplate.Метаданные.Method.Получить" id="dfc323e9-33e4-49a0-b3f5-7264cb26003d"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Объект.Method.GET" id="4e83c9ef-4495-4d42-bbbb-1cfd43923366"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Запрос" id="71e49dde-4fa0-4f34-b1e0-14cfef276ca3"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Запрос.Method.POST" id="9e66629a-d2ae-4482-888f-b2e0b9ef7e36"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Версия" id="2553b6b2-4dfa-4e13-9717-5aa4b3c9e69d"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Версия.Method.GET" id="e7c37758-220b-4fd9-9a10-5fb91fafe122"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Форма" id="e55e6623-f9a2-4bf1-9248-6cb699ea7f9f"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Форма.Method.GET" id="353d69e6-e25e-4c40-b1f0-a3aaf142dd52"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.ПроверкаЗапроса" id="ae9be6a8-2b47-4751-b125-0155ca860dc4"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.ПроверкаЗапроса.Method.POST" id="6b5495f4-87ac-42bd-9b8a-470d07439559"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.ЖурналРегистрации" id="548dd85f-810b-4190-8af8-8bc4b5dcd870"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.ЖурналРегистрации.Method.POST" id="c9356301-c41d-46ac-8838-93982f294632"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Конфигурация" id="a7c18f3e-6d24-4b59-a813-9f0e8c4d72b1"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Конфигурация.Method.GET" id="f2b83a1d-5e97-4a68-bc02-3d7f6e8a9c54"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Расширения" id="c3d4e5f6-a7b8-49c0-d1e2-f3a4b5c6d7e8"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Расширения.Method.GET" id="d4e5f6a7-b8c9-40d1-e2f3-a4b5c6d7e8f9"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Возможности" id="0d93b207-6cf4-4d13-952f-d64695666b66"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Возможности.Method.GET" id="fa0988cf-81c0-49e3-b89d-4f38aa13e9b2"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Ссылки" id="280de4ab-5b77-4fc8-8a7e-d6efd2279c3f"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Ссылки.Method.POST" id="30adbe00-1f0c-4e11-b04e-d5d2fe9b18c2"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Навигация" id="e8dc55aa-bf6d-4029-bb1c-11a315a50290"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.Навигация.Method.POST" id="cd46e984-33dc-4301-99f3-47aae38c4869"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.ПраваМетаданных" id="dff5cd16-ca34-48f2-bb10-daac126b6e18"/>
+			<Metadata name="HTTPService.MCPService.URLTemplate.ПраваМетаданных.Method.POST" id="c5c20e17-5d69-4c8d-a599-b4df5c4332b6"/>
 		</Metadata>
-		<Metadata name="HTTPService.MCPService.Module" id="93b52b96-1872-4900-931f-30f172dcdeed.0" configVersion="056246347728d0954eeaae6054aff7f6976d910e"/>
-		<Metadata name="Role.MCP_ОсновнаяРоль" id="a7181713-3c5f-4b0c-9d2a-ab9998503308" configVersion="5e1be1018ab164bd3a0d59c7538e13b8f30af709"/>
+		<Metadata name="HTTPService.MCPService.Module" id="93b52b96-1872-4900-931f-30f172dcdeed.0" configVersion="315e760dc2bab0ecf3900de0c797059230412ebf"/>
+		<Metadata name="Role.MCP_ОсновнаяРоль" id="a7181713-3c5f-4b0c-9d2a-ab9998503308" configVersion="39e4707e04abebeaadaa4bc494bc49d0d03130a7"/>
 	</ConfigVersions>
 </ConfigDumpInfo>

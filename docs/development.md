@@ -10,8 +10,16 @@ python -m venv .venv
 # .venv\Scripts\pip install -e ".[dev]"    # Windows
 ```
 
-Python **3.11+**. Залежності мінімальні: `mcp>=1.9`, `httpx>=0.27`,
+Python **3.11+**. Прямі залежності: `mcp>=2.3,<3`, `httpx>=0.27`,
 `mcp-baf-audit>=0.2.1`. З dev-екстри ставиться лише `pytest`.
+
+Використовується офіційний MCP SDK **2.x**: `MCPServer` і `Context` з
+`mcp.server.mcpserver`, клієнт `mcp.Client`. Python-поля мають snake_case:
+`ToolAnnotations(read_only_hint=True)`, `CallToolResult.is_error`,
+`Tool.input_schema`. У JSON протоколу зберігаються `readOnlyHint`, `isError`,
+`inputSchema`; для серіалізації моделей потрібен `model_dump(by_alias=True)`.
+`AccessMCP.call_tool` передає контекст запиту до базового класу, а очікувані
+помилки BAF і параметрів перетворюються на `ToolError` з поясненням для клієнта.
 
 ### Сусідній репозиторій mcp-baf-audit
 
@@ -33,7 +41,7 @@ pip install "git+<repo>/mcp-baf-audit.git@v0.2.1"
 ## Тести
 
 ```sh
-.venv/bin/python -m pytest tests                                        # усі (98)
+.venv/bin/python -m pytest tests                                        # усі
 .venv/bin/python -m pytest tests/test_server.py::test_registered_tools  # один
 ```
 
@@ -42,6 +50,8 @@ pip install "git+<repo>/mcp-baf-audit.git@v0.2.1"
 | `test_config.py` | Пріоритет defaults → env → CLI |
 | `test_client.py` | `OneCClient`: auth, ліміт розміру, помилки |
 | `test_server.py` | Реєстрація тулів (зокрема: без `--dump` немає `search_code`) |
+| `test_protocol.py` | SDK 2: JSON-схеми, 11 промптів, помилки, stdio у сучасному та legacy режимах |
+| `test_access.py` | Фільтрація list/call, зміна прав, контекст запиту, аудит відмов |
 | `test_dumpindex.py` | Побудова індексу, режими пошуку |
 | `test_cache.py` | Дисковий кеш, шляхи, інкрементальний diff |
 | `test_modulenames.py` | NFC-нормалізація, розбір імен модулів |
@@ -50,7 +60,7 @@ pip install "git+<repo>/mcp-baf-audit.git@v0.2.1"
 | `test_bsl.py` | Довідник BSL |
 | `test_traced.py` | `traced_text`, події аудиту, `trace_id` |
 
-> **Лінтера й форматера в проєкті немає** — не додавай їх мимохідь.
+> Автоформатера Python у проєкті немає. MCP-інструменти `bsl_analyze`/`bsl_format` використовують власний Python-аналізатор і не переписують код репозиторію.
 
 ### Тести й змінні оточення
 
@@ -69,12 +79,7 @@ def test_dump_dir_default_empty(monkeypatch):
 
 ### E2E
 
-`scripts/e2e_check.py` — ручна перевірка, потребує mock-сервера 1С з
-оригінального Go-репо:
-
-```sh
-go run ./cmd/mock-1c
-```
+`scripts/e2e_check.py --base http://host/base/hs/mcp-baf` — ручна перевірка MCP через stdio з розширенням 0.5.6. Облікові дані читаються зі звичайних `mcp_baf_USER`/`mcp_baf_PASSWORD`. Скрипт пропускає недоступні інструменти і показує це явно. Для локальної контрактної перевірки запускайте pytest: нові HTTP-маршрути покриті MockTransport, довідка — власною HBK-фікстурою, BSL — власними двомовними прикладами, помилковими фрагментами, перевірками збереження токенів і приватності. Python-аналітика не замінює live-компіляцію BSL на платформі.
 
 ## Структура
 
@@ -83,6 +88,9 @@ src/mcp_baf/
 ├── __main__.py        точка входу: --install або сервер на stdio
 ├── server.py          create_server, порядок реєстрації, EXPECTED_EXTENSION_VERSION
 ├── config.py          defaults → env → CLI
+├── access.py          перевірка capabilities, фільтрація list/call
+├── bsl_native/        Python-лексер, парсер, базові перевірки та відступи
+├── helpindex/         HBK → кешований SQLite FTS5
 ├── client.py          OneCClient (httpx)
 ├── installer.py       завантаження розширення через DESIGNER
 ├── prompts.py         11 MCP-промптів
@@ -116,7 +124,7 @@ python scripts/gen_bsl_data.py <шлях/до/functions.go>
 > | Версія розширення | `extension_src/HTTPServices/MCPService/Ext/Module.bsl` — коментар у шапці **і** рядок `Результат.Вставить("version", ...)` |
 > | Очікувана версія | `server.py:EXPECTED_EXTENSION_VERSION` |
 >
-> Зараз обидва — `0.4.2`.
+> Зараз обидва — `0.5.6`.
 
 Сервер звіряє їх на старті через `GET /version`. Розбіжність **не блокує роботу**:
 пишеться ERROR у лог і подія аудиту `extension_version_mismatch`. Будь-яка помилка
@@ -143,10 +151,9 @@ python scripts/gen_bsl_data.py <шлях/до/functions.go>
 ## Конвенції коду
 
 - Коментарі й докстрінги — **російською**; README і `docs/` — **українською**.
-- Коментарі часто посилаються на відповідні файли Go-версії (`dump/index.go`,
-  `server/server.go`) — це навмисно, порт тримає паритет з оригіналом.
-- Порядок реєстрації тулів у `create_server` збігається з Go-версією — не
-  переставляй без причини.
+- Історичні коментарі до джерел зберігаємо для атрибуції, але паритету з іншим репозиторієм немає. Додавати нові джерела в [sources.md](sources.md).
+- GPL-код toolkit і код без підтвердженої ліцензії не переносити; використовувати власну реалізацію описаних контрактів.
+- Порядок реєстрації стабільний; локальні інструменти додаються лише з відповідною опцією.
 - Тули повертають готовий **markdown**, не JSON.
 
 ## Екосистема
@@ -161,3 +168,9 @@ python scripts/gen_bsl_data.py <шлях/до/functions.go>
 | `hermes-agent` | Автономний агент на віддаленому сервері |
 
 > Усе брендоване як «baf» — не повертай «1c» в URL, назви й документацію.
+
+## Нові контрактні перевірки
+
+`test_access.py` перевіряє приховані виклики, кеш списку й зміну прав. `test_objects.py` — параметри, помилки, Markdown і аудит. `test_helpindex.py` — HBK, кодування, пошук, кеш і пошкодження. `test_bsl_analysis.py` — синтаксис, діагностики, форматування, ліміти та незмінність вихідників. `test_extension_contract.py` перевіряє узгодженість XML-маршрутів, UUID, прав, обробників та версій. `test_protocol.py` перевіряє через SDK 2 повний каталог із 16 інструментів, 11 промптів і запуск stdio в обох режимах протоколу.
+
+Синтетична `tests/testdata/platform.hbk` містить шість власних тестових сторінок, не матеріали офіційної довідки. Зміни розширення потребують перевірки на базі власника: GUID/посилання туди й назад, реквізити й табличні частини, незалежні й підпорядковані регістри, два користувачі з різними правами, відмова адміністративної перевірки. Успіх Python-тестів не замінює цієї перевірки.

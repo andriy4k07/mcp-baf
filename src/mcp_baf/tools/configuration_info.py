@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
 from mcp_baf_audit import AuditWriter
@@ -17,7 +17,7 @@ _MODE_NAMES = {
 }
 
 
-def register(mcp: FastMCP, client: OneCClient, audit: AuditWriter) -> None:
+def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
     @mcp.tool(
         name="get_configuration_info",
         title="Информация о конфигурации",
@@ -26,7 +26,7 @@ def register(mcp: FastMCP, client: OneCClient, audit: AuditWriter) -> None:
             "поставщик, платформа, режим работы. "
             "Используй первым делом чтобы понять с какой конфигурацией работаешь."
         ),
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
     async def get_configuration_info() -> str:
         async def run() -> str:

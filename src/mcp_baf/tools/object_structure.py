@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -13,7 +13,7 @@ from mcp_baf.client import OneCClient
 from mcp_baf.tools.common import traced_text
 
 
-def register(mcp: FastMCP, client: OneCClient, audit: AuditWriter) -> None:
+def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
     @mcp.tool(
         name="get_object_structure",
         title="Реквизиты и структура объекта",
@@ -28,7 +28,7 @@ def register(mcp: FastMCP, client: OneCClient, audit: AuditWriter) -> None:
             "для запросов и кода. "
             "Вызывай перед написанием запросов или кода, работающего с объектом."
         ),
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
     async def get_object_structure(
         object_type: Annotated[str, Field(description=(
