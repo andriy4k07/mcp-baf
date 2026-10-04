@@ -13,7 +13,6 @@ from mcp_baf_audit import AuditLog
 from mcp_baf import __version__, prompts
 from mcp_baf.client import OneCClient
 from mcp_baf.access import AccessMCP
-from mcp_baf.bsl_native import NativeBSLAnalyzer
 from mcp_baf.helpindex import HelpIndex
 from mcp_baf.config import Config
 from mcp_baf.dumpindex import DumpIndex
@@ -178,7 +177,7 @@ def create_server(config: Config) -> MCPServer:
     objects.register(mcp, client, audit)
     if help_index is not None:
         platform_help.register(mcp, help_index, audit)
-    bsl_analysis.register(mcp, NativeBSLAnalyzer(), audit)
+    bsl_analysis.register(mcp, audit)
     prompts.register(mcp)
 
     # Схемы чистятся после регистрации всех инструментов; валидацию вызовов

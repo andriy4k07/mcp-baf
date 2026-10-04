@@ -7,7 +7,7 @@ import pytest
 from mcp.server.mcpserver import MCPServer
 
 from mcp_baf_audit import AuditLog
-from mcp_baf.bsl_native import NativeBSLAnalyzer, analyze, format_source
+from mcp_baf.bsl_native import analyze, format_source
 from mcp_baf.bsl_native.lexer import lex
 from mcp_baf.tools import bsl_analysis
 
@@ -147,7 +147,7 @@ def test_tools_filters_limits_privacy_and_no_source_file_changes(tmp_path):
     original.write_text(src)
     timestamp = original.stat().st_mtime_ns
     server = MCPServer('test')
-    bsl_analysis.register(server, NativeBSLAnalyzer(), AuditLog(str(tmp_path)))
+    bsl_analysis.register(server, AuditLog(str(tmp_path)))
     async def scenario():
         result = (await server.call_tool('bsl_analyze', dict(src=src, levels=['warning'], diagnostic_codes=['UnusedLocalVariable'], limit=1))).content[0].text
         assert 'Показаны первые 1' in result and 'UnreachableCode' not in result
@@ -156,3 +156,38 @@ def test_tools_filters_limits_privacy_and_no_source_file_changes(tmp_path):
     asyncio.run(scenario())
     assert 'PRIVATE_CODE' not in (tmp_path / 'audit.log').read_text()
     assert original.read_text() == src and original.stat().st_mtime_ns == timestamp
+
+
+@pytest.mark.parametrize('src', [
+    '﻿#Область Х\nПроцедура А()\nКонецПроцедуры\n#КонецОбласти\n',
+    '﻿&НаСервере\nПроцедура А()\nКонецПроцедуры\n',
+    'Процедура А()\nТ = "a"\n"b";\nСообщить(НСтр("ru=\'%1\'"\n"en=\'%1\'"));\nКонецПроцедуры',
+    "Процедура А()\nД = '0001-01-01';\nД = '2026.10.04 10:00:00';\nКонецПроцедуры",
+    'Процедура А()\nТ = "ВЫБРАТЬ\n\n// пояснение\n|1";\nКонецПроцедуры',
+    'Асинх Процедура А()\nЖдать Б();\nКонецПроцедуры',
+    'Процедура А()\n' + '// c\n' * 120_000 + 'КонецПроцедуры',
+], ids=['bom-region', 'bom-annotation', 'adjacent-strings', 'dates', 'string-gap', 'await', 'many-comments'])
+def test_real_module_syntax_is_accepted_and_formatted(src):
+    # Конструкции из выгрузок типовых конфигураций, дававшие ложный ParseError.
+    assert 'ParseError' not in codes(src)
+    assert format_source(format_source(src)) == format_source(src)
+
+
+def test_preprocessor_branch_does_not_make_code_unreachable():
+    src = 'Процедура А()\n#Если Сервер Тогда\nВозврат;\n#КонецЕсли\nБ = 1;\nКонецПроцедуры'
+    assert 'UnreachableCode' not in codes(src)
+    assert 'UnreachableCode' in codes('Процедура А()\nВозврат;\nБ = 1;\nКонецПроцедуры')
+
+
+def test_format_keeps_working_on_duplicates_and_odd_line_breaks():
+    # Дубли имён — не синтаксис; \f и \x85 не являются переводом строки BSL.
+    assert format_source('Процедура А(Б, Б)\nВ = 1;\nКонецПроцедуры') == 'Процедура А(Б, Б)\n    В = 1;\nКонецПроцедуры'
+    src = 'Процедура А()\n// a\x0cb\x85c\nЕсли Б Тогда\nВ = 1;\nКонецЕсли;\nКонецПроцедуры\n'
+    assert format_source(src) == 'Процедура А()\n    // a\x0cb\x85c\n    Если Б Тогда\n        В = 1;\n    КонецЕсли;\nКонецПроцедуры\n'
+
+
+def test_format_indents_statement_continuations():
+    src = 'Процедура А()\nЕсли Б И\nВ Тогда\nВызов(Г,\nД);\nКонецЕсли;\nКонецПроцедуры'
+    assert format_source(src) == (
+        'Процедура А()\n    Если Б И\n        В Тогда\n        Вызов(Г,\n            Д);\n    КонецЕсли;\nКонецПроцедуры'
+    )
