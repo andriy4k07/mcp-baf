@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import sqlite3
+import struct
 import tempfile
 import threading
 import unicodedata
+import zipfile
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -18,7 +21,12 @@ from mcp_baf.dumpindex.synonyms import build_synonym_map
 from mcp_baf.helpindex.hbk import read_pages
 
 SECTIONS = ("functions", "types", "operators", "vtables", "skd")
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+BLOCK_TAGS = {"p", "div", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6", "pre", "table", "ul", "ol", "dt", "dd"}
+# Части CamelCase-имени: СтрНайти → Стр, Найти; HTTPСоединение → HTTP, Соединение.
+NAME_PARTS = re.compile(r"[A-ZА-ЯЁІЇЄҐ]+(?![a-zа-яёіїєґ])|[A-ZА-ЯЁІЇЄҐ][a-zа-яёіїєґ\d]+")
+
+logger = logging.getLogger(__name__)
 
 
 class PageParser(HTMLParser):
@@ -34,15 +42,18 @@ class PageParser(HTMLParser):
             self.hidden += 1
         if tag == "title":
             self.in_title = True
-        if tag in {"br", "p", "div", "li", "tr", "h1", "h2", "h3", "pre"}:
+        if tag == "br" or tag in BLOCK_TAGS:
             self.text.append("\n")
+        elif tag in {"td", "th"}:
+            # Ячейки таблиц параметров не должны склеиваться в одно слово.
+            self.text.append(" ")
 
     def handle_endtag(self, tag):
         if tag in {"script", "style"}:
             self.hidden = max(0, self.hidden - 1)
         if tag == "title":
             self.in_title = False
-        if tag in {"p", "div", "li", "tr", "h1", "h2", "h3", "pre"}:
+        if tag in BLOCK_TAGS:
             self.text.append("\n")
 
     def handle_data(self, data):
@@ -60,13 +71,13 @@ def parse_page(html: str, path: str) -> tuple[str, str, str, str]:
     # Сохраняем обе языковые формы из заголовка; имена методов с типом не сокращаем.
     aliases = " ".join(re.findall(r"[^\W\d]\w*(?:\.\w+)*", title, re.UNICODE))
     hints = (path + " " + title).lower()
-    if any(x in hints for x in ("virtualtable", "virtual_table", "виртуальн", "остатки", "обороты")):
+    if any(x in hints for x in ("virtualtable", "virtual_table", "виртуальн")):
         section = "vtables"
-    elif any(x in hints for x in ("datacomposition", "скд", "компоновк")):
+    elif any(x in hints for x in ("datacomposition", "компоновк")) or re.search(r"\bскд\b", hints):
         section = "skd"
     elif any(x in hints for x in ("operator", "оператор")):
         section = "operators"
-    elif any(x in hints for x in ("function", "global", "функци", "глобальн")):
+    elif any(x in hints for x in ("function", "global", "глобальн")) or re.search(r"\bфункци[яий]\b", hints):
         section = "functions"
     else:
         section = "types"
@@ -132,20 +143,27 @@ class HelpIndex:
             connection.execute("CREATE TABLE pages(id INTEGER PRIMARY KEY, title TEXT, aliases TEXT, section TEXT, content TEXT, source TEXT, version TEXT, name_key TEXT)")
             connection.execute("CREATE VIRTUAL TABLE search USING fts5(title, aliases, content)")
             count = 0
+            broken = None
             for file in files:
                 version = next((p for p in file.parts if re.fullmatch(r"8\.\d+(?:\.\d+){0,2}", p)), "не указана")
-                for path, html in read_pages(file):
-                    if self._stop.is_set():
-                        return
-                    title, aliases, section, content = parse_page(html, path)
-                    if not content:
-                        continue
-                    source = f"{file.relative_to(self.root).as_posix()}::{path}"
-                    cursor = connection.execute("INSERT INTO pages(title,aliases,section,content,source,version,name_key) VALUES (?,?,?,?,?,?,?)", (title, normalize(aliases), section, content, source, version, normalize(title)))
-                    connection.execute("INSERT INTO search(rowid,title,aliases,content) VALUES (?,?,?,?)", (cursor.lastrowid, title, aliases, content))
-                    count += 1
+                name = file.relative_to(self.root).as_posix()
+                try:
+                    for path, html in read_pages(file):
+                        if self._stop.is_set():
+                            return
+                        title, aliases, section, content = parse_page(html, path)
+                        if not content:
+                            continue
+                        cursor = connection.execute("INSERT INTO pages(title,aliases,section,content,source,version,name_key) VALUES (?,?,?,?,?,?,?)", (title, normalize(aliases), section, content, f"{name}::{path}", version, normalize(title)))
+                        parts = " ".join(NAME_PARTS.findall(title))
+                        connection.execute("INSERT INTO search(rowid,title,aliases,content) VALUES (?,?,?,?)", (cursor.lastrowid, title, f"{aliases} {parts}", content))
+                        count += 1
+                except (ValueError, zipfile.BadZipFile, struct.error) as exc:
+                    # Один повреждённый файл не отключает справку остальных.
+                    logger.warning("HBK пропущен: %s: %s", name, exc)
+                    broken = broken or ValueError(f"{name}: {exc}")
             if not count:
-                raise ValueError("HBK не содержит страниц справки")
+                raise broken or ValueError("HBK не содержит страниц справки")
             connection.commit()
             connection.close()
             connection = None
@@ -177,15 +195,20 @@ class HelpIndex:
         if not tokens:
             raise ValueError("query должен содержать название или слова для поиска")
         synonyms = build_synonym_map()
-        expression = " AND ".join('("' + t + '" OR "' + synonyms[t] + '")' if t in synonyms else '"' + t + '"' for t in tokens)
+        # Префиксный поиск: по началу имени и по частям CamelCase из aliases.
+        terms = ['("' + t + '"* OR "' + synonyms[t] + '"*)' if t in synonyms else '"' + t + '"*' for t in tokens]
         with self._lock:
             self._check()
-            cursor = self._connection.execute(
-                "SELECT p.*, bm25(search, 10, 6, 1) AS score FROM search JOIN pages p ON p.id=search.rowid WHERE search MATCH ? AND (?='' OR p.section=?) ORDER BY (p.name_key=?) DESC, score, p.source LIMIT ?",
-                (expression, section, section, normalize(query), limit),
-            )
-            names = [d[0] for d in cursor.description]
-            return [dict(zip(names, row)) for row in cursor.fetchall()]
+            # Фраза обычным языком редко совпадает целиком: тогда хватит любого слова.
+            for joiner in (" AND ", " OR ")[:len(terms)]:
+                cursor = self._connection.execute(
+                    "SELECT p.*, bm25(search, 10, 6, 1) AS score FROM search JOIN pages p ON p.id=search.rowid WHERE search MATCH ? AND (?='' OR p.section=?) ORDER BY (p.name_key=?) DESC, score, p.source LIMIT ?",
+                    (joiner.join(terms), section, section, normalize(query), limit),
+                )
+                names = [d[0] for d in cursor.description]
+                if rows := [dict(zip(names, row)) for row in cursor.fetchall()]:
+                    return rows
+            return []
 
     def get(self, name: str, source: str = "") -> list[dict]:
         with self._lock:

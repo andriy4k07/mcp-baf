@@ -33,5 +33,7 @@ def register(mcp, index, audit):
             if pages:
                 return "Имя неоднозначно; уточните полный заголовок и source из списка:\n\n" + "\n".join(f"- {p['title']} ({p['source']})" for p in pages)
             candidates = await asyncio.to_thread(index.search, name, 5)
-            return "Элемент не найден. Ближайшие результаты:\n\n" + "\n".join(p['title'] for p in candidates)
+            if not candidates:
+                return "Элемент не найден, похожих заголовков в локальной справке нет."
+            return "Элемент не найден. Ближайшие результаты:\n\n" + "\n".join(f"- {p['title']}" for p in candidates)
         return await traced_text(audit, "get_platform_element", run, args={"name": name, "source": source})

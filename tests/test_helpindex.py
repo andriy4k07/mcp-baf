@@ -156,3 +156,40 @@ def test_ambiguous_cards_source_disambiguates(tmp_path):
         assert len(index.get('Запрос', candidates[0]['source'])) == 1
     finally:
         index.close()
+
+
+def test_broken_file_does_not_disable_help_and_partial_names_match(tmp_path):
+    root = tmp_path / 'help'
+    root.mkdir()
+    (root / 'good.hbk').write_bytes(FIXTURE.read_bytes())
+    (root / 'broken.hbk').write_bytes(b'x' * 100)
+    index = HelpIndex(str(root), str(tmp_path / 'cache'))
+    try:
+        assert index.wait_ready(5) and index.error is None
+        # Часть CamelCase-имени, начало имени и фраза с лишним словом.
+        for query in ('Найти', 'Str', 'стрнай', 'как работает СтрНайти'):
+            assert 'СтрНайти (StrFind)' in [p['title'] for p in index.search(query)], query
+    finally:
+        index.close()
+
+
+def test_only_broken_files_report_the_file_name(tmp_path):
+    (tmp_path / 'broken.hbk').write_bytes(b'x' * 100)
+    index = HelpIndex(str(tmp_path), str(tmp_path / 'cache'))
+    assert index.wait_ready(5)
+    assert 'broken.hbk' in str(index.error)
+
+
+def test_table_cells_stay_separate_and_bad_bytes_do_not_fail():
+    content = parse_page('<table><tr><td>Имя</td><td>Тип</td></tr></table>', 'a.html')[3]
+    assert content == 'Имя Тип'
+    assert parse_page('<title>Функциональные опции</title>', 'types/a.html')[2] == 'types'
+    assert decode_html('Массив'.encode('cp1251') + b'\x98') == 'Массив�'
+
+
+def test_unpacked_size_is_measured_not_declared(tmp_path, monkeypatch):
+    path = tmp_path / 'big.hbk'
+    path.write_bytes(make_hbk({'a.html': '<p>' + 'я' * 100 + '</p>'}))
+    monkeypatch.setattr('mcp_baf.helpindex.hbk.MAX_HTML_BYTES', 50)
+    with pytest.raises(ValueError, match='лимит'):
+        list(read_pages(path))
