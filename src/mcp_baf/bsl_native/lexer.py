@@ -66,7 +66,7 @@ def lex(source: str) -> tuple[list[Token], list[Diagnostic]]:
             end = source.find('\n', offset)
             end = len(source) if end < 0 else end
             kind = 'comment'
-        elif char in '#&' and not source[source.rfind('\n', 0, offset) + 1:offset].strip():
+        elif char in '#&' and not source[source.rfind('\n', 0, offset) + 1:offset].strip(' \t\r\ufeff'):
             end = source.find('\n', offset)
             end = len(source) if end < 0 else end
             kind = 'directive' if char == '#' else 'annotation'
@@ -82,12 +82,19 @@ def lex(source: str) -> tuple[list[Token], list[Diagnostic]]:
                     closed = True
                     break
                 if source[end] == '\n':
-                    # Продолжение строки BSL обязано начинаться с | после отступа.
+                    # Продолжение строки BSL начинается с | после отступа; между
+                    # продолжениями платформа допускает пустые строки и комментарии.
                     next_line = end + 1
-                    while next_line < len(source) and source[next_line] in ' \t\r':
-                        next_line += 1
+                    while True:
+                        while next_line < len(source) and source[next_line] in ' \t\r':
+                            next_line += 1
+                        if next_line < len(source) and (source[next_line] == '\n' or source.startswith('//', next_line)):
+                            next_line = source.find('\n', next_line) + 1 or len(source)
+                            continue
+                        break
                     if next_line >= len(source) or source[next_line] != '|':
                         break
+                    end = next_line
                 end += 1
             kind = 'string'
             if not closed:
@@ -100,7 +107,7 @@ def lex(source: str) -> tuple[list[Token], list[Diagnostic]]:
                 diagnostics.append(Diagnostic('ParseError', 'Незакрытый литерал даты', line, column, 'error'))
             else:
                 end += 1
-                if not re.fullmatch(r"'(?:\d{8}|\d{12}|\d{14})'", source[start:end]):
+                if len(re.sub(r'\D', '', source[start:end])) not in {8, 12, 14}:
                     diagnostics.append(Diagnostic('ParseError', 'Литерал даты должен содержать 8, 12 или 14 цифр', line, column, 'error'))
             kind = 'date'
         elif match := IDENTIFIER.match(source, offset):
@@ -126,7 +133,5 @@ def lex(source: str) -> tuple[list[Token], list[Diagnostic]]:
         else:
             column += len(text)
         offset = end
-        if len(tokens) > 100_000:
-            raise ValueError('Слишком много токенов BSL: максимум 100000')
     tokens.append(Token('eof', '', len(source), len(source), line, column))
     return tokens, diagnostics

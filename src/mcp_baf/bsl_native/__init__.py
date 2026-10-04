@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import re
 
 from mcp_baf.bsl_native.lexer import Diagnostic, lex
@@ -107,7 +106,9 @@ def _inspect(source):
     for token in tokens:
         if token.kind == 'string':
             protected.update(range(token.line, token.line + token.text.count('\n') + 1))
-    for number, line in enumerate(source.splitlines(), 1):
+    # Строки считаем как лексер — только по LF; splitlines режет ещё и по \f, \x85.
+    for number, line in enumerate(source.split('\n'), 1):
+        line = line.removesuffix('\r')
         if number not in protected and line.rstrip(' \t') != line:
             diagnostics.append(Diagnostic('TrailingWhitespace', 'Пробелы в конце строки', number, len(line.rstrip(' \t')) + 1, 'information'))
         if len(line) > 120:
@@ -122,7 +123,8 @@ def analyze(source: str) -> list[dict]:
 
 def format_source(source: str) -> str:
     tokens, parser, diagnostics = _inspect(source)
-    if errors := [d for d in diagnostics if d.level == 'error']:
+    # Отказываем только при ошибках синтаксиса: дубли имён отступам не мешают.
+    if errors := [d for d in diagnostics if d.code == 'ParseError']:
         first = errors[0]
         raise ValueError(f'Форматирование недоступно: {first.code} в {first.line}:{first.column}. Проверьте синтаксис и поддерживаемые конструкции')
     # Форматируем только отступы/концевые пробелы. Не меняем регистр,
@@ -143,13 +145,15 @@ def format_source(source: str) -> str:
         events[line] = events.get(line, 0) + change
     closers = {'endprocedure', 'endfunction', 'endif', 'elsif', 'else', 'enddo', 'except', 'endtry'}
     result, depth = [], 0
-    for number, raw in enumerate(source.splitlines(keepends=True), 1):
-        # splitlines оставляет исходный стиль LF/CRLF и отсутствие финального LF.
-        match = re.search(r'(\r?\n|\r)$', raw)
-        ending = match[0] if match else ''
+    for number, raw in enumerate(re.findall(r'[^\n]*\n|[^\n]+', source), 1):
+        # Сохраняем исходный стиль LF/CRLF и отсутствие финального LF.
+        ending = '\r\n' if raw.endswith('\r\n') else '\n' if raw.endswith('\n') else ''
         line = raw[:-len(ending)] if ending else raw
         first = first_tokens.get(number)
         indent = max(0, depth - (1 if first and first.kind in closers else 0))
+        # Продолжение многострочного оператора — на уровень глубже его начала.
+        if first and first.kind not in closers | {'comment', 'directive', 'annotation'} and number not in parser.statement_lines:
+            indent = depth + 1
         if number not in continuation_lines:
             line = line.lstrip(' \t')
             if number not in preserved_lines:
@@ -165,7 +169,3 @@ def format_source(source: str) -> str:
         raise RuntimeError('Форматер не смог сохранить токены исходного текста')
     return formatted
 
-
-class NativeBSLAnalyzer:
-    async def execute(self, src: str, formatting: bool = False):
-        return await asyncio.to_thread(format_source if formatting else analyze, src)

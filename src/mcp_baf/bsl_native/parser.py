@@ -30,7 +30,17 @@ class Parser:
                   '+': 4, '-': 4, '*': 5, '/': 5, '%': 5}
 
     def __init__(self, tokens):
-        self.tokens = [t for t in tokens if t.kind not in {'comment', 'directive', 'annotation'}]
+        # Директивы не разбираются, но ветвь препроцессора может не попасть в
+        # сборку: оператор сразу после директивы не считаем недостижимым.
+        self.tokens, self.after_directive, directive = [], set(), False
+        for token in tokens:
+            if token.kind == 'directive':
+                directive = True
+            elif token.kind not in {'comment', 'annotation'}:
+                if directive:
+                    self.after_directive.add(token.start)
+                directive = False
+                self.tokens.append(token)
         self.offset = 0
         self.depth = 0
         self.method = ''
@@ -38,6 +48,8 @@ class Parser:
         self.diagnostics = []
         # Изменения отступа на границах конструкций для безопасного форматера.
         self.indent_events = []
+        # Строки, с которых начинаются операторы: остальные — продолжения.
+        self.statement_lines = set()
 
     @property
     def current(self):
@@ -82,6 +94,9 @@ class Parser:
                     raise ParseFailure(self.current, 'Незакрытая конструкция BSL')
                 if self.accept(';'):
                     continue
+                if self.current.start in self.after_directive:
+                    terminated = False
+                self.statement_lines.add(self.current.line)
                 node = self.statement(top)
                 if terminated and node.kind != 'label':
                     self.error(node.token, 'Оператор после безусловного перехода недоступен', 'UnreachableCode', 'warning')
@@ -197,7 +212,7 @@ class Parser:
             reads = [] if expression.kind == 'identifier' else expression.reads
             reads += self.expression().reads
             return Node('assignment', token, reads=reads)
-        if expression.kind != 'call':
+        if expression.kind != 'call' and expression.token.kind != 'await':
             raise ParseFailure(token, 'Ожидается присваивание или вызов метода')
         return Node('call', token, reads=expression.reads)
 
@@ -261,6 +276,9 @@ class Parser:
                 node = Node('identifier', token, reads=[token])
             elif token.kind in {'number','string','date','true','false','undefined','null'}:
                 node = Node('literal', token)
+                # Соседние строковые литералы платформа склеивает в один.
+                while token.kind == 'string' and self.accept('string'):
+                    pass
             else:
                 raise ParseFailure(token, f'Ожидается выражение; найдено {token.kind}')
             while True:
