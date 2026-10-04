@@ -1,16 +1,17 @@
 """Ручная e2e-проверка: запускает сервер по stdio и вызывает все инструменты.
 
-Использование (mock-1c должен слушать на :8080):
-    python scripts/e2e_check.py
+Использование (нужно расширение 0.5.5):
+    python scripts/e2e_check.py --base http://host/base/hs/mcp-baf
 """
 
 import asyncio
+import argparse
+import os
 import sys
 import tempfile
 from pathlib import Path
 
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+from mcp import Client, StdioServerParameters
 
 CALLS = [
     ("get_configuration_info", {}),
@@ -29,6 +30,9 @@ CALLS = [
     ("search_code", {"query": "Процедура \\w+\\(", "mode": "regex", "category": "Документ"}),
     ("search_code", {"query": "стрнайти", "mode": "exact"}),
     ("bsl_syntax_help", {"query": "StrFind"}),
+    ("get_metadata_rights", {"metadata_object": "Справочник.Номенклатура"}),
+    ("bsl_analyze", {"src": "Процедура Тест()\nПерем А;\nКонецПроцедуры"}),
+    ("bsl_format", {"src": "Процедура Тест()\nСообщить(1);\nКонецПроцедуры"}),
 ]
 
 FORM_XML = """<?xml version="1.0" encoding="UTF-8"?>
@@ -74,49 +78,54 @@ def make_dump(root: Path) -> None:
         path.write_text(content, encoding="utf-8-sig")
 
 
-async def main() -> None:
+async def main(base: str) -> None:
     dump_dir = Path(tempfile.mkdtemp(prefix="mcp1c-dump-"))
     cache_dir = Path(tempfile.mkdtemp(prefix="mcp1c-cache-"))
     make_dump(dump_dir)
 
     params = StdioServerParameters(
         command=sys.executable,
+        # SDK наследует только системные env; настройки BAF передаём явно.
+        env={key: value for key, value in os.environ.items() if key.startswith('mcp_baf_')},
         args=[
             "-m", "mcp_baf",
-            "--base", "http://localhost:8080/mcp",
+            "--base", base,
             "--dump", str(dump_dir),
             "--cache-dir", str(cache_dir),
         ],
     )
-    async with stdio_client(params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
+    async with Client(params) as session:
+        tools = await session.list_tools()
+        print("tools:", [t.name for t in tools.tools])
+        available = {t.name for t in tools.tools}
 
-            tools = await session.list_tools()
-            print("tools:", [t.name for t in tools.tools])
+        prompts = await session.list_prompts()
+        print("prompts:", [p.name for p in prompts.prompts])
 
-            prompts = await session.list_prompts()
-            print("prompts:", [p.name for p in prompts.prompts])
+        prompt = await session.get_prompt(
+            "review_module",
+            {"object_type": "Catalog", "object_name": "Номенклатура"},
+        )
+        text = prompt.messages[0].content.text
+        print("\n=== prompt review_module ===")
+        print(text[:200], "...")
 
-            prompt = await session.get_prompt(
-                "review_module",
-                {"object_type": "Catalog", "object_name": "Номенклатура"},
-            )
-            text = prompt.messages[0].content.text
-            print("\n=== prompt review_module ===")
-            print(text[:200], "...")
-
-            failed = False
-            for name, args in CALLS:
-                result = await session.call_tool(name, args)
-                status = "ERROR" if result.isError else "ok"
-                failed = failed or result.isError
-                print(f"\n=== {name} {args} [{status}] ===")
-                print(result.content[0].text)
+        failed = False
+        for name, args in CALLS:
+            if name not in available:
+                print(f"\n=== {name}: skipped (not available by configuration/rights) ===")
+                continue
+            result = await session.call_tool(name, args)
+            status = "ERROR" if result.is_error else "ok"
+            failed = failed or result.is_error
+            print(f"\n=== {name} {args} [{status}] ===")
+            print(result.content[0].text)
 
     if failed:
         sys.exit(1)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description="MCP stdio check against the BAF HTTP service")
+    parser.add_argument("--base", default="http://localhost:8080/hs/mcp-baf")
+    asyncio.run(main(parser.parse_args().base))
