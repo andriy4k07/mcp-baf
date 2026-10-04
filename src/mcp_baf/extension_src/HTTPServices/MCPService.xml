@@ -276,6 +276,122 @@
 					</Method>
 				</ChildObjects>
 			</URLTemplate>
+			<URLTemplate uuid="0d93b207-6cf4-4d13-952f-d64695666b66">
+				<Properties>
+					<Name>Возможности</Name>
+					<Synonym>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Возможности</v8:content>
+						</v8:item>
+					</Synonym>
+					<Comment/>
+					<Template>/capabilities</Template>
+				</Properties>
+				<ChildObjects>
+					<Method uuid="fa0988cf-81c0-49e3-b89d-4f38aa13e9b2">
+						<Properties>
+							<Name>GET</Name>
+							<Synonym>
+								<v8:item>
+									<v8:lang>ru</v8:lang>
+									<v8:content>GET</v8:content>
+								</v8:item>
+							</Synonym>
+							<Comment/>
+							<HTTPMethod>GET</HTTPMethod>
+							<Handler>ВозможностиGET</Handler>
+						</Properties>
+					</Method>
+				</ChildObjects>
+			</URLTemplate>
+			<URLTemplate uuid="280de4ab-5b77-4fc8-8a7e-d6efd2279c3f">
+				<Properties>
+					<Name>Ссылки</Name>
+					<Synonym>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Ссылки</v8:content>
+						</v8:item>
+					</Synonym>
+					<Comment/>
+					<Template>/refs</Template>
+				</Properties>
+				<ChildObjects>
+					<Method uuid="30adbe00-1f0c-4e11-b04e-d5d2fe9b18c2">
+						<Properties>
+							<Name>POST</Name>
+							<Synonym>
+								<v8:item>
+									<v8:lang>ru</v8:lang>
+									<v8:content>POST</v8:content>
+								</v8:item>
+							</Synonym>
+							<Comment/>
+							<HTTPMethod>POST</HTTPMethod>
+							<Handler>СсылкиPOST</Handler>
+						</Properties>
+					</Method>
+				</ChildObjects>
+			</URLTemplate>
+			<URLTemplate uuid="e8dc55aa-bf6d-4029-bb1c-11a315a50290">
+				<Properties>
+					<Name>Навигация</Name>
+					<Synonym>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>Навигация</v8:content>
+						</v8:item>
+					</Synonym>
+					<Comment/>
+					<Template>/object-link</Template>
+				</Properties>
+				<ChildObjects>
+					<Method uuid="cd46e984-33dc-4301-99f3-47aae38c4869">
+						<Properties>
+							<Name>POST</Name>
+							<Synonym>
+								<v8:item>
+									<v8:lang>ru</v8:lang>
+									<v8:content>POST</v8:content>
+								</v8:item>
+							</Synonym>
+							<Comment/>
+							<HTTPMethod>POST</HTTPMethod>
+							<Handler>НавигацияPOST</Handler>
+						</Properties>
+					</Method>
+				</ChildObjects>
+			</URLTemplate>
+			<URLTemplate uuid="dff5cd16-ca34-48f2-bb10-daac126b6e18">
+				<Properties>
+					<Name>ПраваМетаданных</Name>
+					<Synonym>
+						<v8:item>
+							<v8:lang>ru</v8:lang>
+							<v8:content>ПраваМетаданных</v8:content>
+						</v8:item>
+					</Synonym>
+					<Comment/>
+					<Template>/metadata-rights</Template>
+				</Properties>
+				<ChildObjects>
+					<Method uuid="c5c20e17-5d69-4c8d-a599-b4df5c4332b6">
+						<Properties>
+							<Name>POST</Name>
+							<Synonym>
+								<v8:item>
+									<v8:lang>ru</v8:lang>
+									<v8:content>POST</v8:content>
+								</v8:item>
+							</Synonym>
+							<Comment/>
+							<HTTPMethod>POST</HTTPMethod>
+							<Handler>ПраваМетаданныхPOST</Handler>
+						</Properties>
+					</Method>
+				</ChildObjects>
+			</URLTemplate>
 		</ChildObjects>
 	</HTTPService>
 </MetaDataObject>

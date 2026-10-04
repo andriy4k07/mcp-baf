@@ -54,7 +54,7 @@
 				<xr:Item xsi:type="xr:MDObjectRef">Role.MCP_ОсновнаяРоль</xr:Item>
 			</DefaultRoles>
 			<Vendor/>
-			<Version/>
+			<Version>0.5.5</Version>
 			<BriefInformation/>
 			<DetailedInformation/>
 			<Copyright/>

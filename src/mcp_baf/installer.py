@@ -64,6 +64,10 @@ _UA_LANG_CODE = "uk"
 # реально встречающиеся в <v8:content> XML-исходников; латинские
 # синонимы (MCP HTTPService, GET, POST) одинаковы в обоих языках.
 _SYNONYM_TRANSLATIONS_UA = {
+    "Возможности": "Можливості",
+    "Ссылки": "Посилання",
+    "Навигация": "Навігація",
+    "ПраваМетаданных": "Права метаданих",
     "Метаданные": "Метадані",
     "Объект": "Об'єкт",
     "Запрос": "Запит",
@@ -188,6 +192,14 @@ def _install_from(
     lang: str = DEFAULT_LANG,
 ) -> None:
     shutil.copytree(EXTENSION_SRC, ext_dir, dirs_exist_ok=True)
+    # Показываем источник из импортированного пакета: каталог cwd может
+    # содержать другую версию, чем окружение, из которого запущен CLI.
+    module_path = os.path.join(EXTENSION_SRC, "HTTPServices", "MCPService", "Ext", "Module.bsl")
+    with open(module_path, encoding="utf-8-sig") as module:
+        source = module.read()
+    version = re.search(r'^// Версия расширения:\s*(\S+)', source, re.MULTILINE)
+    print(f"Extension sources: {os.path.abspath(EXTENSION_SRC)}")
+    print(f"Extension version: {version[1] if version else 'unknown'}")
 
     # Синонимы локализуются до остальных патчей: дальше регулярные
     # выражения работают уже с целевым языком.
