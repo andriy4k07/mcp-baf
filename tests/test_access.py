@@ -16,7 +16,7 @@ from mcp_baf.client import OneCClient
 from mcp_baf.config import Config
 
 
-def test_list_cache_call_refresh_and_denial_audit(tmp_path):
+def test_shared_cache_expiry_and_denial_audit(tmp_path):
     allowed = ['metadata.GET']
     calls = []
     executed = []
@@ -42,11 +42,15 @@ def test_list_cache_call_refresh_and_denial_audit(tmp_path):
         await server.list_tools()
         assert len(calls) == 1
         await server.call_tool('get_metadata_tree', {})
-        assert executed == [True] and len(calls) == 2
+        # Вызов берёт права из того же кэша: лишнего запроса к базе нет.
+        assert executed == [True] and len(calls) == 1
         allowed.clear()
+        await server.call_tool('get_metadata_tree', {})
+        assert executed == [True, True] and len(calls) == 1
+        server._expires = 0
         with pytest.raises(ToolError):
             await server.call_tool('get_metadata_tree', {'private': 'PRIVATE'})
-        assert executed == [True]
+        assert executed == [True, True] and len(calls) == 2
         with pytest.raises(ToolError):
             await server.call_tool('execute_query', {'query': 'PRIVATE_QUERY'})
         assert {t.name for t in await server.list_tools()} == {'bsl_syntax_help'}
@@ -62,7 +66,7 @@ def test_list_cache_call_refresh_and_denial_audit(tmp_path):
     assert all(x['trace_id'] for x in denials)
 
 
-@pytest.mark.parametrize('status,body', [(404, {}), (200, {'methods':'all'}), (200, {'methods':[True]}), (200, {})])
+@pytest.mark.parametrize('status,body', [(404, {}), (200, {'methods':'all'}), (200, {'methods':[True]}), (200, {}), (200, {'methods':None}), (200, ['metadata.GET'])])
 def test_fail_closed_and_local_tools_survive(tmp_path, status, body):
     client = OneCClient(Config(base_url='http://test'), httpx.MockTransport(lambda r: httpx.Response(status, json=body)))
     server = AccessMCP('test', access_client=client, audit=AuditLog(str(tmp_path)))
@@ -108,6 +112,7 @@ def test_real_mcp_protocol_filters_list_and_denies_hidden_call(tmp_path, mode):
             result = await session.call_tool('find_object_references',dict(ref='12345678-1234-5678-9abc-123456789abc',ref_kind='Справочник.X'))
             assert not result.is_error and 'Совпадений' in result.content[0].text
             allowed.clear()
+            server._expires = 0
             result = await session.call_tool('find_object_references',dict(ref='12345678-1234-5678-9abc-123456789abc',ref_kind='Справочник.X'))
             assert result.is_error and 'прав' in result.content[0].text
             result = await session.call_tool('bsl_syntax_help',{'query':'СтрНайти'})
