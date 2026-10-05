@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import unicodedata
 
 EXTENSION_NAME = "MCP_HTTPService"
 
@@ -136,11 +137,36 @@ _COMPAT_MODE_NOT_FOUND_RE = re.compile(
 )
 
 
+# DESIGNER on some 8.3 releases returns exit code 0 even when
+# /LoadConfigFromFiles rejected part of the dump.  These messages are fatal,
+# not informational output, and must not be followed by "installed successfully".
+_DESIGNER_FATAL_LOG_RE = re.compile(
+    r"неизвестн\w*\s+объект\s+метаданн\w*"
+    r"|невідом\w*\s+об[’'ʼ]?єкт\s+метадан\w*"
+    r"|ошибк\w*\s+(?:при\s+)?загрузк\w*\s+конфигурац\w*"
+    r"|помилк\w*\s+(?:під\s+час\s+)?завантажен\w*\s+конфігурац\w*"
+    r"|ошибк\w*\s+инициализац\w*\s+модул\w*"
+    r"|помилк\w*\s+ініціалізаці\w*\s+модул\w*"
+    r"|право\s+[^\n\r]*?(?<!не\s)огранич\w*\s+профил\w*\s+безопасност\w*"
+    r"|право\s+[^\n\r]*?(?<!не\s)обмежен\w*\s+профіл\w*\s+безпек\w*",
+    re.IGNORECASE,
+)
+
+
 def _error_contains(error: str, *needles: str) -> bool:
     """Регистронезависимый поиск любого из вариантов текста ошибки
     (русская и украинская локализации DESIGNER)."""
     lowered = error.lower()
     return any(needle.lower() in lowered for needle in needles)
+
+
+class InstallError(Exception):
+    """Ошибка установки расширения с понятным пользователю текстом."""
+
+
+def _designer_log_is_fatal(log: str) -> bool:
+    """True when a nominally successful DESIGNER run contains a load error."""
+    return bool(_DESIGNER_FATAL_LOG_RE.search(log))
 
 
 class InstallError(Exception):
@@ -192,6 +218,7 @@ def _install_from(
     lang: str = DEFAULT_LANG,
 ) -> None:
     shutil.copytree(EXTENSION_SRC, ext_dir, dirs_exist_ok=True)
+    normalize_names_nfc(ext_dir)
     # Показываем источник из импортированного пакета: каталог cwd может
     # содержать другую версию, чем окружение, из которого запущен CLI.
     module_path = os.path.join(EXTENSION_SRC, "HTTPServices", "MCPService", "Ext", "Module.bsl")
@@ -254,11 +281,15 @@ def _install_from(
 
     if error is not None:
         # Платформы старше 8.3.15 не знают KeepMapping/InternalInfo/ClassId
-        # роли — вырезаем и повторяем.
-        if ("KeepMappingToExtendedConfigurationObjectsByIDs" in error
-                or "InternalInfo" in error
-                or _error_contains(error, "идентификатор класса",
-                                   "ідентифікатор класу")):
+        # роли — вырезаем и повторяем. На новых платформах не применяем:
+        # слово InternalInfo встречается и в легитимных ошибках формата,
+        # а вырезание ContainedObject роли там только ломает Configuration.xml.
+        strip_allowed = major == 0 or _older_than(major, minor, 3, 15)
+        if (strip_allowed
+                and ("KeepMappingToExtendedConfigurationObjectsByIDs" in error
+                     or "InternalInfo" in error
+                     or _error_contains(error, "идентификатор класса",
+                                        "ідентифікатор класу"))):
             print("Retrying without unsupported XML elements (old platform)...")
             strip_unsupported_elements(ext_dir)
             error = load()
@@ -408,6 +439,9 @@ def _run_designer(
             )
         return f"1C DESIGNER failed with exit code {result.returncode} (no log output)"
 
+    if log_str and _designer_log_is_fatal(log_str):
+        return "1C DESIGNER reported a fatal load error:\n" + log_str
+
     if log_str:
         print(log_str)
     return None
@@ -504,6 +538,26 @@ def format_version_for_platform(platform_exe: str) -> str:
             if minor >= min_minor:
                 return version
     return DEFAULT_FORMAT_VERSION
+
+
+def normalize_names_nfc(ext_dir: str) -> None:
+    """Приводит имена файлов и каталогов временной копии к NFC.
+
+    Исходники, побывавшие на macOS (zip с APFS, SMB-копия, wheel, собранный
+    на Mac), могут нести NFD-имена: «й» хранится как «и» + диакритика.
+    NTFS и 1C DESIGNER сравнивают имена побайтово, поэтому такой файл для
+    DESIGNER «не существует». APFS, наоборот, нечувствительна к нормализации
+    и не даёт переименовать NFD в NFC напрямую — поэтому переименование
+    идёт через промежуточное имя.
+    """
+    for root, dirs, files in os.walk(ext_dir, topdown=False):
+        for name in dirs + files:
+            nfc = unicodedata.normalize("NFC", name)
+            if nfc == name:
+                continue
+            tmp = os.path.join(root, nfc + ".nfc-tmp")
+            os.rename(os.path.join(root, name), tmp)
+            os.rename(tmp, os.path.join(root, nfc))
 
 
 def _patch_file(path: str, transform) -> None:
