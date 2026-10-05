@@ -295,3 +295,38 @@ def test_no_default_language():
         encoding="utf-8-sig",
     ).read()
     assert "Language.Русский" not in dump_info
+
+
+@pytest.mark.parametrize("message", [
+    "Неизвестный объект метаданных - Document.АктВыполненныхРабот",
+    "Невідомий об’єкт метаданих - Document.АктВыполненныхРабот",
+    "Ошибка при загрузке конфигурации",
+    "Помилка під час завантаження конфігурації",
+])
+def test_designer_fatal_log_is_detected_even_with_zero_exit(message):
+    assert installer._designer_log_is_fatal(message)
+    assert not installer._designer_log_is_fatal("Расширение конфигурации загружено")
+
+
+def test_run_designer_fails_closed_on_zero_exit_fatal_log(monkeypatch):
+    from types import SimpleNamespace
+
+    def fake_run(argv, capture_output):
+        with open(argv[argv.index("/Out") + 1], "w", encoding="utf-8") as log:
+            log.write("Невідомий об’єкт метаданих - Catalog.Номенклатура")
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(installer.subprocess, "run", fake_run)
+    error = installer._run_designer("1cv8.exe", "C:\\db", False, "", "", "/LoadConfigFromFiles", "dump")
+    assert error is not None and "fatal load error" in error
+
+
+def test_normalize_names_nfc(tmp_path):
+    import unicodedata
+
+    nfd = unicodedata.normalize("NFD", "Основной")
+    (tmp_path / nfd).mkdir()
+    (tmp_path / nfd / (nfd + ".xml")).write_text("x", encoding="utf-8")
+    installer.normalize_names_nfc(str(tmp_path))
+    names = [n for _root, dirs, files in os.walk(tmp_path) for n in dirs + files]
+    assert names and all(n == unicodedata.normalize("NFC", n) for n in names)
