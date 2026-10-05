@@ -75,8 +75,8 @@
     "semantic_hash": "06fd91dde1b7435c695e5691e6d75cf4"
   },
   "src/mcp_baf/installer.py": {
-    "mtime": 1791144115.6066658,
-    "ast_hash": "40b262a7f90640fd2b4736b7be24b32b",
+    "mtime": 1791203378.917723,
+    "ast_hash": "5ef7c3fcc9509de0a855642310ed5391",
     "semantic_hash": ""
   },
   "src/mcp_baf/prompts.py": {
@@ -100,7 +100,7 @@
     "semantic_hash": ""
   },
   "src/mcp_baf/tools/common.py": {
-    "mtime": 1791184375.2988775,
+    "mtime": 1791186268.463622,
     "ast_hash": "22df97dbfcd33900b4cab7a33b3177b0",
     "semantic_hash": ""
   },
@@ -135,7 +135,7 @@
     "semantic_hash": ""
   },
   "src/mcp_baf/tools/search_code.py": {
-    "mtime": 1791184375.2990918,
+    "mtime": 1791186268.4639473,
     "ast_hash": "5d51ea0323cc6f6212b458eae788ffd9",
     "semantic_hash": ""
   },
@@ -175,9 +175,9 @@
     "semantic_hash": "c58bebc13a26dfcc067f2e66610672de"
   },
   "tests/test_installer.py": {
-    "mtime": 1782971872.8146133,
-    "ast_hash": "99523f8b387cabe7c1d64af1e05516b6",
-    "semantic_hash": "99523f8b387cabe7c1d64af1e05516b6"
+    "mtime": 1791203413.8546348,
+    "ast_hash": "0a73f32a5c7a5be02f2a9dd9850c8da4",
+    "semantic_hash": ""
   },
   "tests/test_modulenames.py": {
     "mtime": 1782971872.843027,
@@ -190,12 +190,12 @@
     "semantic_hash": ""
   },
   "tests/test_traced.py": {
-    "mtime": 1791184375.2994308,
+    "mtime": 1791186268.46426,
     "ast_hash": "d745d92bb81250a6223bf124ce7f52f2",
     "semantic_hash": ""
   },
   "src/mcp_baf/access.py": {
-    "mtime": 1791184375.2995818,
+    "mtime": 1791186268.4632246,
     "ast_hash": "7ceb543bbf97c9717134e63cebaa7b79",
     "semantic_hash": ""
   },
