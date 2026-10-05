@@ -59,14 +59,13 @@ def register(mcp: MCPServer, index: DumpIndex, audit: AuditWriter) -> None:
             "exact — точная подстрока."
         ))] = "smart",
     ) -> str:
-        if not query:
-            raise ValueError("query is required")
-
         effective_limit = clamp_limit(
             limit, DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT
         )
 
         async def run() -> str:
+            if not query:
+                raise ValueError("query is required")
             params = SearchParams(
                 query=query,
                 category=category,
