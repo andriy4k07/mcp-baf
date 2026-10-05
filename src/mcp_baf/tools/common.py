@@ -46,7 +46,8 @@ async def traced_text(
         )
         # SDK 2 передаёт клиенту текст только ожидаемых ToolError.
         # Ошибки входных данных и HTTP-сервиса должны оставаться понятными.
-        if isinstance(exc, (ValueError, PermissionError, OneCError)):
+        # RuntimeError — состояние локальных индексов («строится», «недоступен»).
+        if isinstance(exc, (ValueError, PermissionError, RuntimeError, OneCError)):
             raise ToolError(str(exc)) from exc
         raise
 
