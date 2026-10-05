@@ -47,7 +47,9 @@ class AccessMCP(MCPServer):
             if time.monotonic() < self._expires:
                 return self._allowed, self._access_error
             try:
-                result = await asyncio.wait_for(self.access_client.get("/capabilities"), 5)
+                # Первый запрос после простоя поднимает сеанс 1С: при коротком
+                # таймауте клиент кэширует список без HTTP-инструментов.
+                result = await asyncio.wait_for(self.access_client.get("/capabilities"), 15)
                 methods = result["methods"]
                 if not isinstance(methods, list) or not all(isinstance(x, str) for x in methods):
                     raise ValueError("invalid capabilities response")

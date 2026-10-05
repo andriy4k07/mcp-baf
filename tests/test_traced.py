@@ -10,6 +10,7 @@ import json
 
 import pytest
 
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp_baf_audit import AuditLog
 from mcp_baf.tools.common import traced_text
 
@@ -45,9 +46,9 @@ def test_traced_text_logs_tool_error_on_exception(tmp_path):
     audit = AuditLog(str(tmp_path))
 
     async def call():
-        raise RuntimeError("1C недоступна")
+        raise KeyError("1C недоступна")
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(KeyError):
         asyncio.run(traced_text(
             audit, "execute_query", call, args={"limit": 10}
         ))
@@ -58,6 +59,18 @@ def test_traced_text_logs_tool_error_on_exception(tmp_path):
     assert event["level"] == "error"
     assert "1C недоступна" in event["error"]
     assert "duration_ms" in event
+
+
+def test_traced_text_keeps_index_state_text_for_client(tmp_path):
+    # «Индекс строится» / «Справка недоступна» должны дойти до клиента,
+    # а не превратиться в безликое "Error executing tool".
+    async def call():
+        raise RuntimeError("search index is building, please retry")
+
+    with pytest.raises(ToolError, match="index is building"):
+        asyncio.run(traced_text(AuditLog(str(tmp_path)), "search_code", call))
+
+    assert last_event(tmp_path)["event"] == "tool.error"
 
 
 def test_traced_text_redacts_secret_args(tmp_path):
