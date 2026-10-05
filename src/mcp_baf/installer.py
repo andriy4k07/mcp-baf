@@ -169,10 +169,6 @@ def _designer_log_is_fatal(log: str) -> bool:
     return bool(_DESIGNER_FATAL_LOG_RE.search(log))
 
 
-class InstallError(Exception):
-    """Ошибка установки расширения с понятным пользователю текстом."""
-
-
 def install(
     db_path: str,
     server_mode: bool = False,
