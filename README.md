@@ -150,7 +150,7 @@ claude mcp add mcp-baf \
 |--------|---------|------------------|------|
 | `--base` | `mcp_baf_BASE_URL` | `http://localhost:8080/hs/mcp-baf` | URL HTTP-сервісу 1С |
 | `--user` | `mcp_baf_USER` | — | Користувач HTTP-сервісу |
-| `--pass` / `--password` | `mcp_baf_PASSWORD` | — | Пароль HTTP-сервісу |
+| `--pass` / `--password` | `mcp_baf_PASSWORD` | — | Пароль HTTP-сервісу. Замість `mcp_baf_PASSWORD` можна задати `mcp_baf_PASSWORD_FILE` — шлях до файлу з паролем (Docker secrets; зрізаються лише кінцеві переводи рядка). Обидві змінні разом — помилка запуску |
 | `--max-response-size` | `mcp_baf_MAX_RESPONSE_SIZE` | `128` | Максимальний розмір відповіді 1С у мебібайтах (MiB). Більша відповідь відхиляється зі зрозумілою помилкою. Збільште ліміт для великих баз із розширеннями |
 | `--request-timeout` | `mcp_baf_REQUEST_TIMEOUT` | `300` | Таймаут HTTP-запиту до 1С у секундах. Збільште, якщо передача дуже великої відповіді не встигає завершитися |
 | `--dump` | `mcp_baf_DUMP_DIR` | — | Шлях до вивантаження конфігурації (DumpConfigToFiles), вмикає інструмент `search_code` і збагачення `get_form_structure` |

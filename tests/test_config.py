@@ -2,7 +2,9 @@
 
 from mcp_baf_audit import DEFAULT_AUDIT_ARCHIVES, DEFAULT_AUDIT_MAX_SIZE_MIB
 
-from mcp_baf.config import load_config, parse_args
+import pytest
+
+from mcp_baf.config import ConfigError, load_config, parse_args
 
 
 def test_audit_defaults():
@@ -56,3 +58,33 @@ def test_local_features_cli_overrides_env(monkeypatch):
     assert env.help_dir == "/help/env"
     cli = load_config(parse_args(["--help-dir", "/help/cli"]))
     assert cli.help_dir == "/help/cli"
+
+
+def test_password_file_strips_trailing_newline_only(monkeypatch, tmp_path):
+    secret = tmp_path / "pw"
+    secret.write_bytes(" p@ss \r\n".encode())
+    monkeypatch.delenv("mcp_baf_PASSWORD", raising=False)
+    monkeypatch.setenv("mcp_baf_PASSWORD_FILE", str(secret))
+    assert load_config(parse_args([])).password == " p@ss "
+
+
+def test_password_plain_env_and_empty_file_var(monkeypatch):
+    monkeypatch.setenv("mcp_baf_PASSWORD", "plain")
+    monkeypatch.setenv("mcp_baf_PASSWORD_FILE", "")
+    assert load_config(parse_args([])).password == "plain"
+
+
+def test_password_and_file_together_is_error(monkeypatch, tmp_path):
+    secret = tmp_path / "pw"
+    secret.write_text("x")
+    monkeypatch.setenv("mcp_baf_PASSWORD", "plain")
+    monkeypatch.setenv("mcp_baf_PASSWORD_FILE", str(secret))
+    with pytest.raises(ConfigError, match="лише одне з mcp_baf_PASSWORD / mcp_baf_PASSWORD_FILE"):
+        load_config(parse_args([]))
+
+
+def test_password_missing_file_error_names_variable_and_path(monkeypatch, tmp_path):
+    monkeypatch.delenv("mcp_baf_PASSWORD", raising=False)
+    monkeypatch.setenv("mcp_baf_PASSWORD_FILE", str(tmp_path / "nope"))
+    with pytest.raises(ConfigError, match="mcp_baf_PASSWORD_FILE.*nope"):
+        load_config(parse_args([]))
