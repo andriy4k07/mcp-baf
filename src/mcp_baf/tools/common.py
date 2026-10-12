@@ -11,6 +11,11 @@ from mcp_baf_audit import AuditWriter, get_trace_id, new_trace_id, set_trace_id
 
 from mcp_baf.client import OneCError
 
+# Ожидаемые отказы: их текст — подсказка агенту. SDK 2 отдаёт клиенту текст
+# только ToolError, всё остальное (баги) остаётся скрытым и идёт в server.log.
+# RuntimeError — состояние локальных индексов («строится», «недоступен»).
+CLIENT_VISIBLE_ERRORS = (ValueError, PermissionError, RuntimeError, OneCError)
+
 
 async def traced_text(
     audit: AuditWriter,
@@ -44,10 +49,7 @@ async def traced_text(
             tool=tool, args=args or {}, error=str(exc),
             duration_ms=int((time.monotonic() - start) * 1000),
         )
-        # SDK 2 передаёт клиенту текст только ожидаемых ToolError.
-        # Ошибки входных данных и HTTP-сервиса должны оставаться понятными.
-        # RuntimeError — состояние локальных индексов («строится», «недоступен»).
-        if isinstance(exc, (ValueError, PermissionError, RuntimeError, OneCError)):
+        if isinstance(exc, CLIENT_VISIBLE_ERRORS):
             raise ToolError(str(exc)) from exc
         raise
 

@@ -6,11 +6,11 @@ import asyncio
 import time
 
 from mcp.server.mcpserver import Context, MCPServer
-from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 from mcp_baf_audit import AuditWriter, get_trace_id, new_trace_id, set_trace_id
 
 from mcp_baf.client import OneCClient
-from mcp_baf.tools.common import traced_text
+from mcp_baf.tools.common import CLIENT_VISIBLE_ERRORS, traced_text
 
 # Ключи соответствуют GET /capabilities; локальные инструменты здесь отсутствуют.
 TOOL_METHODS = {
@@ -80,4 +80,11 @@ class AccessMCP(MCPServer):
                 async def denied():
                     raise ToolError(error or "Нет права использования HTTP-метода инструмента.")
                 return await traced_text(self.access_audit, name, denied, args={"access_denied": True})
-        return await super().call_tool(name, arguments, context)
+        try:
+            return await super().call_tool(name, arguments, context)
+        except UnexpectedToolError as exc:
+            # Часть инструментов проверяет аргументы до traced_text — их
+            # ожидаемые ошибки доходят сюда обёрнутыми; раскрываем в единой точке.
+            if isinstance(exc.__cause__, CLIENT_VISIBLE_ERRORS):
+                raise ToolError(str(exc.__cause__)) from exc.__cause__
+            raise
