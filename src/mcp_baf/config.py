@@ -50,6 +50,10 @@ class Config:
     audit_archives: int = DEFAULT_AUDIT_ARCHIVES
 
 
+class ConfigError(Exception):
+    """Некорректная конфигурация запуска (сообщение показывается пользователю)."""
+
+
 def _env_int(name: str, default: int) -> int:
     """Читает целое из переменной окружения.
 
@@ -62,6 +66,29 @@ def _env_int(name: str, default: int) -> int:
     except ValueError:
         return default
     return n if n > 0 else default
+
+
+def _env_secret(name: str) -> str:
+    """Читает секрет из NAME или из файла NAME_FILE (Docker secrets).
+
+    Из файла срезаются только хвостовые \\r\\n. Одновременное задание обоих
+    вариантов и нечитаемый файл — ошибка запуска; текст ошибки называет
+    переменную и путь, но не содержимое.
+    """
+    value = os.environ.get(name, "")
+    path = os.environ.get(f"{name}_FILE", "")
+    if not path:
+        return value
+    if value:
+        raise ConfigError(f"задайте лише одне з {name} / {name}_FILE")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return f.read().rstrip("\r\n")
+    except (OSError, UnicodeDecodeError) as exc:
+        # str(exc) у UnicodeDecodeError містить байти файлу — беремо лише тип.
+        raise ConfigError(
+            f"{name}_FILE: не вдалося прочитати файл {path} ({type(exc).__name__})"
+        ) from None
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -171,7 +198,7 @@ def load_config(args: argparse.Namespace) -> Config:
     cfg = Config(
         base_url=os.environ.get("mcp_baf_BASE_URL", DEFAULT_BASE_URL),
         user=os.environ.get("mcp_baf_USER", ""),
-        password=os.environ.get("mcp_baf_PASSWORD", ""),
+        password=_env_secret("mcp_baf_PASSWORD"),
         max_response_size_mib=_env_int(
             "mcp_baf_MAX_RESPONSE_SIZE", DEFAULT_MAX_RESPONSE_SIZE_MIB
         ),

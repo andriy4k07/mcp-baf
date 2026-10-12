@@ -8,7 +8,7 @@ import os
 import sys
 
 from mcp_baf_audit import default_cache_dir
-from mcp_baf.config import load_config, parse_args
+from mcp_baf.config import ConfigError, load_config, parse_args
 
 SERVER_LOG_NAME = "server.log"
 SERVER_LOG_MAX_BYTES = 5 * (1 << 20)
@@ -59,7 +59,11 @@ def _setup_logging(debug: bool, cache_dir: str) -> None:
 
 def main() -> None:
     args = parse_args()
-    config = load_config(args)
+    try:
+        config = load_config(args)
+    except ConfigError as exc:
+        print(f"Configuration error: {exc}", file=sys.stderr)
+        sys.exit(1)
     _setup_logging(config.debug, config.cache_dir)
 
     # Режим установки расширения.
