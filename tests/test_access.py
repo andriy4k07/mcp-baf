@@ -121,3 +121,23 @@ def test_real_mcp_protocol_filters_list_and_denies_hidden_call(tmp_path, mode):
         await client.aclose()
     asyncio.run(scenario())
     assert requests.count('/refs') == 1
+
+
+def test_expected_errors_reach_client_but_bugs_stay_hidden(tmp_path):
+    audit = AuditLog(str(tmp_path))
+    client = OneCClient(Config(base_url='http://test'), httpx.MockTransport(lambda r: httpx.Response(200, json={})), audit=audit)
+    server = AccessMCP('test', access_client=client, audit=audit)
+    @server.tool()
+    async def bad_arg() -> str:
+        raise ValueError('подсказка агенту')  # вне traced_text, как в execute_query
+    @server.tool()
+    async def bug() -> str:
+        raise KeyError('секретная внутренность')
+    async def scenario():
+        async with Client(server) as session:
+            result = await session.call_tool('bad_arg', {})
+            assert result.is_error and result.content[0].text == 'подсказка агенту'
+            result = await session.call_tool('bug', {})
+            assert result.is_error and 'секретная' not in result.content[0].text
+        await client.aclose()
+    asyncio.run(scenario())
