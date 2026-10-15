@@ -18,6 +18,10 @@ from mcp_baf_audit import (
 
 DEFAULT_BASE_URL = "http://localhost:8080/hs/mcp-baf"
 
+TRANSPORTS = ("stdio", "https", "http")
+DEFAULT_HTTP_HOST = "127.0.0.1"
+DEFAULT_HTTP_PORT = 8001
+
 # Лимит размера ответа 1С по умолчанию, в мебибайтах (MiB).
 # 128 MiB покрывает крупные базы с расширениями, оставаясь потолком против OOM.
 DEFAULT_MAX_RESPONSE_SIZE_MIB = 128
@@ -48,6 +52,19 @@ class Config:
     # Ротация audit.log: лимит размера (MiB) и число хранимых архивов.
     audit_max_size_mib: int = DEFAULT_AUDIT_MAX_SIZE_MIB
     audit_archives: int = DEFAULT_AUDIT_ARCHIVES
+    # Транспорт MCP: stdio (по умолчанию), https (streamable-http за TLS) или
+    # http — без TLS, только вместе с allow_insecure_http (двойной opt-in).
+    transport: str = "stdio"
+    allow_insecure_http: bool = False
+    http_host: str = DEFAULT_HTTP_HOST
+    http_port: int = DEFAULT_HTTP_PORT
+    # Разрешённые Host через запятую; пусто — защита от DNS-rebinding выключена.
+    http_allowed_hosts: str = ""
+    # Bearer-токен, обязателен для https/http: без него чтение базы открыто сети.
+    http_token: str = ""
+    # Свои cert/key для https; пусто — самоподписанный CA в <cache_dir>/tls/.
+    tls_cert: str = ""
+    tls_key: str = ""
 
 
 class ConfigError(Exception):
@@ -182,6 +199,42 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
              f"Default: {DEFAULT_AUDIT_ARCHIVES}.",
     )
     parser.add_argument(
+        "--transport", default="", choices=TRANSPORTS,
+        help="MCP transport: stdio (default), https (streamable-http over TLS) "
+             "or http (no TLS; also requires --allow-insecure-http)",
+    )
+    parser.add_argument(
+        "--allow-insecure-http", action="store_true",
+        help="Permit --transport http without TLS (env mcp_baf_ALLOW_INSECURE_HTTP=1).",
+    )
+    parser.add_argument(
+        "--http-host", default="", metavar="HOST",
+        help=f"Bind host for --transport http(s). Default: {DEFAULT_HTTP_HOST}.",
+    )
+    parser.add_argument(
+        "--http-port", type=int, default=0, metavar="PORT",
+        help=f"Bind port for --transport http(s). Default: {DEFAULT_HTTP_PORT}.",
+    )
+    parser.add_argument(
+        "--http-allowed-hosts", default="", metavar="HOSTS",
+        help="Comma-separated allowed Host headers for --transport http(s). "
+             "Empty disables DNS-rebinding protection (internal network).",
+    )
+    parser.add_argument(
+        "--http-token", default="", metavar="TOKEN",
+        help="Bearer token required on every request for --transport http(s) "
+             "(env mcp_baf_HTTP_TOKEN is preferred: CLI flags are visible in ps).",
+    )
+    parser.add_argument(
+        "--tls-cert", default="", metavar="PATH",
+        help="PEM certificate (chain) for --transport https. Empty with "
+             "--tls-key also empty: generate a local CA in <cache-dir>/tls/.",
+    )
+    parser.add_argument(
+        "--tls-key", default="", metavar="PATH",
+        help="PEM private key for --transport https.",
+    )
+    parser.add_argument(
         "--version", action="version", version=f"mcp-baf {_version()}",
     )
     return parser.parse_args(argv)
@@ -209,6 +262,15 @@ def load_config(args: argparse.Namespace) -> Config:
             "mcp_baf_AUDIT_MAX_SIZE", DEFAULT_AUDIT_MAX_SIZE_MIB
         ),
         audit_archives=_env_int("mcp_baf_AUDIT_ARCHIVES", DEFAULT_AUDIT_ARCHIVES),
+        transport=os.environ.get("mcp_baf_TRANSPORT", "") or "stdio",
+        allow_insecure_http=os.environ.get("mcp_baf_ALLOW_INSECURE_HTTP", "").strip().lower()
+        in ("1", "true", "yes", "on"),
+        http_host=os.environ.get("mcp_baf_HTTP_HOST", "") or DEFAULT_HTTP_HOST,
+        http_port=_env_int("mcp_baf_HTTP_PORT", DEFAULT_HTTP_PORT),
+        http_allowed_hosts=os.environ.get("mcp_baf_HTTP_ALLOWED_HOSTS", ""),
+        http_token=_env_secret("mcp_baf_HTTP_TOKEN"),
+        tls_cert=os.environ.get("mcp_baf_TLS_CERT", ""),
+        tls_key=os.environ.get("mcp_baf_TLS_KEY", ""),
     )
 
     if args.base:
@@ -229,6 +291,17 @@ def load_config(args: argparse.Namespace) -> Config:
     if args.audit_archives > 0:
         cfg.audit_archives = args.audit_archives
 
+    cfg.transport = args.transport or cfg.transport
+    cfg.allow_insecure_http = args.allow_insecure_http or cfg.allow_insecure_http
+    cfg.http_host = args.http_host or cfg.http_host
+    if args.http_port > 0:
+        cfg.http_port = args.http_port
+    cfg.http_allowed_hosts = args.http_allowed_hosts or cfg.http_allowed_hosts
+    cfg.http_token = args.http_token or cfg.http_token
+    cfg.tls_cert = args.tls_cert or cfg.tls_cert
+    cfg.tls_key = args.tls_key or cfg.tls_key
+    _check_transport(cfg)
+
     cfg.cache_dir = args.cache_dir or os.environ.get("mcp_baf_CACHE_DIR", "")
     cfg.reindex = args.reindex
     cfg.debug = args.debug
@@ -244,3 +317,23 @@ def load_config(args: argparse.Namespace) -> Config:
     cfg.show_progress = show and not args.debug
 
     return cfg
+
+
+def _check_transport(cfg: Config) -> None:
+    """Сетевой транспорт: только с токеном, plain http — только с явным opt-in."""
+    if cfg.transport not in TRANSPORTS:
+        raise ConfigError(f"mcp_baf_TRANSPORT: unknown transport '{cfg.transport}'")
+    if cfg.transport == "stdio":
+        return
+    if cfg.transport == "http" and not cfg.allow_insecure_http:
+        raise ConfigError(
+            "plain http transport is disabled: use --transport https, or opt in "
+            "explicitly with --allow-insecure-http / mcp_baf_ALLOW_INSECURE_HTTP=1"
+        )
+    if not cfg.http_token:
+        raise ConfigError(
+            f"--transport {cfg.transport} requires a bearer token: set mcp_baf_HTTP_TOKEN "
+            "(or --http-token); without it the 1C base is readable by anyone on the network"
+        )
+    if bool(cfg.tls_cert) != bool(cfg.tls_key):
+        raise ConfigError("set both mcp_baf_TLS_CERT and mcp_baf_TLS_KEY, or neither")
