@@ -43,3 +43,6 @@ graphify-out/cost.json
 graphify-out/graph.html
 graphify-out/.graphify_root
 graphify-out/cache/
+
+# Local secrets (docker compose)
+.env
