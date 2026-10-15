@@ -13,7 +13,7 @@ AI-клієнт ← stdio → AccessMCP (Python) → HTTP → розширенн
 
 ## Реєстрація та доступ
 
-`__main__.py` запускає інсталятор з `--install` або створює сервер на stdio. `server.create_server` реєструє 13 базових інструментів; локальні опції додають до трьох. Усі повертають готовий Markdown і мають `readOnlyHint=True`.
+`__main__.py` запускає інсталятор з `--install` або створює сервер на stdio (чи `https`/`http` за bearer-токеном, див. configuration.md). `server.create_server` реєструє 13 базових інструментів; локальні опції додають до трьох. Усі повертають готовий Markdown і мають `readOnlyHint=True`.
 
 `AccessMCP` — підклас `MCPServer` офіційного MCP SDK 2.x, який перевизначає `list_tools` та `call_tool` і передає контекст запиту SDK. `GET /capabilities` віддає дозволені HTTP-методи за правами HTTP-користувача. Таблиця `access.TOOL_METHODS` зіставляє інструменти з методами; локальні інструменти не залежать від цієї перевірки.
 
