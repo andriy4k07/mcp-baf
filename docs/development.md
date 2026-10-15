@@ -85,8 +85,9 @@ def test_dump_dir_default_empty(monkeypatch):
 
 ```
 src/mcp_baf/
-├── __main__.py        точка входу: --install або сервер на stdio
+├── __main__.py        точка входу: --install або сервер на stdio / https
 ├── server.py          create_server, порядок реєстрації, EXPECTED_EXTENSION_VERSION
+├── tls.py             самопідписаний CA для --transport https
 ├── config.py          defaults → env → CLI
 ├── access.py          перевірка capabilities, фільтрація list/call
 ├── bsl_native/        Python-лексер, парсер, базові перевірки та відступи
