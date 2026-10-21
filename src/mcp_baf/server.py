@@ -165,7 +165,7 @@ def create_server(config: Config) -> MCPServer:
     # Стабильный порядок регистрации; локальные инструменты не требуют базы.
     metadata.register(mcp, client, audit)
     object_structure.register(mcp, client, audit)
-    query.register(mcp, client, audit)
+    query.register(mcp, client, audit, config.mask_pii)
     if index is not None:
         search_code.register(mcp, index, audit)
     # dump-директория позволяет form-инструменту обогащать ответ из Form.xml.
