@@ -59,7 +59,7 @@ class AccessMCP(MCPServer):
                 self._allowed = set()
                 self._access_error = (
                     "Проверка прав /capabilities недоступна. Проверьте подключение, "
-                    "права HTTP-пользователя и установите расширение 0.5.6 или новее."
+                    "права HTTP-пользователя и установите расширение 0.5.7 или новее."
                 )
             # Отказ держим недолго, чтобы восстановление связи не ждало 30 с.
             self._expires = time.monotonic() + (30 if self._allowed else 5)
