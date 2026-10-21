@@ -1,5 +1,6 @@
 """https-транспорт: токен обязателен, plain http — двойной opt-in, TLS c генерируемым CA."""
 
+import json
 import os
 import socket
 import ssl
@@ -99,6 +100,25 @@ def test_https_server_end_to_end(tmp_path):
                 "protocolVersion": "2025-06-18", "capabilities": {},
                 "clientInfo": {"name": "t", "version": "0"}}})
         assert allowed.status_code == 200, allowed.text
+
+        def rpc(payload, session=None):
+            headers = {"Authorization": "Bearer tok", "Accept": "application/json, text/event-stream"}
+            if session:
+                headers["mcp-session-id"] = session
+            resp = httpx.post(url, verify=verify, headers=headers, json=payload)
+            assert resp.status_code in (200, 202), resp.text
+            if "text/event-stream" in resp.headers.get("content-type", ""):
+                lines = [ln[5:].strip() for ln in resp.text.splitlines() if ln.startswith("data:")]
+                return json.loads(lines[-1]) if lines else None
+            return resp.json() if resp.content else None
+
+        session = allowed.headers.get("mcp-session-id")
+        rpc({"jsonrpc": "2.0", "method": "notifications/initialized"}, session)
+        # UTF-8 round-trip: кириллица в аргументе и в ответе локального инструмента
+        reply = rpc({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {
+            "name": "bsl_syntax_help", "arguments": {"query": "СтрНайти"}}}, session)
+        assert "error" not in reply and not reply["result"].get("isError"), reply
+        assert "СтрНайти" in json.dumps(reply, ensure_ascii=False), reply
     finally:
         proc.terminate()
         proc.wait(timeout=10)
