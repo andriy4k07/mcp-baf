@@ -46,13 +46,17 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
             "Максимальное количество записей "
             f"(по умолчанию {DEFAULT_EVENT_LOG_LIMIT}, максимум {MAX_EVENT_LOG_LIMIT})"
         ))] = 0,
+        exclude_system: Annotated[bool, Field(description=(
+            "Скрыть шум платформы (транзакции, фоновые задания, сеансы); "
+            "по умолчанию true"
+        ))] = True,
     ) -> str:
         effective_limit = clamp_limit(
             limit, DEFAULT_EVENT_LOG_LIMIT, MAX_EVENT_LOG_LIMIT
         )
 
         async def run() -> str:
-            body: dict[str, Any] = {"limit": effective_limit}
+            body: dict[str, Any] = {"limit": effective_limit, "exclude_system": exclude_system}
             if start_date:
                 body["start_date"] = start_date
             if end_date:
@@ -73,6 +77,7 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
                 "level": level,
                 "user": user,
                 "limit": effective_limit,
+                "exclude_system": exclude_system,
             },
         )
 
@@ -103,5 +108,8 @@ def format_event_log(r: dict[str, Any]) -> str:
                 lines.append(f"- {label}: {e[key]}")
 
     lines.append("")
-    lines.append(f"Всего: {r.get('total', 0)}")
+    if r.get("truncated"):
+        lines.append(f"Показано: {len(events)}. Список может быть неполным.")
+    else:
+        lines.append(f"Всего: {r.get('total', 0)}")
     return "\n".join(lines) + "\n"
