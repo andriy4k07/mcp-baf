@@ -95,3 +95,28 @@ def test_every_tool_is_classified_as_http_or_local(tmp_path):
         async with Client(server):
             pass
     asyncio.run(close())
+
+
+def test_event_log_exclude_system_sent_and_truncated_note(tmp_path):
+    import asyncio, json, httpx
+    from mcp_baf.client import OneCClient
+    from mcp_baf.config import Config
+    from mcp_baf.tools import eventlog
+    bodies = []
+
+    def handler(request):
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json={"events": [{"date": "d", "event": "e"}], "total": 5, "truncated": True})
+
+    client = OneCClient(Config(base_url="http://test"), httpx.MockTransport(handler))
+    tools = {}
+
+    class FakeMCP:
+        def tool(self, **kw):
+            return lambda f: tools.setdefault(f.__name__, f)
+
+    from mcp_baf_audit import AuditLog
+    eventlog.register(FakeMCP(), client, AuditLog(str(tmp_path)))
+    out = asyncio.run(tools["get_event_log"](exclude_system=False))
+    assert bodies[0]["exclude_system"] is False
+    assert "неполным" in out and "Всего" not in out
