@@ -28,6 +28,12 @@ def test_audit_cli_overrides_env(monkeypatch):
     assert cfg.audit_archives == 3
 
 
+def test_http_token_must_be_ascii():
+    argv = ["--transport", "https", "--http-token", "токен"]
+    with pytest.raises(ConfigError, match="ASCII"):
+        load_config(parse_args(argv))
+
+
 def test_audit_invalid_env_falls_back_to_default(monkeypatch):
     monkeypatch.setenv("mcp_baf_AUDIT_MAX_SIZE", "not-a-number")
     cfg = load_config(parse_args([]))

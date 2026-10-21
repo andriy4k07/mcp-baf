@@ -335,5 +335,7 @@ def _check_transport(cfg: Config) -> None:
             f"--transport {cfg.transport} requires a bearer token: set mcp_baf_HTTP_TOKEN "
             "(or --http-token); without it the 1C base is readable by anyone on the network"
         )
+    if not cfg.http_token.isascii():
+        raise ConfigError("HTTP-токен должен содержать только ASCII-символы")
     if bool(cfg.tls_cert) != bool(cfg.tls_key):
         raise ConfigError("set both mcp_baf_TLS_CERT and mcp_baf_TLS_KEY, or neither")
