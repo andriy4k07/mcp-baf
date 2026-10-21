@@ -65,6 +65,8 @@ class Config:
     # Свои cert/key для https; пусто — самоподписанный CA в <cache_dir>/tls/.
     tls_cert: str = ""
     tls_key: str = ""
+    # Маскирование ПДн (ФИО, ИНН, телефоны, email...) в результатах execute_query.
+    mask_pii: bool = False
 
 
 class ConfigError(Exception):
@@ -204,6 +206,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
              "or http (no TLS; also requires --allow-insecure-http)",
     )
     parser.add_argument(
+        "--mask-pii", action="store_true",
+        help="Mask personal data in execute_query results (env mcp_baf_MASK_PII=1).",
+    )
+    parser.add_argument(
         "--allow-insecure-http", action="store_true",
         help="Permit --transport http without TLS (env mcp_baf_ALLOW_INSECURE_HTTP=1).",
     )
@@ -265,6 +271,8 @@ def load_config(args: argparse.Namespace) -> Config:
         transport=os.environ.get("mcp_baf_TRANSPORT", "") or "stdio",
         allow_insecure_http=os.environ.get("mcp_baf_ALLOW_INSECURE_HTTP", "").strip().lower()
         in ("1", "true", "yes", "on"),
+        mask_pii=os.environ.get("mcp_baf_MASK_PII", "").strip().lower()
+        in ("1", "true", "yes", "on"),
         http_host=os.environ.get("mcp_baf_HTTP_HOST", "") or DEFAULT_HTTP_HOST,
         http_port=_env_int("mcp_baf_HTTP_PORT", DEFAULT_HTTP_PORT),
         http_allowed_hosts=os.environ.get("mcp_baf_HTTP_ALLOWED_HOSTS", ""),
@@ -293,6 +301,7 @@ def load_config(args: argparse.Namespace) -> Config:
 
     cfg.transport = args.transport or cfg.transport
     cfg.allow_insecure_http = args.allow_insecure_http or cfg.allow_insecure_http
+    cfg.mask_pii = args.mask_pii or cfg.mask_pii
     cfg.http_host = args.http_host or cfg.http_host
     if args.http_port > 0:
         cfg.http_port = args.http_port
@@ -335,5 +344,7 @@ def _check_transport(cfg: Config) -> None:
             f"--transport {cfg.transport} requires a bearer token: set mcp_baf_HTTP_TOKEN "
             "(or --http-token); without it the 1C base is readable by anyone on the network"
         )
+    if not cfg.http_token.isascii():
+        raise ConfigError("HTTP-токен должен содержать только ASCII-символы")
     if bool(cfg.tls_cert) != bool(cfg.tls_key):
         raise ConfigError("set both mcp_baf_TLS_CERT and mcp_baf_TLS_KEY, or neither")
