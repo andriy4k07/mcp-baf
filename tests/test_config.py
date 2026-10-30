@@ -94,3 +94,8 @@ def test_password_missing_file_error_names_variable_and_path(monkeypatch, tmp_pa
     monkeypatch.setenv("mcp_baf_PASSWORD_FILE", str(tmp_path / "nope"))
     with pytest.raises(ConfigError, match="mcp_baf_PASSWORD_FILE.*nope"):
         load_config(parse_args([]))
+
+
+def test_base_url_with_credentials_rejected():
+    with pytest.raises(ConfigError, match="--user"):
+        load_config(parse_args(["--base", "http://u:secret@host/hs/mcp-baf"]))

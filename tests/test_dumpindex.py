@@ -155,3 +155,19 @@ def test_nfd_dump_names_resolve_to_nfc(tmp_path):
         assert matches[0].module == "РегистрСведений.Йогурт.МодульНабораЗаписей"
     finally:
         idx.close()
+
+
+def test_symlink_bsl_outside_dump_skipped(tmp_path):
+    dump = tmp_path / "dump"
+    secret = tmp_path / "secret.txt"
+    secret.write_text("СекретнаяСтрока\n", encoding="utf-8")
+    mk_bsl(dump, "CommonModules/Общий/Ext/Module.bsl", "Процедура А()\nКонецПроцедуры\n")
+    (dump / "Leak.bsl").symlink_to(secret)
+    idx = DumpIndex(str(dump), use_cache=False)
+    assert idx.wait_ready(BUILD_TIMEOUT)
+    try:
+        assert idx.module_count() == 1
+        _, total = idx.search(SearchParams(query="СекретнаяСтрока", mode="exact"))
+        assert total == 0
+    finally:
+        idx.close()

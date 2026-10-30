@@ -182,3 +182,13 @@ def test_find_form_files_normalizes_nfd_entries(tmp_path):
     files = formparser.find_form_files(str(tmp_path), "Catalog", "Тест")
     assert list(files) == ["ФормаНастройки"]  # NFC
     assert files["ФормаНастройки"] == str(form_xml)
+
+
+def test_find_form_files_skips_symlink_outside_dump(tmp_path):
+    outside = tmp_path / "outside.xml"
+    outside.write_text("<Form/>", encoding="utf-8")
+    dump = tmp_path / "dump"
+    ext = dump / "Catalogs" / "Тест" / "Forms" / "Чужая" / "Ext"
+    ext.mkdir(parents=True)
+    (ext / "Form.xml").symlink_to(outside)
+    assert formparser.find_form_files(str(dump), "Catalog", "Тест") == {}

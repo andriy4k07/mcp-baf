@@ -4,7 +4,7 @@ MCP-сервер для інтеграції AI-асистентів з BAF: М�
 
 AI бачить метадані вашої конфігурації 1С і генерує точний код на BSL. Працює з будь-яким MCP-сумісним клієнтом.
 
-Самостійний Python-проєкт для читання BAF, пошуку довідки та аналізу BSL. Джерела реалізації й ідей: [feenlace/mcp-1c](https://github.com/feenlace/mcp-1c), [ROCTUP/1c-mcp-toolkit](https://github.com/ROCTUP/1c-mcp-toolkit), [rzateev/onec-help-mcp](https://github.com/rzateev/onec-help-mcp), [phsin/mcp-bsl-ls](https://github.com/phsin/mcp-bsl-ls), [1c-syntax/bsl-language-server](https://github.com/1c-syntax/bsl-language-server), [vladimir-kharin/1c_mcp](https://github.com/vladimir-kharin/1c_mcp). Що саме використано з кожного — у [джерелах і ліцензіях](docs/sources.md).
+Самостійний Python-проєкт для читання BAF, пошуку довідки та аналізу BSL. Джерела реалізації й ідей: [feenlace/mcp-1c](https://github.com/feenlace/mcp-1c), [ROCTUP/1c-mcp-toolkit](https://github.com/ROCTUP/1c-mcp-toolkit), [rzateev/onec-help-mcp](https://github.com/rzateev/onec-help-mcp), [phsin/mcp-bsl-ls](https://github.com/phsin/mcp-bsl-ls), [1c-syntax/bsl-language-server](https://github.com/1c-syntax/bsl-language-server), [vladimir-kharin/1c_mcp](https://github.com/vladimir-kharin/1c_mcp). Що саме використано з кожного — у [джерелах і ліцензіях](docs/sources.md) ([походження за областями](docs/sources.md#походження-за-функціональними-областями)).
 
 ### Працює з локальними моделями
 
