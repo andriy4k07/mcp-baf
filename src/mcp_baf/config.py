@@ -10,6 +10,7 @@ import argparse
 import os
 import sys
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 from mcp_baf_audit import (
     DEFAULT_AUDIT_ARCHIVES,
@@ -283,6 +284,9 @@ def load_config(args: argparse.Namespace) -> Config:
 
     if args.base:
         cfg.base_url = args.base
+    # Креды в URL утекли бы в аудит server_start и в debug-логи httpx.
+    if urlsplit(cfg.base_url).username is not None:
+        raise ConfigError("не вказуйте логін/пароль у --base: використовуйте --user / --password")
     if args.user:
         cfg.user = args.user
     if args.password:
