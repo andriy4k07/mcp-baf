@@ -188,6 +188,8 @@ class DumpIndex:
                 if not file_name.lower().endswith(".bsl"):
                     continue
                 abs_path = os.path.join(root, file_name)
+                if os.path.islink(abs_path):
+                    continue  # симлинк может вести за пределы dump-корня
                 try:
                     st = os.stat(abs_path)
                 except OSError:

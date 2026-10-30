@@ -134,10 +134,12 @@ def find_form_files(
     except FileNotFoundError:
         return {}
 
+    root = os.path.realpath(dump_dir) + os.sep
     result = {}
     for entry in entries:
         form_xml = os.path.join(forms_dir, entry, "Ext", "Form.xml")
-        if os.path.isfile(form_xml):
+        # Симлинки наружу dump-корня не читаем.
+        if os.path.isfile(form_xml) and os.path.realpath(form_xml).startswith(root):
             # Ключ — NFC-имя формы (macOS отдаёт listdir в NFD, а form_name
             # из запроса приходит в NFC); путь хранит сырое имя с диска.
             result[nfc(entry)] = form_xml
