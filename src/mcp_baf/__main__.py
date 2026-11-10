@@ -234,13 +234,18 @@ def _default_host_names(config: Config) -> list[str]:
     return names
 
 
+_LOOPBACK_BINDS = ('127.0.0.1', '::1', 'localhost')
+
+
 def _http_security(config: Config, scheme: str):
     """Захист від DNS-rebinding: увімкнений за замовчуванням.
 
-    Порожній `--http-allowed-hosts` — набір за замовчуванням (див.
-    `_default_host_names`) плюс шаблони `:*`, щоб публікація іншого порту в
-    Docker не ламала перевірку Host. Вимкнення — лише явним флагом
-    `--disable-dns-rebinding` / `mcp_baf_HTTP_DISABLE_DNS_REBINDING=1`.
+    Явний `--http-allowed-hosts` вмикає її завжди. Без нього захист
+    увімкнений лише при loopback-bind (127.0.0.1/::1/localhost): там працює
+    браузерний DNS-rebinding, набір за замовчуванням — `_default_host_names`
+    плюс шаблони `:*`. При bind 0.0.0.0 (контейнер, server-to-server за
+    ім'ям сервісу) без явного списку вона вимкнена, як і було. Вимкнення
+    примусово — `--disable-dns-rebinding` / `mcp_baf_HTTP_DISABLE_DNS_REBINDING=1`.
     """
     from mcp.server.transport_security import TransportSecuritySettings
 
@@ -251,6 +256,8 @@ def _http_security(config: Config, scheme: str):
         return TransportSecuritySettings(enable_dns_rebinding_protection=False)
 
     explicit = [h.strip() for h in config.http_allowed_hosts.split(",") if h.strip()]
+    if not explicit and config.http_host not in _LOOPBACK_BINDS:
+        return TransportSecuritySettings(enable_dns_rebinding_protection=False)
     if explicit:
         hosts = explicit
         origins = [f"{scheme}://{h}" for h in hosts]

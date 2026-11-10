@@ -153,14 +153,19 @@ def test_dns_rebinding_enabled_by_default():
 def test_dns_rebinding_default_accepts_bind_host_and_hostname():
     import socket
 
-    settings = _settings(http_host="192.168.1.10", http_port=9000)
-    assert "192.168.1.10:9000" in settings.allowed_hosts
+    settings = _settings(http_host="localhost", http_port=9000)
     assert f"{socket.gethostname()}:9000" in settings.allowed_hosts
 
 
-def test_dns_rebinding_wildcard_bind_host_is_not_listed():
-    settings = _settings(http_host="0.0.0.0")
-    assert not any(h.startswith("0.0.0.0") for h in settings.allowed_hosts)
+def test_dns_rebinding_off_by_default_for_non_loopback_bind():
+    for host in ("0.0.0.0", "::", "192.168.1.10"):
+        assert _settings(http_host=host).enable_dns_rebinding_protection is False
+
+
+def test_dns_rebinding_explicit_hosts_enable_it_on_wildcard_bind():
+    settings = _settings(http_host="0.0.0.0", http_allowed_hosts="mcp-baf:8001")
+    assert settings.enable_dns_rebinding_protection is True
+    assert settings.allowed_hosts == ["mcp-baf:8001"]
 
 
 def test_dns_rebinding_rejects_foreign_host_and_accepts_localhost():
