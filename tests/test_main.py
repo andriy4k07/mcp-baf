@@ -148,6 +148,8 @@ def test_dns_rebinding_enabled_by_default():
     # публикация другого порта в Docker не ломает проверку Host
     assert "localhost:*" in settings.allowed_hosts
     assert "https://localhost:8001" in settings.allowed_origins
+    # Origin сверяется точно: шаблона `:*` в origins быть не должно
+    assert not any(o.endswith(":*") for o in settings.allowed_origins)
 
 
 def test_dns_rebinding_default_accepts_bind_host_and_hostname():
@@ -184,6 +186,89 @@ def test_dns_rebinding_explicit_hosts_replace_defaults():
     assert settings.allowed_hosts == ["mcp-baf:8001", "mcp.example.lan:8001"]
     assert settings.allowed_origins == [
         "https://mcp-baf:8001", "https://mcp.example.lan:8001"]
+
+
+def test_dns_rebinding_explicit_host_without_port_matches_any_port():
+    """`--http-allowed-hosts mcp-baf` не должен превращать сервис в 421."""
+    from mcp.server.transport_security import TransportSecurityMiddleware
+
+    settings = _settings(http_allowed_hosts="mcp-baf", http_port=18001)
+    assert settings.allowed_hosts == ["mcp-baf:*"]
+    # Host — любой порт, Origin — только реальный порт сервиса
+    assert settings.allowed_origins == ["https://mcp-baf:18001"]
+
+    mw = TransportSecurityMiddleware(settings)
+    assert mw._validate_host("mcp-baf:18001") is True
+    assert mw._validate_host("mcp-baf:8001") is True
+    assert mw._validate_host("evil.example.com:18001") is False
+    assert mw._validate_origin("https://mcp-baf:18001") is True
+    assert mw._validate_origin("https://mcp-baf:18002") is False
+    assert mw._validate_origin("https://evil.example.com") is False
+
+
+def test_dns_rebinding_explicit_host_with_port_stays_exact():
+    from mcp.server.transport_security import TransportSecurityMiddleware
+
+    settings = _settings(http_allowed_hosts="mcp-baf, mcp.example.lan:18001", http_port=8001)
+    assert settings.allowed_hosts == ["mcp-baf:*", "mcp.example.lan:18001"]
+    assert settings.allowed_origins == [
+        "https://mcp-baf:8001", "https://mcp.example.lan:18001"]
+
+    mw = TransportSecurityMiddleware(settings)
+    assert mw._validate_host("mcp.example.lan:18001") is True
+    assert mw._validate_host("mcp.example.lan:18002") is False
+    assert mw._validate_origin("https://mcp.example.lan:18001") is True
+    assert mw._validate_origin("https://mcp.example.lan:18002") is False
+
+
+def test_dns_rebinding_ipv6_entries_are_bracketed():
+    from mcp.server.transport_security import TransportSecurityMiddleware
+
+    settings = _settings(http_allowed_hosts="[::1]:8001, [::2]")
+    assert settings.allowed_hosts == ["[::1]:8001", "[::2]:*"]
+    assert settings.allowed_origins == ["https://[::1]:8001", "https://[::2]:8001"]
+
+    mw = TransportSecurityMiddleware(settings)
+    assert mw._validate_host("[::1]:8001") is True
+    assert mw._validate_host("[::1]:9000") is False
+    assert mw._validate_host("[::2]:9000") is True
+    assert mw._validate_origin("https://[::1]:8001") is True
+    assert mw._validate_origin("https://[::2]:8001") is True
+    assert mw._validate_origin("https://[::1]:9000") is False
+
+
+def test_dns_rebinding_default_port_gets_bare_origin():
+    """Для 80/443 браузер шлёт Origin без порту — додаємо й такий варіант."""
+    from mcp.server.transport_security import TransportSecurityMiddleware
+
+    settings = _settings(http_allowed_hosts="mcp-baf", http_port=443)
+    assert settings.allowed_origins == ["https://mcp-baf:443", "https://mcp-baf"]
+
+    mw = TransportSecurityMiddleware(settings)
+    assert mw._validate_origin("https://mcp-baf") is True
+    assert mw._validate_origin("https://mcp-baf:443") is True
+    assert mw._validate_origin("https://mcp-baf:8443") is False
+
+
+def test_split_host_port():
+    from mcp_baf.tls import host_header, split_host_port
+
+    assert split_host_port("mcp-baf") == ("mcp-baf", None)
+    assert split_host_port("mcp-baf:18001") == ("mcp-baf", "18001")
+    assert split_host_port("[::1]:8001") == ("::1", "8001")
+    assert split_host_port("[::1]") == ("::1", None)
+    assert split_host_port("::1") == ("::1", None)
+    assert split_host_port("mcp-baf:") == ("mcp-baf", None)
+    assert host_header("mcp-baf", None) == "mcp-baf:*"
+    assert host_header("::1", "8001") == "[::1]:8001"
+
+
+def test_dns_rebinding_empty_list_keeps_default_patterns():
+    """Порожній список — поведінка #27: типові хости з портом і `:*`."""
+    settings = _settings(http_allowed_hosts="")
+    assert settings.allowed_hosts == _settings().allowed_hosts
+    assert any(h.endswith(":*") for h in settings.allowed_hosts)
+    assert all(":" in h for h in settings.allowed_hosts)
 
 
 def test_dns_rebinding_can_be_disabled_with_warning(caplog):

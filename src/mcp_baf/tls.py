@@ -18,11 +18,48 @@ SERVER_CERT_NAME = "server.crt"
 SERVER_KEY_NAME = "server.key"
 
 
+def split_host_port(value: str) -> tuple[str, str | None]:
+    """Розділяє `host[:port]` на ім'я хоста й порт.
+
+    IPv6-адреса в Host-заголовку приходить у дужках: `[::1]:8001` -> `("::1", "8001")`;
+    `[::1]` -> `("::1", None)`; голий `::1` теж розпізнається як адреса без порту.
+    """
+    value = value.strip()
+    if value.startswith("["):
+        end = value.find("]")
+        if end != -1:
+            rest = value[end + 1 :]
+            port = rest[1:] if rest.startswith(":") else None
+            return value[1:end], port or None
+    # Рівно одне двокрапка = IPv4/ім'я з портом; більше — голий IPv6 без порту.
+    if value.count(":") == 1:
+        name, port = value.rsplit(":", 1)
+        return name, port or None
+    return value, None
+
+
+def host_name(name: str) -> str:
+    """Ім'я хоста без порту для Origin: IPv6 — у дужках, решта як є."""
+    if ":" in name and not name.startswith("["):
+        name = f"[{name}]"
+    return name
+
+
+def host_header(name: str, port: str | None) -> str:
+    """Host-значення для списку дозволених: IPv6 — у дужках, без порту — `:*`."""
+    return f"{host_name(name)}:{port or '*'}"
+
+
+def _san_name(host: str) -> str:
+    """Ім'я для SAN: `[::1]:8001` -> `::1` (дужки й порт у SAN не потрапляють)."""
+    return split_host_port(host)[0]
+
+
 def self_signed_hosts(*extra: str) -> list[str]:
     """SAN за замовчуванням: localhost, loopback і hostname контейнера/хоста."""
     hosts = ["localhost", "127.0.0.1", "::1", socket.gethostname()]
     for host in extra:
-        host = host.strip()
+        host = _san_name(host)
         if host and host not in ("0.0.0.0", "::") and host not in hosts:
             hosts.append(host)
     return hosts

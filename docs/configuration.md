@@ -81,7 +81,7 @@
 | `--allow-insecure-http` | `mcp_baf_ALLOW_INSECURE_HTTP` | вимкнено | Явний дозвіл на `--transport http`; без нього сервер не стартує |
 | `--http-host` | `mcp_baf_HTTP_HOST` | `127.0.0.1` | Хост прив'язки для `https`/`http` (у контейнері `0.0.0.0`) |
 | `--http-port` | `mcp_baf_HTTP_PORT` | `8001` | Порт прив'язки для `https`/`http` |
-| `--http-allowed-hosts` | `mcp_baf_HTTP_ALLOWED_HOSTS` | порожньо | Дозволені `Host` через кому; вмикає захист від DNS-rebinding і додає хости в SAN згенерованого сертифіката. Порожньо: типовий набір (`localhost`, `127.0.0.1`, `[::1]`, hostname) лише при loopback-bind, інакше захист вимкнений |
+| `--http-allowed-hosts` | `mcp_baf_HTTP_ALLOWED_HOSTS` | порожньо | Дозволені `Host` через кому (без порту — будь-який порт: `mcp-baf` → `mcp-baf:*`, з портом — точний); вмикає захист від DNS-rebinding і додає хости в SAN згенерованого сертифіката. Порожньо: типовий набір (`localhost`, `127.0.0.1`, `[::1]`, hostname) лише при loopback-bind, інакше захист вимкнений |
 | `--disable-dns-rebinding` | `mcp_baf_HTTP_DISABLE_DNS_REBINDING` | вимкнено | Примусово вимкнути перевірку `Host`/`Origin` (захист від DNS-rebinding). Не рекомендується: вимкнення пише попередження в лог |
 | `--http-token` | `mcp_baf_HTTP_TOKEN` (`_FILE`) | — (**обов'язковий** для `https`/`http`) | Bearer-токен: кожен запит несе `Authorization: Bearer <токен>`, інакше `401`. Задавайте через env — CLI видно в `ps` |
 | `--tls-cert` / `--tls-key` | `mcp_baf_TLS_CERT` / `mcp_baf_TLS_KEY` | — (згенерований CA) | Свій PEM-сертифікат і ключ для `https`, обидва або жоден. Якщо жоден — сервер один раз генерує CA і серверний сертифікат у `<cache-dir>/tls/` (`ca.crt` — клієнтам; SAN: `localhost`, `127.0.0.1`, ім'я хоста, `--http-host`, `--http-allowed-hosts`). Змінили хости — видаліть `tls/` |
@@ -106,8 +106,13 @@ CA: `docker compose cp mcp-baf:/data/tls/ca.crt .`.
 `localhost`, `127.0.0.1`, `[::1]` і hostname хоста, з будь-яким портом
 (`localhost:*`). При прив'язці `0.0.0.0`/`::` (контейнер, server-to-server за
 ім'ям сервісу) без явного списку перевірка вимкнена. Явний
-`--http-allowed-hosts` вмикає її завжди і замінює типовий набір; чужий `Host`
-отримує `421`, чужий `Origin` — `403`. Примусово вимкнути —
+`--http-allowed-hosts` вмикає її завжди і замінює типовий набір. Елемент без
+порту означає будь-який порт (`mcp-baf` → `mcp-baf:*`), з портом — лише цей
+порт (`mcp-baf:18001`). IPv6 пишеться в дужках (`[::1]:8001`), у SAN
+сертифіката дужки знімаються. `Host` звіряється за шаблоном (`:*`), а `Origin` —
+точно: для елемента без порту дозволено лише `--http-port` сервіса (для 80/443 —
+і варіант без порту), тож крос-origin запит з іншого порту отримає `403`. Чужий
+`Host` отримує `421`, чужий `Origin` — `403`. Примусово вимкнути —
 `--disable-dns-rebinding` / `mcp_baf_HTTP_DISABLE_DNS_REBINDING=1`, із
 попередженням у лог.
 
