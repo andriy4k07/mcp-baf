@@ -200,7 +200,7 @@ def _resolve_tls(config: Config) -> tuple[str, str]:
     directory = os.path.join(config.cache_dir or default_cache_dir("mcp-baf"), "tls")
     hosts = self_signed_hosts(
         config.http_host,
-        *(h.rsplit(":", 1)[0] for h in config.http_allowed_hosts.split(",")),
+        *(h for h in config.http_allowed_hosts.split(",")),
     )
     ca, cert, key = ensure_self_signed(directory, hosts)
     logging.getLogger(__name__).warning(
@@ -237,6 +237,28 @@ def _default_host_names(config: Config) -> list[str]:
 _LOOPBACK_BINDS = ('127.0.0.1', '::1', 'localhost')
 
 
+def _origins(scheme: str, parsed: list[tuple[str, str | None]], config: Config) -> list[str]:
+    """Origin-значення для `allowed_origins`.
+
+    SDK 2.3.0 порівнює Origin точно (без шаблонів), тому `:*` тут непридатний.
+    Елемент із портом — рівно `scheme://host:port`; без порту — реальний порт
+    сервіса (`config.http_port`), а для 80/443 ще й варіант без порту, бо
+    браузер його не пише.
+    """
+    from mcp_baf.tls import host_header, host_name
+
+    port = str(config.http_port)
+    origins: list[str] = []
+    for name, explicit_port in parsed:
+        if explicit_port:
+            origins.append(f"{scheme}://{host_header(name, explicit_port)}")
+        else:
+            origins.append(f"{scheme}://{host_header(name, port)}")
+            if config.http_port in (80, 443):
+                origins.append(f"{scheme}://{host_name(name)}")
+    return list(dict.fromkeys(origins))
+
+
 def _http_security(config: Config, scheme: str):
     """Захист від DNS-rebinding: увімкнений за замовчуванням.
 
@@ -248,6 +270,7 @@ def _http_security(config: Config, scheme: str):
     примусово — `--disable-dns-rebinding` / `mcp_baf_HTTP_DISABLE_DNS_REBINDING=1`.
     """
     from mcp.server.transport_security import TransportSecuritySettings
+    from mcp_baf.tls import host_header, split_host_port
 
     if not config.dns_rebinding_protection:
         logging.getLogger(__name__).warning(
@@ -259,14 +282,17 @@ def _http_security(config: Config, scheme: str):
     if not explicit and config.http_host not in _LOOPBACK_BINDS:
         return TransportSecuritySettings(enable_dns_rebinding_protection=False)
     if explicit:
-        hosts = explicit
-        origins = [f"{scheme}://{h}" for h in hosts]
+        # SDK 2.3.0 сверяет Host точно или по шаблону `host:*` (без него запрос
+        # с реальным `Host: mcp-baf:18001` получает 421). Поэтому элемент без
+        # порта расширяем до `:*`, а явный порт оставляем точным.
+        parsed = [split_host_port(h) for h in explicit]
+        hosts = [host_header(name, port) for name, port in parsed]
+        origins = _origins(scheme, parsed, config)
     else:
         names = _default_host_names(config)
         hosts = [f"{n}:{config.http_port}" for n in names]
         hosts += [f"{n}:*" for n in names]
-        origins = [f"{scheme}://{n}:{config.http_port}" for n in names]
-        origins += [f"{scheme}://{n}:*" for n in names]
+        origins = _origins(scheme, [(n, None) for n in names], config)
     return TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
         allowed_hosts=hosts,
