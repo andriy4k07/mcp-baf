@@ -24,10 +24,10 @@ import unicodedata
 
 EXTENSION_NAME = "MCP_HTTPService"
 
-# Таймаут одного запуска DESIGNER, секунды (15 минут). Загрузка крупной
+# Таймаут одного запуска DESIGNER, секунды (1 час). Загрузка крупной
 # конфигурации идёт минутами, но зависший DESIGNER без потолка держит
 # установку вечно и не даёт отличить «ещё работает» от «повис».
-DEFAULT_DESIGNER_TIMEOUT = 900
+DEFAULT_DESIGNER_TIMEOUT = 3600
 
 # Переменные окружения с паролем базы DESIGNER. _FILE — путь к файлу
 # (Docker secrets); содержимое читается без argv, поэтому не видно в ps.
@@ -229,7 +229,7 @@ def resolve_db_password(cli_password: str = "") -> str:
 
 
 def designer_timeout() -> int:
-    """Таймаут DESIGNER: mcp_baf_DESIGNER_TIMEOUT (сек), иначе 15 минут.
+    """Таймаут DESIGNER: mcp_baf_DESIGNER_TIMEOUT (сек), иначе 1 час.
 
     Некорректные и неположительные значения игнорируются — остаётся
     значение по умолчанию, чтобы опечатка не отключила защиту от зависания.
