@@ -55,12 +55,25 @@ class AccessMCP(MCPServer):
                     raise ValueError("invalid capabilities response")
                 self._allowed = set(methods)
                 self._access_error = ""
-            except Exception:
+            except Exception as exc:
                 self._allowed = set()
                 self._access_error = (
                     "Проверка прав /capabilities недоступна. Проверьте подключение, "
-                    "права HTTP-пользователя и установите расширение 0.5.7 или новее."
+                    "права HTTP-пользователя и установите расширение 0.6.0 или новее."
                 )
+                # Причину отказа нельзя терять: без неё в аудите «нет связи»,
+                # «нет расширения» и «нет права» выглядят одинаково. Пишем класс
+                # и первые 300 символов ошибки клиента (URL и пароль в него не
+                # попадают; тело /capabilities — только текст ошибки 1С); данные
+                # базы и секреты в запись не попадают, их редактирует пакет аудита.
+                self.access_audit.write(
+                    "access.capabilities_unavailable",
+                    level="error",
+                    trace_id=get_trace_id(),
+                    reason=type(exc).__name__,
+                    error=str(exc)[:300],
+                )
+
             # Отказ держим недолго, чтобы восстановление связи не ждало 30 с.
             self._expires = time.monotonic() + (30 if self._allowed else 5)
             return self._allowed, self._access_error
