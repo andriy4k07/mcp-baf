@@ -66,6 +66,30 @@ def test_self_signed_ca_verifies_strictly(tmp_path):
     assert all(done.values())
 
 
+def test_self_signed_hosts_strips_ipv6_brackets_and_port():
+    """SAN для `[::1]:8001` — IP `::1`, а не DNS `[`; порт в SAN не потрапляє."""
+    assert self_signed_hosts("[::1]:8001") == self_signed_hosts()
+    assert "::1" in self_signed_hosts("[::1]")
+    assert "[::1]" not in self_signed_hosts("[::1]")
+    assert "mcp-baf" in self_signed_hosts("mcp-baf")
+
+
+def test_self_signed_san_contains_ipv6_ipaddress(tmp_path):
+    from cryptography import x509
+    from cryptography.x509.oid import NameOID
+
+    ca, cert, key = ensure_self_signed(
+        str(tmp_path), self_signed_hosts("[::1]:8001", "mcp-baf:18001"))
+    with open(cert, "rb") as fh:
+        leaf = x509.load_pem_x509_certificate(fh.read())
+    san = leaf.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+    assert "::1" in [str(v) for v in san.get_values_for_type(x509.IPAddress)]
+    assert "mcp-baf" in san.get_values_for_type(x509.DNSName)
+    # CN тоже должен быть валидным именем, а не "["
+    cn = leaf.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
+    assert cn == "localhost"
+
+
 def test_https_server_end_to_end(tmp_path):
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
