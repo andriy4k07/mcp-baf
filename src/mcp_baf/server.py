@@ -59,36 +59,6 @@ _INSTRUCTIONS = (
 )
 
 
-def _strip_schema_titles(schema: dict) -> None:
-    """Убирает автогенерированные pydantic'ом "title" из JSON-схемы.
-
-    Смысла для модели они не несут ("object_name" -> "Object Name"), но
-    раздувают init-payload. Чистятся только узлы схемы; ключи словаря
-    properties (имена параметров) не трогаются.
-    """
-    schema.pop("title", None)
-    props = schema.get("properties")
-    if isinstance(props, dict):
-        for sub in props.values():
-            if isinstance(sub, dict):
-                _strip_schema_titles(sub)
-    for key in ("items", "additionalProperties"):
-        sub = schema.get(key)
-        if isinstance(sub, dict):
-            _strip_schema_titles(sub)
-    for key in ("anyOf", "oneOf", "allOf", "prefixItems"):
-        subs = schema.get(key)
-        if isinstance(subs, list):
-            for sub in subs:
-                if isinstance(sub, dict):
-                    _strip_schema_titles(sub)
-    defs = schema.get("$defs")
-    if isinstance(defs, dict):
-        for sub in defs.values():
-            if isinstance(sub, dict):
-                _strip_schema_titles(sub)
-
-
 async def _check_extension_version(client: OneCClient, audit: AuditLog) -> None:
     """Сверяет версию расширения 1С с ожидаемой.
 
@@ -167,11 +137,11 @@ def create_server(config: Config) -> MCPServer:
     object_structure.register(mcp, client, audit)
     query.register(mcp, client, audit, config.mask_pii)
     if index is not None:
-        search_code.register(mcp, index, audit)
+        search_code.register(mcp, index, audit, config.mask_pii)
     # dump-директория позволяет form-инструменту обогащать ответ из Form.xml.
-    form.register(mcp, client, audit, config.dump_dir)
+    form.register(mcp, client, audit, config.dump_dir, config.mask_pii)
     validate_query.register(mcp, client, audit)
-    eventlog.register(mcp, client, audit)
+    eventlog.register(mcp, client, audit, config.mask_pii)
     configuration_info.register(mcp, client, audit)
     bsl_help.register(mcp, audit)
     objects.register(mcp, client, audit)
@@ -180,9 +150,7 @@ def create_server(config: Config) -> MCPServer:
     bsl_analysis.register(mcp, audit)
     prompts.register(mcp)
 
-    # Схемы чистятся после регистрации всех инструментов; валидацию вызовов
-    # это не задевает (она идёт по fn_metadata, а не по этому dict).
-    for tool in mcp._tool_manager._tools.values():  # noqa: SLF001
-        _strip_schema_titles(tool.parameters)
-
+    # Схемы инструментов чистятся в AccessMCP.list_tools (публичный метод SDK,
+    # источник payload tools/list); приватные атрибуты _tool_manager здесь
+    # не трогаются.
     return mcp

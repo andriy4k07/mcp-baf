@@ -1,4 +1,5 @@
-"""Тесты аудита HTTP-вызовов 1С: ровно одно событие one_c.http на запрос."""
+"""Тесты аудита HTTP-вызовов 1С: ровно одно событие one_c.http на запрос,
+разделённые таймауты и политика повторов."""
 
 import asyncio
 import json
@@ -16,9 +17,11 @@ def _events(tmp_path):
     return [json.loads(line) for line in lines]
 
 
-def _client(tmp_path, handler):
+def _client(tmp_path, handler, **config_kwargs):
     audit = AuditLog(str(tmp_path))
-    config = Config(base_url="http://test/hs/mcp-baf", cache_dir=str(tmp_path))
+    config_kwargs.setdefault("retry_backoff", 0)  # тесты не должны спать
+    config = Config(base_url="http://test/hs/mcp-baf", cache_dir=str(tmp_path),
+                    **config_kwargs)
     return OneCClient(config, transport=httpx.MockTransport(handler), audit=audit)
 
 
@@ -40,13 +43,14 @@ def test_one_c_http_logged_on_success(tmp_path):
     assert e["payload"]["endpoint"] == "/query"
     assert isinstance(e["payload"]["response_bytes"], int)
     assert isinstance(e["duration_ms"], int)
+    assert e["payload"]["attempts"] == 1
     # тело запроса/ответа не логируется
     assert "ВЫБРАТЬ" not in json.dumps(e, ensure_ascii=False)
 
 
 def test_one_c_http_logged_on_error(tmp_path):
     def handler(request):
-        return httpx.Response(500, text="boom")
+        return httpx.Response(503, text="boom")
 
     set_trace_id(None)
     client = _client(tmp_path, handler)
@@ -61,8 +65,10 @@ def test_one_c_http_logged_on_error(tmp_path):
     e = http[0]
     assert e["ok"] is False
     assert e["level"] == "error"
-    assert e["status"] == 500
+    assert e["status"] == 503
     assert e["error"]
+    # 503 транзиентен: 1 попытка + 2 повтора по умолчанию
+    assert e["payload"]["attempts"] == 3
 
 
 def test_one_c_http_inherits_tool_trace_id(tmp_path):
@@ -126,3 +132,209 @@ def test_scrub_error_detail_masks_and_truncates():
     assert "0671234567" not in out and "a.b@ex.com" not in out
     assert out.startswith("строка 1 строка 2")
     assert len(out) <= 301 and out.endswith("…")
+
+
+# ── Разделённые таймауты httpx ──
+
+
+def test_timeouts_are_split_by_phase(tmp_path):
+    """connect короткий, read — request_timeout: 300 с не должны висеть на connect."""
+    cfg = Config(base_url="http://test/hs/mcp-baf", cache_dir=str(tmp_path),
+                 request_timeout=300, connect_timeout=10, write_timeout=60,
+                 pool_timeout=7)
+    client = OneCClient(cfg, transport=httpx.MockTransport(lambda r: httpx.Response(200)))
+    timeout = client._http.timeout
+    assert (timeout.connect, timeout.read, timeout.write, timeout.pool) == (10, 300, 60, 7)
+    asyncio.run(client.aclose())
+
+
+def test_connect_timeout_defaults_are_short():
+    cfg = Config()
+    assert cfg.connect_timeout == 10
+    assert cfg.pool_timeout == 10
+    assert cfg.request_timeout == 300
+    assert cfg.connect_timeout < cfg.request_timeout
+
+
+# ── Повторы идемпотентных запросов ──
+
+
+def _flaky_handler(responses, seen):
+    """Отдаёт responses по порядку; исключения из списка поднимает как есть."""
+    def handler(request):
+        seen.append(request)
+        item = responses[min(len(seen), len(responses)) - 1]
+        if isinstance(item, Exception):
+            raise item
+        return item
+    return handler
+
+
+def test_retry_on_transport_error_then_success(tmp_path):
+    seen = []
+    handler = _flaky_handler([httpx.ConnectError("refused"), httpx.Response(200, json={"ok": 1})], seen)
+    client = _client(tmp_path, handler)
+
+    assert asyncio.run(client.get("/version")) == {"ok": 1}
+    assert len(seen) == 2
+    http = [e for e in _events(tmp_path) if e["event"] == "one_c.http"]
+    assert len(http) == 1  # одно событие на логический вызов
+    assert http[0]["ok"] is True
+    assert http[0]["payload"]["attempts"] == 2
+    asyncio.run(client.aclose())
+
+
+@pytest.mark.parametrize("status", [502, 503, 504])
+def test_retry_on_transient_5xx(tmp_path, status):
+    seen = []
+    handler = _flaky_handler([httpx.Response(status, text="busy"), httpx.Response(200, json={})], seen)
+    client = _client(tmp_path, handler)
+
+    assert asyncio.run(client.post("/query", {"query": "ВЫБРАТЬ 1"})) == {}
+    assert len(seen) == 2
+    asyncio.run(client.aclose())
+
+
+@pytest.mark.parametrize("status", [400, 401, 404, 422, 500, 501])
+def test_no_retry_on_deterministic_status(tmp_path, status):
+    seen = []
+    handler = _flaky_handler([httpx.Response(status, text="nope")], seen)
+    client = _client(tmp_path, handler)
+
+    with pytest.raises(OneCError):
+        asyncio.run(client.get("/version"))
+    assert len(seen) == 1
+    asyncio.run(client.aclose())
+
+
+def test_no_retry_on_read_timeout(tmp_path):
+    seen = []
+    handler = _flaky_handler([httpx.ReadTimeout("slow")], seen)
+    client = _client(tmp_path, handler)
+
+    with pytest.raises(OneCError, match="executing request to 1C"):
+        asyncio.run(client.get("/version"))
+    assert len(seen) == 1
+    asyncio.run(client.aclose())
+
+
+def test_retry_exhausted_raises_and_logs_one_event(tmp_path):
+    seen = []
+    handler = _flaky_handler([httpx.ConnectError("down")], seen)
+    client = _client(tmp_path, handler)
+
+    with pytest.raises(OneCError, match="executing request to 1C"):
+        asyncio.run(client.get("/version"))
+    assert len(seen) == 3  # 1 попытка + 2 повтора по умолчанию
+    http = [e for e in _events(tmp_path) if e["event"] == "one_c.http"]
+    assert len(http) == 1
+    assert http[0]["ok"] is False
+    assert http[0]["payload"]["attempts"] == 3
+    asyncio.run(client.aclose())
+
+
+def test_retry_can_be_disabled(tmp_path):
+    seen = []
+    handler = _flaky_handler([httpx.ConnectError("down")], seen)
+    client = _client(tmp_path, handler, retry_attempts=0)
+
+    with pytest.raises(OneCError):
+        asyncio.run(client.get("/version"))
+    assert len(seen) == 1
+    asyncio.run(client.aclose())
+
+
+def test_no_retry_for_non_idempotent_request(tmp_path):
+    """Запись не повторяется без явного флага (idempotent=False)."""
+    seen = []
+    handler = _flaky_handler([httpx.Response(503, text="busy")], seen)
+    client = _client(tmp_path, handler)
+
+    with pytest.raises(OneCError):
+        asyncio.run(client.post("/write", {"x": 1}, idempotent=False))
+    assert len(seen) == 1
+    asyncio.run(client.aclose())
+
+
+def test_non_idempotent_retried_only_with_explicit_flag(tmp_path):
+    seen = []
+    handler = _flaky_handler([httpx.Response(503, text="busy"), httpx.Response(200, json={})], seen)
+    client = _client(tmp_path, handler, retry_non_idempotent=True)
+
+    assert asyncio.run(client.post("/write", {"x": 1}, idempotent=False)) == {}
+    assert len(seen) == 2
+    asyncio.run(client.aclose())
+
+
+def test_retry_backoff_is_exponential(tmp_path, monkeypatch):
+    delays = []
+
+    async def fake_sleep(delay):
+        delays.append(delay)
+
+    monkeypatch.setattr("mcp_baf.client.asyncio.sleep", fake_sleep)
+    seen = []
+    handler = _flaky_handler([httpx.ConnectError("down")], seen)
+    client = _client(tmp_path, handler, retry_attempts=2, retry_backoff=0.25)
+
+    with pytest.raises(OneCError):
+        asyncio.run(client.get("/version"))
+    assert delays == [0.25, 0.5]
+    asyncio.run(client.aclose())
+
+
+def test_wait_for_timeout_logged_as_error_not_success(tmp_path):
+    """Отмена по asyncio.wait_for — не успех: ok=false, error_kind=timeout.
+
+    httpx-таймаут приходит как TransportError, а wait_for отменяет корутину
+    без исключения httpx, поэтому раньше finally писал ok=true, status=null.
+    """
+    async def slow(request):
+        await asyncio.sleep(30)
+        return httpx.Response(200, json={"methods": []})
+
+    async def run():
+        set_trace_id(None)
+        client = _client(tmp_path, slow)
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(client.get("/capabilities"), 0.05)
+        await client.aclose()
+
+    asyncio.run(run())
+
+    http = [e for e in _events(tmp_path) if e["event"] == "one_c.http"]
+    assert len(http) == 1  # ровно одно событие даже при отмене
+    e = http[0]
+    assert e["ok"] is False
+    assert e["level"] == "error"
+    assert e["error"] == "timeout"
+    assert e["payload"]["error_kind"] == "timeout"
+    assert e["status"] is None
+    assert e["payload"]["attempts"] == 1
+
+
+def test_external_cancel_propagates_and_is_logged(tmp_path):
+    """Внешняя отмена не глотается и тоже не выглядит успехом в аудите."""
+    async def slow(request):
+        await asyncio.sleep(30)
+        return httpx.Response(200, json={})
+
+    async def run():
+        set_trace_id(None)
+        client = _client(tmp_path, slow)
+        task = asyncio.create_task(client.get("/version"))
+        await asyncio.sleep(0.02)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert task.cancelled()  # CancelledError дошёл до вызывающего
+        await client.aclose()
+
+    asyncio.run(run())
+
+    http = [e for e in _events(tmp_path) if e["event"] == "one_c.http"]
+    assert len(http) == 1
+    e = http[0]
+    assert e["ok"] is False
+    assert e["error"] == "timeout"
+    assert e["payload"]["error_kind"] == "timeout"

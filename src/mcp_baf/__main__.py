@@ -200,7 +200,7 @@ def _resolve_tls(config: Config) -> tuple[str, str]:
     directory = os.path.join(config.cache_dir or default_cache_dir("mcp-baf"), "tls")
     hosts = self_signed_hosts(
         config.http_host,
-        *(h.rsplit(":", 1)[0] for h in config.http_allowed_hosts.split(",")),
+        *(h for h in config.http_allowed_hosts.split(",")),
     )
     ca, cert, key = ensure_self_signed(directory, hosts)
     logging.getLogger(__name__).warning(
@@ -209,17 +209,94 @@ def _resolve_tls(config: Config) -> tuple[str, str]:
     return cert, key
 
 
-def _http_security(allowed_hosts: str, scheme: str):
-    """Защита от DNS-rebinding: пусто — выключена (server-to-server по имени сервиса)."""
-    from mcp.server.transport_security import TransportSecuritySettings
+def _default_host_names(config: Config) -> list[str]:
+    """Хости, які сервер приймає за замовчуванням.
 
-    hosts = [h.strip() for h in allowed_hosts.split(",") if h.strip()]
-    if not hosts:
+    localhost/loopback + bind-хост + hostname контейнера/хоста: цього досить
+    для локального запуску, `docker compose` (`mcp-baf:8001`) і публікації порту.
+    """
+    import socket
+
+    names = ["localhost", "127.0.0.1", "[::1]"]
+    if config.http_host not in ("", "0.0.0.0", "::"):
+        bind_host = config.http_host
+        # Host-заголовок для IPv6 приходить у дужках: [::1]:8001.
+        if ":" in bind_host and not bind_host.startswith("["):
+            bind_host = f"[{bind_host}]"
+        if bind_host not in names:
+            names.append(bind_host)
+    try:
+        hostname = socket.gethostname()
+    except OSError:  # pragma: no cover — екзотичне оточення без hostname
+        hostname = ""
+    if hostname and hostname not in names:
+        names.append(hostname)
+    return names
+
+
+_LOOPBACK_BINDS = ('127.0.0.1', '::1', 'localhost')
+
+
+def _origins(scheme: str, parsed: list[tuple[str, str | None]], config: Config) -> list[str]:
+    """Origin-значення для `allowed_origins`.
+
+    SDK 2.3.0 порівнює Origin точно (без шаблонів), тому `:*` тут непридатний.
+    Елемент із портом — рівно `scheme://host:port`; без порту — реальний порт
+    сервіса (`config.http_port`), а для 80/443 ще й варіант без порту, бо
+    браузер його не пише.
+    """
+    from mcp_baf.tls import host_header, host_name
+
+    port = str(config.http_port)
+    origins: list[str] = []
+    for name, explicit_port in parsed:
+        if explicit_port:
+            origins.append(f"{scheme}://{host_header(name, explicit_port)}")
+        else:
+            origins.append(f"{scheme}://{host_header(name, port)}")
+            if config.http_port in (80, 443):
+                origins.append(f"{scheme}://{host_name(name)}")
+    return list(dict.fromkeys(origins))
+
+
+def _http_security(config: Config, scheme: str):
+    """Захист від DNS-rebinding: увімкнений за замовчуванням.
+
+    Явний `--http-allowed-hosts` вмикає її завжди. Без нього захист
+    увімкнений лише при loopback-bind (127.0.0.1/::1/localhost): там працює
+    браузерний DNS-rebinding, набір за замовчуванням — `_default_host_names`
+    плюс шаблони `:*`. При bind 0.0.0.0 (контейнер, server-to-server за
+    ім'ям сервісу) без явного списку вона вимкнена, як і було. Вимкнення
+    примусово — `--disable-dns-rebinding` / `mcp_baf_HTTP_DISABLE_DNS_REBINDING=1`.
+    """
+    from mcp.server.transport_security import TransportSecuritySettings
+    from mcp_baf.tls import host_header, split_host_port
+
+    if not config.dns_rebinding_protection:
+        logging.getLogger(__name__).warning(
+            "DNS-rebinding protection disabled (mcp_baf_HTTP_DISABLE_DNS_REBINDING)"
+        )
         return TransportSecuritySettings(enable_dns_rebinding_protection=False)
+
+    explicit = [h.strip() for h in config.http_allowed_hosts.split(",") if h.strip()]
+    if not explicit and config.http_host not in _LOOPBACK_BINDS:
+        return TransportSecuritySettings(enable_dns_rebinding_protection=False)
+    if explicit:
+        # SDK 2.3.0 сверяет Host точно или по шаблону `host:*` (без него запрос
+        # с реальным `Host: mcp-baf:18001` получает 421). Поэтому элемент без
+        # порта расширяем до `:*`, а явный порт оставляем точным.
+        parsed = [split_host_port(h) for h in explicit]
+        hosts = [host_header(name, port) for name, port in parsed]
+        origins = _origins(scheme, parsed, config)
+    else:
+        names = _default_host_names(config)
+        hosts = [f"{n}:{config.http_port}" for n in names]
+        hosts += [f"{n}:*" for n in names]
+        origins = _origins(scheme, [(n, None) for n in names], config)
     return TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
         allowed_hosts=hosts,
-        allowed_origins=[f"{scheme}://{h}" for h in hosts],
+        allowed_origins=origins,
     )
 
 
@@ -232,7 +309,7 @@ def _run_http(server, config: Config, tls: tuple[str, str] | None) -> None:
         server.streamable_http_app(
             host=config.http_host,
             transport_security=_http_security(
-                config.http_allowed_hosts, "https" if tls else "http"
+                config, "https" if tls else "http"
             ),
         ),
         config.http_token,
