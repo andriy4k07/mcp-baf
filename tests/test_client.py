@@ -281,3 +281,60 @@ def test_retry_backoff_is_exponential(tmp_path, monkeypatch):
         asyncio.run(client.get("/version"))
     assert delays == [0.25, 0.5]
     asyncio.run(client.aclose())
+
+
+def test_wait_for_timeout_logged_as_error_not_success(tmp_path):
+    """Отмена по asyncio.wait_for — не успех: ok=false, error_kind=timeout.
+
+    httpx-таймаут приходит как TransportError, а wait_for отменяет корутину
+    без исключения httpx, поэтому раньше finally писал ok=true, status=null.
+    """
+    async def slow(request):
+        await asyncio.sleep(30)
+        return httpx.Response(200, json={"methods": []})
+
+    async def run():
+        set_trace_id(None)
+        client = _client(tmp_path, slow)
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(client.get("/capabilities"), 0.05)
+        await client.aclose()
+
+    asyncio.run(run())
+
+    http = [e for e in _events(tmp_path) if e["event"] == "one_c.http"]
+    assert len(http) == 1  # ровно одно событие даже при отмене
+    e = http[0]
+    assert e["ok"] is False
+    assert e["level"] == "error"
+    assert e["error"] == "timeout"
+    assert e["payload"]["error_kind"] == "timeout"
+    assert e["status"] is None
+    assert e["payload"]["attempts"] == 1
+
+
+def test_external_cancel_propagates_and_is_logged(tmp_path):
+    """Внешняя отмена не глотается и тоже не выглядит успехом в аудите."""
+    async def slow(request):
+        await asyncio.sleep(30)
+        return httpx.Response(200, json={})
+
+    async def run():
+        set_trace_id(None)
+        client = _client(tmp_path, slow)
+        task = asyncio.create_task(client.get("/version"))
+        await asyncio.sleep(0.02)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert task.cancelled()  # CancelledError дошёл до вызывающего
+        await client.aclose()
+
+    asyncio.run(run())
+
+    http = [e for e in _events(tmp_path) if e["event"] == "one_c.http"]
+    assert len(http) == 1
+    e = http[0]
+    assert e["ok"] is False
+    assert e["error"] == "timeout"
+    assert e["payload"]["error_kind"] == "timeout"
