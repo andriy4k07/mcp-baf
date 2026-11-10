@@ -29,11 +29,13 @@ PII_COLUMN_MARKERS = tuple(m.lower() for m in (
     "ДокументУдостоверяющий", "Адрес",
 ))
 # Украинские телефоны (+380XXXXXXXXX, 0XXXXXXXXX с пробелами/дефисами/
-# скобками) и email.
-PII_VALUE_RE = re.compile(
+# скобками) и email. Паттерны вынесены в константы: их переиспользует
+# PII_TEXT_RE, чтобы не разминулись две копии одного регулярки.
+_EMAIL_PATTERN = r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"
+_PHONE_PATTERN = (
     r"(?<!\d)(?:\+?38[\s-]*)?\(?0[\s-]*\d[\s-]*\d\)?(?:[\s-]*\d){7}(?!\d)"
-    r"|[\w.+-]+@[\w-]+(?:\.[\w-]+)+"
 )
+PII_VALUE_RE = re.compile(_PHONE_PATTERN + "|" + _EMAIL_PATTERN)
 # Соль случайная на процесс: токены стабильны внутри сессии, но не
 # подбираются по словарю.
 _PII_SALT = secrets.token_hex(16)
