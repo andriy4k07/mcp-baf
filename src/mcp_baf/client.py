@@ -36,10 +36,15 @@ def scrub_error_detail(detail: str, limit: int = MAX_ERROR_DETAIL_CHARS) -> str:
     return text
 
 
-# Статусы, которые имеет смысл повторить: сервер не обработал запрос из-за
-# временной проблемы (перегрузка, прокси, рестарт 1С). Остальные 5xx
-# детерминированы и повтор их только удлинит ошибку.
-_RETRYABLE_STATUSES = frozenset({500, 502, 503, 504})
+# Статусы, которые имеет смысл повторить: прокси/шлюз не передал запрос
+# (перегрузка, рестарт 1С). 500 не повторяем: это ошибка обработчика 1С,
+# детерминированная, повтор только удлинит ответ.
+_RETRYABLE_STATUSES = frozenset({502, 503, 504})
+
+# Транспортные ошибки, после которых запрос заведомо не дошёл до 1С. ReadTimeout
+# сюда не входит: 1С могла принять запрос и считать его до 300 с, повтор утроил бы
+# нагрузку на базу и ожидание.
+_RETRYABLE_TRANSPORT = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
 
 
 class OneCError(Exception):
@@ -206,8 +211,8 @@ class OneCClient:
                         state["error_kind"] = "response_too_large"
                         raise OneCError(self._response_too_large_message())
                 state["bytes"] = len(raw)
-        except httpx.TransportError as exc:
-            # Сеть/таймаут/обрыв соединения — транзиентно, можно повторить.
+        except _RETRYABLE_TRANSPORT as exc:
+            # Не удалось соединиться/получить слот в пуле — запрос не ушёл.
             state["error_kind"] = "transport_error"
             raise _RetryableOneCError(
                 f"executing request to 1C: {scrub_error_detail(str(exc))}"
