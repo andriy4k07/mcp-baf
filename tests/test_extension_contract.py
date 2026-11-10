@@ -76,7 +76,7 @@ def test_all_routes_ids_rights_handlers_and_guards():
     service = root.find('m:HTTPService',MD)
     templates = service.findall('m:ChildObjects/m:URLTemplate',MD)
     names = [t.find('m:Properties/m:Name',MD).text for t in templates]
-    assert len(set(names)) == len(names) == 13
+    assert len(set(names)) == len(names) == 12
     module = (EXTENSION/'HTTPServices/MCPService/Ext/Module.bsl').read_text(encoding='utf-8-sig')
     rights = ET.parse(EXTENSION/'Roles/MCP_ОсновнаяРоль/Ext/Rights.xml').getroot()
     grants = {o.find('r:name',RIGHTS).text for o in rights.findall('r:object',RIGHTS) if o.find('r:right/r:value',RIGHTS).text == 'true'}
@@ -101,11 +101,12 @@ def test_all_routes_ids_rights_handlers_and_guards():
             expected_grants.add(fullname+'.Method.'+methodname)
             body = re.search(r'Функция '+handler+r'\(Запрос\)(.*?)КонецФункции',module,re.S)
             assert body, handler
-            if name != 'Версия':
-                assert f'МетодДоступен("{name}", "{methodname}"' in body.group(1), handler
+            # /version тоже подчиняется праву использования метода, как и все маршруты.
+            assert f'МетодДоступен("{name}", "{methodname}"' in body.group(1), handler
             found.add(route.split('/')[1]+'.'+verb)
     assert set(TOOL_METHODS.values()) <= found
-    # /capabilities обязан объявлять ровно те методы, которых ждёт Python.
+    # /capabilities обязан объявлять ровно те методы, которых ждёт Python:
+    # методы инструментов.
     capabilities = re.search(r'Функция ВозможностиGET\(Запрос\)(.*?)КонецФункции', module, re.S).group(1)
     declared = dict(re.findall(r'Карта\.Вставить\("(\w+)", "([\w.-]+)"\)', capabilities))
     assert set(declared.values()) == set(TOOL_METHODS.values())

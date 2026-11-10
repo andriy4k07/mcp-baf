@@ -247,35 +247,6 @@
 					</Method>
 				</ChildObjects>
 			</URLTemplate>
-			<URLTemplate uuid="c3d4e5f6-a7b8-49c0-d1e2-f3a4b5c6d7e8">
-				<Properties>
-					<Name>Расширения</Name>
-					<Synonym>
-						<v8:item>
-							<v8:lang>ru</v8:lang>
-							<v8:content>Расширения</v8:content>
-						</v8:item>
-					</Synonym>
-					<Comment/>
-					<Template>/extensions</Template>
-				</Properties>
-				<ChildObjects>
-					<Method uuid="d4e5f6a7-b8c9-40d1-e2f3-a4b5c6d7e8f9">
-						<Properties>
-							<Name>GET</Name>
-							<Synonym>
-								<v8:item>
-									<v8:lang>ru</v8:lang>
-									<v8:content>GET</v8:content>
-								</v8:item>
-							</Synonym>
-							<Comment/>
-							<HTTPMethod>GET</HTTPMethod>
-							<Handler>РасширенияGET</Handler>
-						</Properties>
-					</Method>
-				</ChildObjects>
-			</URLTemplate>
 			<URLTemplate uuid="0d93b207-6cf4-4d13-952f-d64695666b66">
 				<Properties>
 					<Name>Возможности</Name>
