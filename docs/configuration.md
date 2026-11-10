@@ -81,8 +81,8 @@
 | `--allow-insecure-http` | `mcp_baf_ALLOW_INSECURE_HTTP` | вимкнено | Явний дозвіл на `--transport http`; без нього сервер не стартує |
 | `--http-host` | `mcp_baf_HTTP_HOST` | `127.0.0.1` | Хост прив'язки для `https`/`http` (у контейнері `0.0.0.0`) |
 | `--http-port` | `mcp_baf_HTTP_PORT` | `8001` | Порт прив'язки для `https`/`http` |
-| `--http-allowed-hosts` | `mcp_baf_HTTP_ALLOWED_HOSTS` | `localhost`, `127.0.0.1`, `[::1]`, хост прив'язки, hostname (порт будь-який) | Дозволені `Host` через кому; замінює типовий набір і додає хости в SAN згенерованого сертифіката. Захист від DNS-rebinding увімкнений завжди, доки його явно не вимкнено |
-| `--disable-dns-rebinding` | `mcp_baf_HTTP_DISABLE_DNS_REBINDING` | вимкнено | Вимкнути перевірку `Host`/`Origin` (захист від DNS-rebinding). Не рекомендується: вимкнення пише попередження в лог |
+| `--http-allowed-hosts` | `mcp_baf_HTTP_ALLOWED_HOSTS` | порожньо | Дозволені `Host` через кому; вмикає захист від DNS-rebinding і додає хости в SAN згенерованого сертифіката. Порожньо: типовий набір (`localhost`, `127.0.0.1`, `[::1]`, hostname) лише при loopback-bind, інакше захист вимкнений |
+| `--disable-dns-rebinding` | `mcp_baf_HTTP_DISABLE_DNS_REBINDING` | вимкнено | Примусово вимкнути перевірку `Host`/`Origin` (захист від DNS-rebinding). Не рекомендується: вимкнення пише попередження в лог |
 | `--http-token` | `mcp_baf_HTTP_TOKEN` (`_FILE`) | — (**обов'язковий** для `https`/`http`) | Bearer-токен: кожен запит несе `Authorization: Bearer <токен>`, інакше `401`. Задавайте через env — CLI видно в `ps` |
 | `--tls-cert` / `--tls-key` | `mcp_baf_TLS_CERT` / `mcp_baf_TLS_KEY` | — (згенерований CA) | Свій PEM-сертифікат і ключ для `https`, обидва або жоден. Якщо жоден — сервер один раз генерує CA і серверний сертифікат у `<cache-dir>/tls/` (`ca.crt` — клієнтам; SAN: `localhost`, `127.0.0.1`, ім'я хоста, `--http-host`, `--http-allowed-hosts`). Змінили хости — видаліть `tls/` |
 
@@ -91,20 +91,25 @@
 публікується на `127.0.0.1:8001` хоста (`MCP_BAF_BIND=0.0.0.0` — для мережі);
 CA: `docker compose cp mcp-baf:/data/tls/ca.crt .`.
 
-Контейнер працює від непривілейованого користувача `mcpbaf` (uid/gid **10001**),
-а `/data` і `/data/tls` належать йому — кеш індексу, `audit.log`, `server.log`
-і TLS-ключ пишуться без root. Томи, створені старішим образом (від root),
-треба перестворити (`docker compose down -v`) або виправити власника:
-`docker compose run --rm --user root mcp-baf chown -R 10001:10001 /data`.
+Контейнер стартує від root лише в `docker-entrypoint.sh`: той створює `/data`
+і `/data/tls`, передає файли з іншим власником uid **10001** (`chown`) і
+знижує права через `setpriv` до непривілейованого `mcpbaf` (uid/gid 10001).
+Кеш індексу, `audit.log`, `server.log` і TLS-ключ пишуться без root; томи
+від старішого образу та bind-каталоги (`./audit:/data`), що належали root,
+виправляються автоматично при старті — перестворювати їх не треба. Після
+`chown` каталог читає лише uid 10001: стороннім читачам (наприклад, Alloy
+для `audit.log`) дайте доступ групою/ACL або mount.
 
-**DNS-rebinding.** Перевірка `Host`/`Origin` увімкнена за замовчуванням.
-Типовий набір хостів — `localhost`, `127.0.0.1`, `[::1]`, хост прив'язки та
-hostname контейнера/хоста, з будь-яким портом (`localhost:*`), тож локальний
-запуск, `docker compose` і публікація іншого порту працюють без налаштування.
-Свій перелік задається `--http-allowed-hosts` (замінює типовий набір); чужий
-`Host` отримує `421`, чужий `Origin` — `403`. Вимкнути перевірку можна лише
-явно — `--disable-dns-rebinding` / `mcp_baf_HTTP_DISABLE_DNS_REBINDING=1`,
-із попередженням у лог.
+**DNS-rebinding.** Без `--http-allowed-hosts` перевірка `Host`/`Origin`
+увімкнена лише при loopback-прив'язці (`--http-host` = `127.0.0.1`, `::1`,
+`localhost`): там небезпечний браузерний DNS-rebinding. Типовий набір —
+`localhost`, `127.0.0.1`, `[::1]` і hostname хоста, з будь-яким портом
+(`localhost:*`). При прив'язці `0.0.0.0`/`::` (контейнер, server-to-server за
+ім'ям сервісу) без явного списку перевірка вимкнена. Явний
+`--http-allowed-hosts` вмикає її завжди і замінює типовий набір; чужий `Host`
+отримує `421`, чужий `Origin` — `403`. Примусово вимкнути —
+`--disable-dns-rebinding` / `mcp_baf_HTTP_DISABLE_DNS_REBINDING=1`, із
+попередженням у лог.
 
 Далі — детально по групах.
 

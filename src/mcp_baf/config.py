@@ -37,7 +37,8 @@ DEFAULT_CONNECT_TIMEOUT = 10
 DEFAULT_WRITE_TIMEOUT = 60
 DEFAULT_POOL_TIMEOUT = 10
 
-# Повторы идемпотентных запросов на транзиентные ошибки (транспорт/5xx).
+# Повторы идемпотентных запросов: ошибки соединения/пула и 502/503/504
+# (ReadTimeout и 500 не повторяются).
 # retry_attempts — число повторов ПОСЛЕ первой попытки; 0 отключает повторы.
 DEFAULT_RETRY_ATTEMPTS = 2
 # База экспоненциального backoff, секунды: 0.5, 1.0, 2.0 ...
@@ -83,9 +84,9 @@ class Config:
     allow_insecure_http: bool = False
     http_host: str = DEFAULT_HTTP_HOST
     http_port: int = DEFAULT_HTTP_PORT
-    # Разрешённые Host через запятую; пусто — набор по умолчанию
-    # (localhost, 127.0.0.1, [::1], bind-хост, hostname). Защита от
-    # DNS-rebinding включена всегда, пока её явно не выключат.
+    # Разрешённые Host через запятую (включает защиту от DNS-rebinding). Пусто —
+    # набор по умолчанию (localhost, 127.0.0.1, [::1], hostname) только при
+    # loopback-bind; для 0.0.0.0 защита выключена.
     http_allowed_hosts: str = ""
     # Выключатель защиты от DNS-rebinding (только для отладки/сервер-сервер).
     dns_rebinding_protection: bool = True
@@ -281,7 +282,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--retry-attempts", type=int, default=None, metavar="N",
         help="Retries after the first attempt for idempotent requests on "
-             "transport errors/5xx (env mcp_baf_RETRY_ATTEMPTS; 0 disables). "
+             "connect/pool errors and 502/503/504, not read timeouts or 500 (env mcp_baf_RETRY_ATTEMPTS; 0 disables). "
              f"Default: {DEFAULT_RETRY_ATTEMPTS}.",
     )
     parser.add_argument(
@@ -329,8 +330,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--http-allowed-hosts", default="", metavar="HOSTS",
         help="Comma-separated allowed Host headers for --transport http(s). "
-             "Empty uses the built-in set (localhost, 127.0.0.1, [::1], bind host, "
-             "hostname) and keeps DNS-rebinding protection on.",
+             "Setting it enables DNS-rebinding protection. Empty: the built-in set "
+             "(localhost, 127.0.0.1, [::1], hostname) for a loopback bind only; "
+             "protection is off for 0.0.0.0.",
     )
     parser.add_argument(
         "--disable-dns-rebinding", action="store_true",

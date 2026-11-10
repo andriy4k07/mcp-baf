@@ -17,21 +17,19 @@ COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 RUN pip install .
 
-# Непривилегированный пользователь: сервер не работает от root.
-# /data — том с кэшем индекса, audit.log и TLS-ключом; владелец каталога
-# должен совпадать с пользователем процесса, иначе запись в том падает.
-# /data/tls создаём заранее: docker копирует владельца пустого named volume
-# из образа, иначе отдельный том mcp-baf-tls достался бы root.
+# Непривилегированный пользователь uid 10001: entrypoint стартует от root,
+# создаёт /data и /data/tls, чинит владельца (старые тома и bind-каталоги
+# принадлежат root) и понижает права через setpriv (util-linux есть в базе).
 RUN groupadd --gid 10001 mcpbaf \
     && useradd --uid 10001 --gid 10001 --home-dir /app --no-create-home \
        --shell /usr/sbin/nologin mcpbaf \
     && mkdir -p /data/tls \
     && chown -R mcpbaf:mcpbaf /data
-
-USER mcpbaf
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 VOLUME ["/data"]
 
 EXPOSE 8001
 
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["mcp-baf"]
