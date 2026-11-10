@@ -50,7 +50,7 @@ def test_one_c_http_logged_on_success(tmp_path):
 
 def test_one_c_http_logged_on_error(tmp_path):
     def handler(request):
-        return httpx.Response(500, text="boom")
+        return httpx.Response(503, text="boom")
 
     set_trace_id(None)
     client = _client(tmp_path, handler)
@@ -65,9 +65,9 @@ def test_one_c_http_logged_on_error(tmp_path):
     e = http[0]
     assert e["ok"] is False
     assert e["level"] == "error"
-    assert e["status"] == 500
+    assert e["status"] == 503
     assert e["error"]
-    # 500 транзиентен: 1 попытка + 2 повтора по умолчанию
+    # 503 транзиентен: 1 попытка + 2 повтора по умолчанию
     assert e["payload"]["attempts"] == 3
 
 
@@ -184,7 +184,7 @@ def test_retry_on_transport_error_then_success(tmp_path):
     asyncio.run(client.aclose())
 
 
-@pytest.mark.parametrize("status", [500, 502, 503, 504])
+@pytest.mark.parametrize("status", [502, 503, 504])
 def test_retry_on_transient_5xx(tmp_path, status):
     seen = []
     handler = _flaky_handler([httpx.Response(status, text="busy"), httpx.Response(200, json={})], seen)
@@ -195,13 +195,24 @@ def test_retry_on_transient_5xx(tmp_path, status):
     asyncio.run(client.aclose())
 
 
-@pytest.mark.parametrize("status", [400, 401, 404, 422, 501])
+@pytest.mark.parametrize("status", [400, 401, 404, 422, 500, 501])
 def test_no_retry_on_deterministic_status(tmp_path, status):
     seen = []
     handler = _flaky_handler([httpx.Response(status, text="nope")], seen)
     client = _client(tmp_path, handler)
 
     with pytest.raises(OneCError):
+        asyncio.run(client.get("/version"))
+    assert len(seen) == 1
+    asyncio.run(client.aclose())
+
+
+def test_no_retry_on_read_timeout(tmp_path):
+    seen = []
+    handler = _flaky_handler([httpx.ReadTimeout("slow")], seen)
+    client = _client(tmp_path, handler)
+
+    with pytest.raises(OneCError, match="executing request to 1C"):
         asyncio.run(client.get("/version"))
     assert len(seen) == 1
     asyncio.run(client.aclose())
