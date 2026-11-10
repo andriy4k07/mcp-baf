@@ -18,6 +18,7 @@ from __future__ import annotations
 import hashlib
 import re
 import secrets
+from collections.abc import Callable
 from typing import Any
 
 # Подстроки имён колонок с персональными данными (сравнение без регистра).
@@ -29,13 +30,23 @@ PII_COLUMN_MARKERS = tuple(m.lower() for m in (
     "ДокументУдостоверяющий", "Адрес",
 ))
 # Украинские телефоны (+380XXXXXXXXX, 0XXXXXXXXX с пробелами/дефисами/
-# скобками) и email. Паттерны вынесены в константы: их переиспользует
-# PII_TEXT_RE, чтобы не разминулись две копии одного регулярки.
-_EMAIL_PATTERN = r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"
-_PHONE_PATTERN = (
-    r"(?<!\d)(?:\+?38[\s-]*)?\(?0[\s-]*\d[\s-]*\d\)?(?:[\s-]*\d){7}(?!\d)"
+# скобками) и email.
+_EMAIL_RE = r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"
+_PHONE_RE = r"(?<!\d)(?:\+?38[\s-]*)?\(?0[\s-]*\d[\s-]*\d\)?(?:[\s-]*\d){7}(?!\d)"
+PII_VALUE_RE = re.compile(_PHONE_RE + "|" + _EMAIL_RE)
+
+# Идентификатороподобный токен: цифры/латиница/дефис, внутри есть хотя бы
+# одна латинская буква — GUID, артикул, VIN, e1cib-ссылка, BSL-идентификатор.
+# 10-значний цифровой прогон внутри такого токена — часть кода, а не телефон:
+# ROCTUP/1c-mcp-toolkit#44 (анонимайзер съедал навигационный ref как IBAN).
+# Email идёт ПЕРВЫМ в альтернативе: "abc-def@x.com" остаётся почтой.
+# Сознательный компромисс: "tel-0671234567" не маскируется — в 1С-контексте
+# телефоны живут в кириллическом/пунктуационном обрамлении, латиница в
+# токене означает идентификатор.
+_IDENT_RE = r"(?<![0-9a-zA-Z-])[0-9a-zA-Z-]*[a-zA-Z][0-9a-zA-Z-]*(?![0-9a-zA-Z-])"
+PII_TEXT_RE = re.compile(
+    r"(?P<email>" + _EMAIL_RE + r")|(?P<ident>" + _IDENT_RE + r")|(?P<phone>" + _PHONE_RE + r")"
 )
-PII_VALUE_RE = re.compile(_PHONE_PATTERN + "|" + _EMAIL_PATTERN)
 # Соль случайная на процесс: токены стабильны внутри сессии, но не
 # подбираются по словарю.
 _PII_SALT = secrets.token_hex(16)
@@ -47,10 +58,19 @@ def pii_token(value: Any) -> str:
     return f"PII:{digest[:8]}"
 
 
+def scrub_pii_text(text: str, repl: Callable[[str], str]) -> str:
+    """Заменяет телефон/email на repl(match), идентификатороподобные токены
+    (GUID, артикулы, e1cib-ссылки) оставляет нетронутыми."""
+    return PII_TEXT_RE.sub(
+        lambda m: m.group() if m.group("ident") else repl(m.group()),
+        text,
+    )
+
+
 def mask_pii_value(value: Any) -> Any:
     """Маскирует значение: непустые строки — по regex, остальное как есть."""
     if isinstance(value, str) and value:
-        return PII_VALUE_RE.sub(lambda m: pii_token(m.group()), value)
+        return scrub_pii_text(value, pii_token)
     return value
 
 
@@ -62,7 +82,7 @@ def mask_pii_text(value: Any) -> str:
     """
     if value is None:
         return ""
-    return PII_VALUE_RE.sub(lambda m: pii_token(m.group()), str(value))
+    return scrub_pii_text(str(value), pii_token)
 
 
 def mask_pii_result(r: dict[str, Any]) -> dict[str, Any]:
