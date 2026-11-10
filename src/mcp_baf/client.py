@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from mcp_baf.config import Config
+from mcp_baf.pii import PII_VALUE_RE
 
 if TYPE_CHECKING:  # тип только для подсказок — без обязательной зависимости в рантайме
     from mcp_baf_audit import AuditWriter
@@ -20,11 +21,6 @@ _MIB = 1 << 20
 # может содержать данные базы (ПДн, тексты документов) и не нужен агенту.
 MAX_ERROR_DETAIL_CHARS = 300
 
-# Телефоны/почта в тексте ошибки 1С маскируются: тело ответа может включать ПДн.
-_ERROR_PII_RE = re.compile(
-    r"(?<!\d)(?:\+?38[\s-]*)?\(?0[\s-]*\d[\s-]*\d\)?(?:[\s-]*\d){7}(?!\d)"
-    r"|[\w.+-]+@[\w-]+(?:\.[\w-]+)+"
-)
 # Управляющие символы (в т.ч. переводы строк) превращаем в пробел: аудит и
 # текст ошибки должны оставаться однострочными.
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]+")
@@ -33,7 +29,7 @@ _CONTROL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]+")
 def scrub_error_detail(detail: str, limit: int = MAX_ERROR_DETAIL_CHARS) -> str:
     """Маскирует ПДн и обрезает тело ошибки 1С до безопасной длины."""
     text = " ".join(_CONTROL_RE.sub(" ", detail).split())
-    text = _ERROR_PII_RE.sub("***", text)
+    text = PII_VALUE_RE.sub("***", text)
     if len(text) > limit:
         text = text[:limit].rstrip() + "…"
     return text
