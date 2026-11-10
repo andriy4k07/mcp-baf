@@ -17,6 +17,8 @@ services:
       mcp_baf_TRANSPORT: ${mcp_baf_TRANSPORT:-https}
       mcp_baf_HTTP_HOST: 0.0.0.0
       mcp_baf_HTTP_PORT: 8001
+      # Перевірка Host/Origin (DNS-rebinding) у контейнері (bind 0.0.0.0)
+      # вимкнена; вмикається заданим mcp_baf_HTTP_ALLOWED_HOSTS у .env.
     ports:
       # За замовчуванням лише localhost хоста; MCP_BAF_BIND=0.0.0.0 — для доступу з мережі.
       - "${MCP_BAF_BIND:-127.0.0.1}:${MCP_BAF_PUBLISHED_PORT:-8001}:8001"

@@ -17,9 +17,19 @@ COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 RUN pip install .
 
-RUN mkdir -p /data
+# Непривилегированный пользователь uid 10001: entrypoint стартует от root,
+# создаёт /data и /data/tls, чинит владельца (старые тома и bind-каталоги
+# принадлежат root) и понижает права через setpriv (util-linux есть в базе).
+RUN groupadd --gid 10001 mcpbaf \
+    && useradd --uid 10001 --gid 10001 --home-dir /app --no-create-home \
+       --shell /usr/sbin/nologin mcpbaf \
+    && mkdir -p /data/tls \
+    && chown -R mcpbaf:mcpbaf /data
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
 VOLUME ["/data"]
 
 EXPOSE 8001
 
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["mcp-baf"]
