@@ -44,6 +44,55 @@ def test_mask_pii_text_replaces_contacts_only():
     assert mask_pii_text(7) == "7"
 
 
+# --- Issue #45: телефонний regex не повинен псувати identifier-токени ---
+
+_GUID_LIKE_SAMPLES = [
+    # 10-значний цифровий прогін, обмежений hex-літерами/дефісами — раніше
+    # з'їдався телефонною альтернативою (клас ROCTUP/1c-mcp-toolkit#44).
+    "a1b2c3d4-0123456789-abcdef-000000000000",
+    "f1781d67-5012-4361-b3d4-0123456789ab",
+    "0e1c2d3f-a0b1-c2d3-0123456789-abcd",
+    "e1cib:data/Справочник.Номенклатура?value=f1781d67-5012-4361-b3d4-0123456789ab",
+    "WBAKA0123456789AB12",  # VIN-подібний артикул
+]
+
+
+def test_guid_like_tokens_survive_masking():
+    from mcp_baf.pii import mask_pii_text, mask_pii_value
+
+    for sample in _GUID_LIKE_SAMPLES:
+        assert mask_pii_value(sample) == sample, sample
+        assert mask_pii_text(sample) == sample, sample
+
+
+def test_phones_masked_around_guid_tokens():
+    from mcp_baf.pii import mask_pii_text
+
+    out = mask_pii_text(
+        "клієнт f1781d67-5012-4361-b3d4-0123456789ab, тел 0671234567, "
+        "код a1b2c3d4-0123456789-abcdef"
+    )
+    assert "f1781d67-5012-4361-b3d4-0123456789ab" in out
+    assert "a1b2c3d4-0123456789-abcdef" in out
+    assert "0671234567" not in out and out.count("PII:") == 1
+
+
+def test_email_in_code_like_token_still_masked():
+    from mcp_baf.pii import mask_pii_text
+
+    out = mask_pii_text("владельця abc-def@mail.example.com не показувати")
+    assert "@" not in out and out.count("PII:") == 1
+
+
+def test_error_detail_scrub_keeps_guids():
+    from mcp_baf.client import scrub_error_detail
+
+    detail = "Ошибка обращения к Справочник.Номенклатура {a1b2c3d4-0123456789-abcdef-000000000000}; тел 0671234567"
+    out = scrub_error_detail(detail)
+    assert "a1b2c3d4-0123456789-abcdef-000000000000" in out
+    assert "0671234567" not in out and "***" in out
+
+
 def test_form_structure_masks_title_and_handlers():
     from mcp_baf.tools.form import format_form_structure
 
