@@ -19,8 +19,6 @@
 			<Metadata name="HTTPService.MCPService.URLTemplate.ЖурналРегистрации.Method.POST" id="c9356301-c41d-46ac-8838-93982f294632"/>
 			<Metadata name="HTTPService.MCPService.URLTemplate.Конфигурация" id="a7c18f3e-6d24-4b59-a813-9f0e8c4d72b1"/>
 			<Metadata name="HTTPService.MCPService.URLTemplate.Конфигурация.Method.GET" id="f2b83a1d-5e97-4a68-bc02-3d7f6e8a9c54"/>
-			<Metadata name="HTTPService.MCPService.URLTemplate.Расширения" id="c3d4e5f6-a7b8-49c0-d1e2-f3a4b5c6d7e8"/>
-			<Metadata name="HTTPService.MCPService.URLTemplate.Расширения.Method.GET" id="d4e5f6a7-b8c9-40d1-e2f3-a4b5c6d7e8f9"/>
 			<Metadata name="HTTPService.MCPService.URLTemplate.Возможности" id="0d93b207-6cf4-4d13-952f-d64695666b66"/>
 			<Metadata name="HTTPService.MCPService.URLTemplate.Возможности.Method.GET" id="fa0988cf-81c0-49e3-b89d-4f38aa13e9b2"/>
 			<Metadata name="HTTPService.MCPService.URLTemplate.Ссылки" id="280de4ab-5b77-4fc8-8a7e-d6efd2279c3f"/>

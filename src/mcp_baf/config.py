@@ -28,7 +28,7 @@ DEFAULT_HTTP_PORT = 8001
 DEFAULT_MAX_RESPONSE_SIZE_MIB = 128
 
 # Таймаут HTTP-запроса к 1С по умолчанию, в секундах. Запас нужен
-# для передачи крупных ответов /extensions (сотни мегабайт).
+# для передачи крупных ответов 1С.
 DEFAULT_REQUEST_TIMEOUT = 300
 
 
