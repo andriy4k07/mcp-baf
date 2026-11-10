@@ -163,6 +163,16 @@ class OneCClient:
                     await asyncio.sleep(self._retry_backoff * (2 ** (attempts - 1)))
                 except OneCError:
                     raise
+        except asyncio.CancelledError:
+            # wait_for()/timeout() отменяет корутину без httpx.HTTPError, поэтому
+            # без этой ветки finally писал бы ok=true для отменённого вызова.
+            # Внутри корутины отмена по таймауту и внешняя отмена неразличимы,
+            # поэтому оба случая помечаются как "timeout" (вызов не завершён).
+            # Последняя попытка могла успеть выставить свой error_kind (например,
+            # 503 перед backoff) — его не перетираем.
+            if state["error_kind"] is None:
+                state["error_kind"] = "timeout"
+            raise  # отмену нельзя глотать: она должна дойти до вызывающего
         finally:
             self._audit_http(
                 method, endpoint, state["status"], elapsed_ms(),
