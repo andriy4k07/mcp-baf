@@ -26,6 +26,8 @@ RUN groupadd --gid 10001 mcpbaf \
     && mkdir -p /data/tls \
     && chown -R mcpbaf:mcpbaf /data
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+# Exec-форма ENTRYPOINT требует +x; не полагаемся на бит в checkout (Windows, архивы).
+RUN chmod 0755 /usr/local/bin/docker-entrypoint.sh
 
 VOLUME ["/data"]
 
