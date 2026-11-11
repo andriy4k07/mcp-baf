@@ -12,7 +12,7 @@ from mcp_baf.tools.common import escape_pipe, traced_text
 
 
 def register(mcp, audit):
-    @mcp.tool(description="Базовый анализ текста BSL встроенным Python-анализатором: ParseError, DuplicateParameter, DuplicateVariable, UnusedLocalVariable, UnreachableCode, EmptyExcept, TrailingWhitespace, LineLength, ReservedDeclarationName, LatinAndCyrillicSymbolInWord. src — код, не путь. levels: error, warning, information, hint; diagnostic_codes — фильтр кодов. Это ограниченные проверки фрагмента, не компилятор и не полный BSL Language Server; условия препроцессора не вычисляются. Файлы пользователя не изменяются.", annotations=ToolAnnotations(read_only_hint=True))
+    @mcp.tool(description="Базовый анализ текста BSL встроенным Python-анализатором: ParseError, DuplicateParameter, DuplicateVariable, UnusedLocalVariable, UnreachableCode, EmptyExcept, TrailingWhitespace, LineLength, ReservedDeclarationName, LatinAndCyrillicSymbolInWord. src — код, не путь. levels: error, warning, information, hint; diagnostic_codes — фильтр кодов. Это ограниченные проверки фрагмента, не компилятор и не полный BSL Language Server; условия препроцессора вычисляются лишь частично: ветви #Если с ложным или невычислимым условием не дают ReservedDeclarationName. Файлы пользователя не изменяются.", annotations=ToolAnnotations(read_only_hint=True))
     async def bsl_analyze(src: str, levels: list[Literal["error", "warning", "information", "hint"]] | None = None, diagnostic_codes: list[str] | None = None, limit: Annotated[int, Field(ge=1, le=500)] = 50) -> str:
         async def run():
             selected = ["error", "warning"] if levels is None else levels
