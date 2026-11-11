@@ -57,7 +57,7 @@ CONFIRMED_RESERVED_NAMES = frozenset({'найти', 'find'})
 # не є помилкою: ловимо лише омогліфи — послідовність літер одного алфавіту, що
 # ПОВНІСТЮ складається з літер, візуально ідентичних літерам іншого алфавіту, і
 # впритул межує з послідовністю іншого алфавіту (ПриCоздании з латинською C).
-_LATIN_LOOKALIKES = frozenset('ABCEHKMOPTXacepxyiI')
+_LATIN_LOOKALIKES = frozenset('ABCEHKMOPTXaceopxyiI')
 _CYRILLIC_LOOKALIKES = frozenset('АВСЕНКМОРТХасеорхуіІ')
 _SCRIPT_RUN = re.compile(r'[A-Za-z]+|[\u0400-\u04FF]+')
 

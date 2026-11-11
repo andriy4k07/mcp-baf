@@ -153,6 +153,12 @@ def test_latin_cyrillic_mixed_declaration_name_is_reported():
     assert [(d['line'], d['column'], d['level']) for d in hits] == [(1, 11, 'warning')]
 
 
+def test_latin_lowercase_o_homoglyph_is_reported():
+    src = 'Процедура Прoдажи()\nКонецПроцедуры'  # латинская o
+    hits = [d for d in analyze(src) if d['code'] == 'LatinAndCyrillicSymbolInWord']
+    assert len(hits) == 1
+
+
 @pytest.mark.parametrize('src', [
     # Обычные смешанные имена с аббревиатурами и латинскими словами (#54).
     'Процедура ПреобразоватьЗначениеXML()\nКонецПроцедуры',
