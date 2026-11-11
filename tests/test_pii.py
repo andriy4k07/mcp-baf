@@ -426,7 +426,7 @@ def test_registry_invariant_all_maskable_tools_pass_mask_pii():
         ).parameters
     # Очікуваний набір фіксований: новий канал із mask-aware formatter
     # зобов'язаний з'явитися тут свідомо, а не «випасти» з інваріанта.
-    assert maskable == {"eventlog", "form", "query", "search_code"}
+    assert maskable == {"eventlog", "form", "objects", "query", "search_code"}
 
 
 def test_bare_ten_digit_zero_prefix_is_accepted_overmasking():

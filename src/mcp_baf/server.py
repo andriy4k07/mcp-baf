@@ -147,7 +147,7 @@ def create_server(config: Config) -> MCPServer:
     eventlog.register(mcp, client, audit, config.mask_pii)
     configuration_info.register(mcp, client, audit)
     bsl_help.register(mcp, audit)
-    objects.register(mcp, client, audit)
+    objects.register(mcp, client, audit, config.mask_pii)
     if help_index is not None:
         platform_help.register(mcp, help_index, audit)
     bsl_analysis.register(mcp, audit)
