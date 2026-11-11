@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import re
 import time
@@ -68,6 +69,9 @@ class OneCClient:
     падает за секунды), read — длинный (крупные ответы /extensions).
     Идемпотентные запросы повторяются на транспортные ошибки и 5xx с
     экспоненциальным backoff; неидемпотентные — только с явным флагом.
+    Поверх всех попыток стоит дедлайн `request_deadline`: read-таймаут
+    считается на чанк, поэтому без дедлайна медленно капающий ответ жил бы
+    бесконечно.
     """
 
     def __init__(
@@ -83,6 +87,7 @@ class OneCClient:
         self._retry_attempts = max(0, config.retry_attempts)
         self._retry_backoff = max(0.0, config.retry_backoff)
         self._retry_non_idempotent = config.retry_non_idempotent
+        self._request_deadline = max(0.0, float(config.request_deadline))
 
         auth = None
         if config.user:
@@ -148,31 +153,52 @@ class OneCClient:
         # В аудит уходит только тип ошибки (и статус), но не её текст.
         state: dict[str, Any] = {"status": None, "bytes": 0, "error_kind": None}
         attempts = 0
+        # Дедлайн — на весь вызов: все попытки и backoff вместе. Read-таймаут
+        # httpx считается на чанк, так что «капающий» ответ пережил бы любой
+        # retry-цикл; request_deadline ставит потолок. 0 — без дедлайна.
+        deadline = (
+            asyncio.timeout(self._request_deadline)
+            if self._request_deadline > 0
+            else contextlib.nullcontext()
+        )
         try:
-            while True:
-                attempts += 1
+            async with deadline:
                 try:
-                    result = await self._attempt(method, endpoint, kwargs, state)
-                    return result
-                except _RetryableOneCError:
-                    # state["error_kind"] уже выставлен попыткой; аудит покажет
-                    # итог последней попытки.
-                    if attempts > retries:
-                        raise
-                    # Экспоненциальный backoff: backoff, 2*backoff, 4*backoff...
-                    await asyncio.sleep(self._retry_backoff * (2 ** (attempts - 1)))
-                except OneCError:
-                    raise
-        except asyncio.CancelledError:
-            # wait_for()/timeout() отменяет корутину без httpx.HTTPError, поэтому
-            # без этой ветки finally писал бы ok=true для отменённого вызова.
-            # Внутри корутины отмена по таймауту и внешняя отмена неразличимы,
-            # поэтому оба случая помечаются как "timeout" (вызов не завершён).
-            # Последняя попытка могла успеть выставить свой error_kind (например,
-            # 503 перед backoff) — его не перетираем.
-            if state["error_kind"] is None:
-                state["error_kind"] = "timeout"
-            raise  # отмену нельзя глотать: она должна дойти до вызывающего
+                    while True:
+                        attempts += 1
+                        try:
+                            result = await self._attempt(method, endpoint, kwargs, state)
+                            return result
+                        except _RetryableOneCError:
+                            # state["error_kind"] уже выставлен попыткой; аудит покажет
+                            # итог последней попытки.
+                            if attempts > retries:
+                                raise
+                            # Экспоненциальный backoff: backoff, 2*backoff, 4*backoff...
+                            await asyncio.sleep(self._retry_backoff * (2 ** (attempts - 1)))
+                        except OneCError:
+                            raise
+                except asyncio.CancelledError:
+                    # wait_for()/timeout() отменяет корутину без httpx.HTTPError, поэтому
+                    # без этой ветки finally писал бы ok=true для отменённого вызова.
+                    # Внутри корутины отмена по таймауту и внешняя отмена неразличимы,
+                    # поэтому оба случая помечаются как "timeout" (вызов не завершён).
+                    # Последняя попытка могла успеть выставить свой error_kind (например,
+                    # 503 перед backoff) — его не перетираем.
+                    if state["error_kind"] is None:
+                        state["error_kind"] = "timeout"
+                    raise  # отмену нельзя глотать: она должна дойти до вызывающего
+        except TimeoutError:
+            # Сработал дедлайн запроса: asyncio.timeout отменил корутину и
+            # перевёл отмену в TimeoutError. Это не успех — в аудит timeout.
+            # Перетираем error_kind последней попытки: причиной незавершённого
+            # вызова стал именно дедлайн, а не ошибка отдельной попытки.
+            state["error_kind"] = "timeout"
+            raise OneCError(
+                f"запрос к 1С не завершился за {self._request_deadline:g} с "
+                "(дедлайн запроса). Увеличьте --request-deadline "
+                "или переменную окружения mcp_baf_REQUEST_DEADLINE"
+            ) from None
         finally:
             self._audit_http(
                 method, endpoint, state["status"], elapsed_ms(),
@@ -221,6 +247,14 @@ class OneCClient:
                         state["error_kind"] = "response_too_large"
                         raise OneCError(self._response_too_large_message())
                 state["bytes"] = len(raw)
+        except httpx.ReadTimeout as exc:
+            # 1С приняла запрос, но не отдала ответ за read-таймаут: это таймаут,
+            # а не «транспортная ошибка» — в audit.log нужен честный ярлык.
+            # Повтора нет: запрос уже дошёл до базы.
+            state["error_kind"] = "timeout"
+            raise OneCError(
+                f"executing request to 1C: {scrub_error_detail(str(exc))}"
+            ) from exc
         except _RETRYABLE_TRANSPORT as exc:
             # Не удалось соединиться/получить слот в пуле — запрос не ушёл.
             state["error_kind"] = "transport_error"
