@@ -11,7 +11,7 @@ from pydantic import Field
 from mcp_baf_audit import AuditWriter
 from mcp_baf.client import OneCClient
 from mcp_baf.pii import MASKING_NOTE, mask_pii_text
-from mcp_baf.tools.common import clamp_limit, traced_text
+from mcp_baf.tools.common import clamp_limit, traced_text, truncate_output
 
 DEFAULT_EVENT_LOG_LIMIT = 50
 MAX_EVENT_LOG_LIMIT = 500
@@ -69,7 +69,7 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter,
                 body["user"] = user
 
             result = await client.post("/eventlog", body)
-            return format_event_log(result, mask_pii=mask_pii)
+            return truncate_output(format_event_log(result, mask_pii=mask_pii))
 
         return await traced_text(
             audit, "get_event_log", run,
