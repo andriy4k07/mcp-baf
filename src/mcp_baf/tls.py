@@ -141,6 +141,27 @@ def _bundle_valid(ca_path: str, cert_path: str, key_path: str) -> bool:
     return key_pub == cert_pub
 
 
+def _san_covers(cert_path: str, hosts: list[str]) -> bool:
+    """True, если SAN листа покрывает все текущие `hosts`.
+
+    Комплект может быть связным и свежим, но выпущенным под другой набор имён
+    (например, хост поменяли после первого старта): клиент с новым именем
+    получит ошибку верификации. Тогда лист перевыпускается тем же CA.
+    """
+    from cryptography import x509
+
+    wanted = {_san_name(h) for h in hosts if _san_name(h)}
+    try:
+        with open(cert_path, "rb") as fh:
+            cert = x509.load_pem_x509_certificate(fh.read())
+        san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+    except Exception:  # noqa: BLE001 — нет SAN/битый файл = перевыпуск
+        return False
+    have = {str(v) for v in san.get_values_for_type(x509.DNSName)}
+    have |= {str(v) for v in san.get_values_for_type(x509.IPAddress)}
+    return wanted <= have
+
+
 def _expires_within(path: str, days: int) -> bool:
     """True, если сертификат в `path` просрочен или истекает раньше чем через `days`.
 
@@ -192,8 +213,9 @@ def ensure_self_signed(directory: str, hosts: list[str]) -> tuple[str, str, str]
     а `ca.crt` лишається тим самим — клієнти, що йому довіряють, нічого не
     помічають. Якщо `ca.key` немає (комплект від версії без перевипуску) або
     CA сам прострочений/істекає — будується новий комплект, і клієнтам треба
-    оновити `ca.crt`. Зміна hosts на валідний комплект не впливає: SAN
-    оновляться при найближчому перевипуску, примусово — видаліть каталог.
+    оновити `ca.crt`. Зміна hosts: якщо SAN валідного листа не покриває
+    поточний набір імен, лист теж перевипускається наявним CA. Примусово —
+    видаліть каталог.
     """
     ca_path = os.path.join(directory, CA_CERT_NAME)
     cert_path = os.path.join(directory, SERVER_CERT_NAME)
@@ -210,7 +232,11 @@ def ensure_self_signed(directory: str, hosts: list[str]) -> tuple[str, str, str]
             # Перевыпуск листа на протухающем CA бессмысленен: новый лист
             # унаследует тот же срок. Строим комплект заново.
             _generate(directory, hosts, ca_path, cert_path, key_path, ca_key_path)
-        elif _expires_within(cert_path, LEAF_RENEW_BEFORE_DAYS):
+        elif _expires_within(cert_path, LEAF_RENEW_BEFORE_DAYS) or not _san_covers(
+            cert_path, hosts
+        ):
+            # Лист истекает или выпущен под другой набор имён (hosts поменяли):
+            # оба случая лечатся перевыпуском листа тем же CA.
             if not _renew_leaf(ca_path, ca_key_path, cert_path, key_path, hosts):
                 _generate(directory, hosts, ca_path, cert_path, key_path, ca_key_path)
     return ca_path, cert_path, key_path
