@@ -47,39 +47,34 @@ RESERVED_DECLARATION_NAMES = frozenset({
     )
 })
 
-
 # Аналог LatinAndCyrillicSymbolInWord з 1c-syntax/bsl-language-server#4900
-# (поведінка, не код — LGPL). У режимі фрагмента метаданих немає, тому
-# автозгенероване ім'я обробника <реквизит><Подія> розпізнається евристиною за
-# суфіксом події форми/поля: такі імена придушаються, бо латиниця в них походить
-# від імені реквизита, а не від стиля коду розробника.
-FORM_EVENT_SUFFIXES = tuple(suffix.casefold() for suffix in (
-    'ПриИзменении', 'ПриАктивизации', 'ПриДеактивизации',
-    'ПриАктивизацииЯчейки', 'ПриДеактивизацииЯчейки',
-    'ПриАктивизацииСтроки', 'ПриДеактивизацииСтроки',
-    'ПередНачаломРазмещения', 'ПриНачалеРазмещения', 'ПриРазмещении',
-    'ПриВыводе', 'ПередЭлементомВывода', 'ПриЭлементеВывода',
-    'ПередРодительскимЭлементомВывода', 'ПриРодительскимЭлементомВывода',
-    'ПриИзмененииРодительскойСтроки',
-    'ПриОткрытии', 'ПриЗакрытии', 'ПередОткрытием', 'ПередЗакрытием',
-    'ОбработкаВыбора', 'ОбработкаОтбора', 'ПриНажатии', 'ПриВыборе',
-    'ПриПолученииДанных', 'ПриУстановкеНовыхДанных', 'ОтборПриОткрытии',
-    'OnChange', 'OnActivate', 'OnDeactivate', 'OnRowActivate', 'OnRowDeactivate',
-    'BeforeBrowse', 'OnOutput', 'BeforeOutput',
-    'OnOpen', 'OnClose', 'BeforeOpen', 'BeforeClose',
-    'OnPress', 'OnSelect', 'OnFilter', 'OnFetchData', 'OnSetNewData',
-))
-LATIN_LETTER = re.compile(r'[A-Za-z]')
-CYRILLIC_LETTER = re.compile(r'[\u0400-\u04FF]')
+# (поведінка, не код — LGPL). Звичайні змішані імена (ОтправитьВPDF, ЭтоLinuxКлиент)
+# не є помилкою: ловимо лише омогліфи — послідовність літер одного алфавіту, що
+# ПОВНІСТЮ складається з літер, візуально ідентичних літерам іншого алфавіту, і
+# впритул межує з послідовністю іншого алфавіту (ПриCоздании з латинською C).
+_LATIN_LOOKALIKES = frozenset('ABCEHKMOPTXacepxyiI')
+_CYRILLIC_LOOKALIKES = frozenset('АВСЕНКМОРТХасеорхуіІ')
+_SCRIPT_RUN = re.compile(r'[A-Za-z]+|[\u0400-\u04FF]+')
 
 
 def _is_mixed_script(name):
-    return bool(LATIN_LETTER.search(name) and CYRILLIC_LETTER.search(name))
-
-
-def _is_generated_handler(name):
-    folded = name.casefold()
-    return any(folded.endswith(suffix) and len(folded) > len(suffix) for suffix in FORM_EVENT_SUFFIXES)
+    runs = list(_SCRIPT_RUN.finditer(name))
+    for i, run in enumerate(runs):
+        text = run.group()
+        latin = text[0] < '\u0400'
+        if not set(text) <= (_LATIN_LOOKALIKES if latin else _CYRILLIC_LOOKALIKES):
+            continue
+        # Аббревиатуры (COM, HTTP, C14N) целиком из омоглифов — не ошибка.
+        if (len(text) > 1 and text.isupper()) or name[run.end():run.end() + 1].isdigit() \
+                or name[max(run.start() - 1, 0):run.start()].isdigit():
+            continue
+        # Соседняя последовательность другого алфавита должна примыкать вплотную.
+        # Предлог В между аббревиатурами (XMLВXDTO) — не омоглиф.
+        near = [other.group() for other in runs[max(i - 1, 0):i + 2]
+                if other is not run and (other.end() == run.start() or other.start() == run.end())]
+        if near and not (not latin and any(len(w) > 1 and w.isupper() for w in near)):
+            return True
+    return False
 
 
 def _directives(tokens):
@@ -190,11 +185,10 @@ def _semantic(nodes, conditional, dynamic_eval, dead_lines):
                 'ReservedDeclarationName',
                 'Имя объявления зарезервировано встроенным методом платформы и будет отклонено компилятором',
                 method.name.line, method.name.column, 'error'))
-        if (method.name is not None and _is_mixed_script(method.name.text)
-                and not _is_generated_handler(method.name.text)):
+        if method.name is not None and _is_mixed_script(method.name.text):
             diagnostics.append(Diagnostic(
                 'LatinAndCyrillicSymbolInWord',
-                'Смешение латиницы и кириллицы в имени объявления',
+                'Омоглиф: латинская и кириллическая буквы одинакового вида в одном слове',
                 method.name.line, method.name.column))
         seen = {name.text.casefold() for name in method.declarations}
         local_names = []
