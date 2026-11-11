@@ -49,6 +49,16 @@ logger = logging.getLogger(__name__)
 # Без подъёма версии тёплый кэш продолжал бы отдавать старые path-ключи.
 SCHEMA_VERSION = 3
 
+# Сколько секунд close() ждёт завершения потока-строителя индекса перед
+# закрытием соединения. close() обязана закрыть SQLite-соединение, только
+# когда поток больше не внутри sqlite3_step: close во время активного шага
+# (GIL отпущен) освобождает нативные структуры под работающим statement —
+# use-after-free и SIGSEGV (issue #56, флатовый сбой CI).
+# Замок берётся с тем же таймаутом: суммарное ожидание close() ограничено
+# ~2×CLOSE_JOIN_TIMEOUT; если строитель держит _db_lock дольше — закрытие
+# соединения откладывается на сам поток-строитель.
+CLOSE_JOIN_TIMEOUT = 10.0
+
 # Окно контекста вокруг найденной строки, в строках с каждой стороны.
 CONTEXT_WINDOW = 2
 
@@ -124,6 +134,10 @@ class DumpIndex:
         self._db: sqlite3.Connection | None = None
         self._db_lock = threading.Lock()
         self._ready = threading.Event()
+        # close() ставит флаг: поток-строитель обязан проверять его под
+        # _db_lock перед любым обращением к self._db и не открывать новое
+        # соединение после закрытия (issue #56).
+        self._closed = False
         self._build_error: Exception | None = None
         self._module_count = 0
         # rel_dir -> имя расширения из вложенного Configuration.xml;
@@ -142,6 +156,8 @@ class DumpIndex:
 
     def _build(self) -> None:
         try:
+            if self._closed:
+                return
             # Карта вложенных корней расширений нужна до вывода любых
             # ключей (и на холодную сборку, и на diff кэша).
             self._ext_roots = discover_extension_roots(self._dir)
@@ -173,10 +189,28 @@ class DumpIndex:
             self._build_error = exc
 
     def _finish_build(self, from_cache: bool) -> None:
-        assert self._db is not None
-        self._module_count = self._db.execute(
-            "SELECT count(*) FROM docs"
-        ).fetchone()[0]
+        # Запрос идёт под _db_lock: close() закроет соединение только между
+        # statement'ами, никогда — посреди sqlite3_step (issue #56).
+        with self._db_lock:
+            if self._closed:
+                # close() не дождился потока и отложила освобождение соединения
+                # на нас: закрываем здесь — замок наш, значит мы гарантированно
+                # между statement'ами. Без этого sqlite-соединение утекало бы
+                # при отложенном закрытии (issue #56).
+                self._close_db_locked()
+                return
+            if self._db is None:
+                return  # индекс закрыли во время сборки — трогать соединение нельзя
+            self._module_count = self._db.execute(
+                "SELECT count(*) FROM docs"
+            ).fetchone()[0]
+        if self._closed:
+            # close() выставила флаг, пока выполнялся запрос выше (проверка
+            # ниже замка уже не было): поток сейчас между statement'ами и
+            # соединение ему больше не нужно — освобождаем сами (отложенное
+            # закрытие). _close_db идемпотентен, если close() успела сама.
+            self._close_db()
+            return
         self._ready.set()
         source = "из кэша" if from_cache else "построен"
         self._progress(f"Индекс {source}: {self._module_count} модулей")
@@ -185,6 +219,16 @@ class DumpIndex:
         )
 
     def _close_db(self) -> None:
+        # Замок внутри: этот метод вызывают и поток-строитель (ошибка кэша),
+        # и close() — двойной sqlite3_close двух потоков на одном соединении
+        # был бы тем же use-after-free.
+        with self._db_lock:
+            self._close_db_locked()
+
+    def _close_db_locked(self) -> None:
+        # Предусловие: вызывающий держит _db_lock (значит ни один sqlite3_step
+        # потока-строителя по self._db не выполняется). Идемпотентен: повторный
+        # вызов на уже закрытом соединении — no-op.
         if self._db is not None:
             self._db.close()
             self._db = None
@@ -284,7 +328,11 @@ class DumpIndex:
                 db.execute(
                     "INSERT INTO fts(rowid, content) SELECT id, content FROM docs"
                 )
-            self._db = db
+            with self._db_lock:
+                if self._closed:
+                    db.close()  # close() уже отработал — не оставляем живое соединение
+                    return
+                self._db = db
             return
 
         # Собираем во временный файл и подменяем им index.db атомарно:
@@ -306,6 +354,11 @@ class DumpIndex:
                     )
             finally:
                 db.close()
+            if self._closed:  # close() уже отработал — не подменяем index.db
+                for suffix in ("", "-journal", "-wal", "-shm"):
+                    with contextlib.suppress(OSError):
+                        os.unlink(tmp_path + suffix)
+                return
             self._replace_db(tmp_path)
         except BaseException:
             for suffix in ("", "-journal", "-wal", "-shm"):
@@ -313,7 +366,10 @@ class DumpIndex:
                     os.unlink(tmp_path + suffix)
             raise
 
-        self._db = sqlite3.connect(self._db_path, check_same_thread=False)
+        with self._db_lock:
+            if self._closed:
+                return
+            self._db = sqlite3.connect(self._db_path, check_same_thread=False)
 
     def _replace_db(self, tmp_path: str) -> None:
         """Атомарно подменяет index.db собранным временным файлом.
@@ -352,6 +408,16 @@ class DumpIndex:
 
     def _open_cache_and_diff(self) -> None:
         """Открывает кэш и инкрементально применяет изменения файлов."""
+        # Всё, что трогает self._db, идёт под _db_lock: close() не закроет
+        # соединение посреди statement потока-строителя (issue #56).
+        # При исключении with отпускает замок до того, как _build вызовет
+        # _close_db в своём except, — рекурсивной блокировки нет.
+        with self._db_lock:
+            if self._closed:
+                return
+            self._open_cache_and_diff_locked()
+
+    def _open_cache_and_diff_locked(self) -> None:
         # Соединение сразу сохраняется в self._db: при любой ошибке ниже
         # вызывающий код закроет его через _close_db перед удалением файла
         # (Windows не даёт удалить файл с открытым дескриптором).
@@ -464,8 +530,44 @@ class DumpIndex:
         return self._build_error
 
     def close(self) -> None:
-        with self._db_lock:
-            self._close_db()
+        # Порядок критичен (issue #56): сначала останавливаем поток-строитель,
+        # потом закрываем соединение. sqlite3_step отпускает GIL, поэтому
+        # close() без join мог освободить нативные структуры под активным
+        # statement — SIGSEGV в CI (tests/test_protocol.py, run 43038902211).
+        #
+        # Все ожидания close() ограничены ~2×CLOSE_JOIN_TIMEOUT: поток-строитель
+        # держит _db_lock на протяжении всего тёплого старта (обход дерева +
+        # перечитывание файлов + diff-запросы), поэтому бесконечный acquire
+        # замка после таймаута join подвешивал бы lifespan сервера
+        # (await asyncio.to_thread(index.close)) на всю сборку.
+        self._closed = True
+        if self._thread.is_alive():
+            self._thread.join(timeout=CLOSE_JOIN_TIMEOUT)
+            if self._thread.is_alive():
+                if self._db_lock.acquire(timeout=CLOSE_JOIN_TIMEOUT):
+                    try:
+                        self._close_db_locked()
+                    finally:
+                        self._db_lock.release()
+                    logger.warning(
+                        "dump index build thread still running after %.0fs; "
+                        "closing anyway (build statements are _db_lock-guarded)",
+                        CLOSE_JOIN_TIMEOUT,
+                    )
+                else:
+                    # Замок удерживает поток-строитель — sqlite3_close под ним
+                    # был бы тем же use-after-free. Освобождение соединения
+                    # откладывается на поток: точки с проверкой _closed под
+                    # _db_lock (_finish_build, _full_build, _open_cache_and_diff)
+                    # закроют его сами, между statement'ами.
+                    logger.warning(
+                        "dump index build thread still running after %.0fs and "
+                        "holds _db_lock; deferring connection close to the "
+                        "builder thread",
+                        CLOSE_JOIN_TIMEOUT,
+                    )
+                return
+        self._close_db()
 
     # ── Поиск ──
 
