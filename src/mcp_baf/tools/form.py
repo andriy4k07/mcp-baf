@@ -21,7 +21,7 @@ from mcp_baf_audit import AuditWriter
 from mcp_baf.client import OneCClient, OneCError
 from mcp_baf.dumpindex import formparser
 from mcp_baf.dumpindex.modulenames import OBJECT_TYPE_TO_DUMP_DIR, nfc
-from mcp_baf.pii import mask_pii_text
+from mcp_baf.pii import MASKING_NOTE, mask_pii_text
 from mcp_baf.tools.common import (
     escape_pipe, object_path_segments, traced_text, truncate_output,
 )
@@ -43,7 +43,8 @@ def register(
             "ВАЖНО: HTTP-endpoint 1С в серверном контексте не отдаёт состав элементов и "
             "обработчики формы - для полной структуры запусти сервер с флагом --dump "
             "(выгрузка конфигурации в файлы), тогда состав элементов, команды и обработчики "
-            "берутся из Form.xml. Без --dump возвращаются только имя и заголовок формы."
+            "берутся из Form.xml. Без --dump возвращаются только имя и заголовок формы. "
+            + MASKING_NOTE
         ),
         annotations=ToolAnnotations(read_only_hint=True),
     )
