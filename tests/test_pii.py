@@ -371,6 +371,17 @@ def test_tool_descriptions_document_token_semantics(tool_name):
         assert needle in description, (tool_name, needle)
 
 
+def test_masking_note_qualified_for_columnless_tools():
+    """MINOR реві #53: «список замаскированных колонок» — лише для табличних
+    відповідей. У журналу реєстрації/структури форми/знайденого коду колонок
+    немає, тож безумовна обіцянка переконує агента шукати те, чого там не буває."""
+    assert "список замаскированных колонок" in pii.MASKING_NOTE
+    before = pii.MASKING_NOTE.split("список замаскированных колонок")[0]
+    assert "таблич" in before[-60:], (
+        "обіцянка списку колонок має бути кваліфікована табличними ответами"
+    )
+
+
 # --- Issue #53, п.5: інваріант реєстру + перемаскування голых 10-значних ----
 
 def test_registry_invariant_all_maskable_tools_pass_mask_pii():
