@@ -337,9 +337,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--pii-column-markers", default="", metavar="MARKERS",
-        help="Comma-separated extra column-name substrings masked together with "
-             "the built-in PII markers, e.g. 'БонусныйСчет,ШтрихКод' "
-             "(env mcp_baf_PII_COLUMN_MARKERS).",
+        help="Comma-separated extra column-name substrings (>= 3 chars each) "
+             "masked in addition to the built-in PII markers, e.g. "
+             "'БонусныйСчет,ШтрихКод'. The CLI value replaces the "
+             "mcp_baf_PII_COLUMN_MARKERS env value (it does not merge).",
     )
     parser.add_argument(
         "--rotate-pii-key", action="store_true",
