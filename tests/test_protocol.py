@@ -3,6 +3,8 @@
 import asyncio
 import json
 import sys
+import threading
+import time
 from pathlib import Path
 
 import httpx
@@ -15,6 +17,26 @@ from mcp_baf.access import TOOL_METHODS
 from mcp_baf.client import OneCClient
 from mcp_baf.config import Config
 from mcp_baf.server import EXPECTED_EXTENSION_VERSION, create_server
+
+
+@pytest.fixture(autouse=True)
+def _join_background_threads():
+    """Не пропускаем фоновые daemon-потоки за границу теста (issue #56).
+
+    create_server поднимает потоки-строители DumpIndex/HelpIndex, которые
+    держат нативные SQLite-объекты; пережив teardown asyncio.run, они
+    могли дотронуться до уже уничтоженного состояния на следующем тесте —
+    ровно так выглядел сегфолт в CI. Ждём их завершения явно.
+    """
+    before = {threading.get_ident() for t in threading.enumerate()}
+    yield
+    deadline = None
+    for t in threading.enumerate():
+        if threading.get_ident() in before or t is threading.current_thread():
+            continue
+        deadline = time.monotonic() + 15 if deadline is None else deadline
+        remaining = max(deadline - time.monotonic(), 0.1)
+        t.join(timeout=remaining)
 
 
 @pytest.mark.parametrize('mode', ['auto', 'legacy'])
