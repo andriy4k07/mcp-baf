@@ -54,6 +54,9 @@ SCHEMA_VERSION = 3
 # когда поток больше не внутри sqlite3_step: close во время активного шага
 # (GIL отпущен) освобождает нативные структуры под работающим statement —
 # use-after-free и SIGSEGV (issue #56, флатовый сбой CI).
+# Замок берётся с тем же таймаутом: суммарное ожидание close() ограничено
+# ~2×CLOSE_JOIN_TIMEOUT; если строитель держит _db_lock дольше — закрытие
+# соединения откладывается на сам поток-строитель.
 CLOSE_JOIN_TIMEOUT = 10.0
 
 # Окно контекста вокруг найденной строки, в строках с каждой стороны.
@@ -189,11 +192,25 @@ class DumpIndex:
         # Запрос идёт под _db_lock: close() закроет соединение только между
         # statement'ами, никогда — посреди sqlite3_step (issue #56).
         with self._db_lock:
-            if self._closed or self._db is None:
+            if self._closed:
+                # close() не дождился потока и отложила освобождение соединения
+                # на нас: закрываем здесь — замок наш, значит мы гарантированно
+                # между statement'ами. Без этого sqlite-соединение утекало бы
+                # при отложенном закрытии (issue #56).
+                self._close_db_locked()
+                return
+            if self._db is None:
                 return  # индекс закрыли во время сборки — трогать соединение нельзя
             self._module_count = self._db.execute(
                 "SELECT count(*) FROM docs"
             ).fetchone()[0]
+        if self._closed:
+            # close() выставила флаг, пока выполнялся запрос выше (проверка
+            # ниже замка уже не было): поток сейчас между statement'ами и
+            # соединение ему больше не нужно — освобождаем сами (отложенное
+            # закрытие). _close_db идемпотентен, если close() успела сама.
+            self._close_db()
+            return
         self._ready.set()
         source = "из кэша" if from_cache else "построен"
         self._progress(f"Индекс {source}: {self._module_count} модулей")
@@ -206,9 +223,15 @@ class DumpIndex:
         # и close() — двойной sqlite3_close двух потоков на одном соединении
         # был бы тем же use-after-free.
         with self._db_lock:
-            if self._db is not None:
-                self._db.close()
-                self._db = None
+            self._close_db_locked()
+
+    def _close_db_locked(self) -> None:
+        # Предусловие: вызывающий держит _db_lock (значит ни один sqlite3_step
+        # потока-строителя по self._db не выполняется). Идемпотентен: повторный
+        # вызов на уже закрытом соединении — no-op.
+        if self._db is not None:
+            self._db.close()
+            self._db = None
 
     def _create_schema(self, db: sqlite3.Connection) -> None:
         db.execute(
@@ -506,15 +529,39 @@ class DumpIndex:
         # потом закрываем соединение. sqlite3_step отпускает GIL, поэтому
         # close() без join мог освободить нативные структуры под активным
         # statement — SIGSEGV в CI (tests/test_protocol.py, run 43038902211).
+        #
+        # Все ожидания close() ограничены ~2×CLOSE_JOIN_TIMEOUT: поток-строитель
+        # держит _db_lock на протяжении всего тёплого старта (обход дерева +
+        # перечитывание файлов + diff-запросы), поэтому бесконечный acquire
+        # замка после таймаута join подвешивал бы lifespan сервера
+        # (await asyncio.to_thread(index.close)) на всю сборку.
         self._closed = True
         if self._thread.is_alive():
             self._thread.join(timeout=CLOSE_JOIN_TIMEOUT)
             if self._thread.is_alive():
-                logger.warning(
-                    "dump index build thread still running after %.0fs; "
-                    "closing anyway (build statements are _db_lock-guarded)",
-                    CLOSE_JOIN_TIMEOUT,
-                )
+                if self._db_lock.acquire(timeout=CLOSE_JOIN_TIMEOUT):
+                    try:
+                        self._close_db_locked()
+                    finally:
+                        self._db_lock.release()
+                    logger.warning(
+                        "dump index build thread still running after %.0fs; "
+                        "closing anyway (build statements are _db_lock-guarded)",
+                        CLOSE_JOIN_TIMEOUT,
+                    )
+                else:
+                    # Замок удерживает поток-строитель — sqlite3_close под ним
+                    # был бы тем же use-after-free. Освобождение соединения
+                    # откладывается на поток: точки с проверкой _closed под
+                    # _db_lock (_finish_build, _full_build, _open_cache_and_diff)
+                    # закроют его сами, между statement'ами.
+                    logger.warning(
+                        "dump index build thread still running after %.0fs and "
+                        "holds _db_lock; deferring connection close to the "
+                        "builder thread",
+                        CLOSE_JOIN_TIMEOUT,
+                    )
+                return
         self._close_db()
 
     # ── Поиск ──
