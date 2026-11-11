@@ -224,6 +224,22 @@ def test_no_retry_on_read_timeout(tmp_path):
     asyncio.run(client.aclose())
 
 
+def test_write_timeout_is_labelled_timeout(tmp_path):
+    """WriteTimeout — той самий клас, що й ReadTimeout: ярлик timeout, без повтора."""
+    seen = []
+    handler = _flaky_handler([httpx.WriteTimeout("write stalled")], seen)
+    client = _client(tmp_path, handler)
+
+    with pytest.raises(OneCError, match="executing request to 1C"):
+        asyncio.run(client.post("/query", {"query": "ВЫБРАТЬ 1"}))
+    assert len(seen) == 1
+    http = [e for e in _events(tmp_path) if e["event"] == "one_c.http"]
+    assert len(http) == 1
+    assert http[0]["error"] == "timeout"
+    assert http[0]["payload"]["error_kind"] == "timeout"
+    asyncio.run(client.aclose())
+
+
 # ── Дедлайн запроса (issue #48) ──
 
 
@@ -285,6 +301,35 @@ def test_request_deadline_zero_disables_it(tmp_path):
     assert client._request_deadline == 0
     assert asyncio.run(client.get("/version")) == {}
     asyncio.run(client.aclose())
+
+
+def test_external_cancellation_is_not_converted_to_deadline_error(tmp_path):
+    """Зовнішня відміна (`asyncio.wait_for`/task.cancel) не має ставати
+    `OneCError` дедлайну: `asyncio.timeout` перетворює на `TimeoutError` лише
+    власне спрацювання, а чужий `CancelledError` проходить як є."""
+    async def run():
+        set_trace_id(None)
+        started = asyncio.Event()
+
+        async def slow(request):
+            started.set()
+            await asyncio.sleep(5)
+            return httpx.Response(200, json={})
+
+        client = _client(tmp_path, slow, request_deadline=10)
+        task = asyncio.create_task(client.get("/query"))
+        await started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        await client.aclose()
+
+    asyncio.run(run())
+
+    http = [e for e in _events(tmp_path) if e["event"] == "one_c.http"]
+    assert len(http) == 1
+    assert http[0]["ok"] is False  # отмена — не успех
+    assert http[0]["payload"]["error_kind"] == "timeout"
 
 
 def test_retry_exhausted_raises_and_logs_one_event(tmp_path):
