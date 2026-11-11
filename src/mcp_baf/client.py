@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from mcp_baf.config import Config
-from mcp_baf.pii import PII_VALUE_RE
+from mcp_baf.pii import scrub_pii_text
 
 if TYPE_CHECKING:  # тип только для подсказок — без обязательной зависимости в рантайме
     from mcp_baf_audit import AuditWriter
@@ -31,7 +31,7 @@ _CONTROL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]+")
 def scrub_error_detail(detail: str, limit: int = MAX_ERROR_DETAIL_CHARS) -> str:
     """Маскирует ПДн и обрезает тело ошибки 1С до безопасной длины."""
     text = " ".join(_CONTROL_RE.sub(" ", detail).split())
-    text = PII_VALUE_RE.sub("***", text)
+    text = scrub_pii_text(text, lambda _m: "***")
     if len(text) > limit:
         text = text[:limit].rstrip() + "…"
     return text
