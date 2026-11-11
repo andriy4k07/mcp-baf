@@ -255,6 +255,14 @@ class OneCClient:
             raise OneCError(
                 f"executing request to 1C: {scrub_error_detail(str(exc))}"
             ) from exc
+        except httpx.WriteTimeout as exc:
+            # Тело запроса не ушло за write-таймаут — тот же класс, что и
+            # ReadTimeout: таймаут, а не сбой транспорта. Повтора нет: часть
+            # запроса могла уже дойти до 1С.
+            state["error_kind"] = "timeout"
+            raise OneCError(
+                f"executing request to 1C: {scrub_error_detail(str(exc))}"
+            ) from exc
         except _RETRYABLE_TRANSPORT as exc:
             # Не удалось соединиться/получить слот в пуле — запрос не ушёл.
             state["error_kind"] = "transport_error"
