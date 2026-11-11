@@ -79,6 +79,29 @@ def test_reserved_declaration_name_has_no_false_positives(src):
     assert 'ReservedDeclarationName' not in codes(src)
 
 
+# Сценарії 1c-syntax/bsl-language-server#4900 (поведінка, не код).
+def test_latin_cyrillic_mixed_declaration_name_is_reported():
+    src = 'Процедура WBОбработатьТовар()\nКонецПроцедуры'
+    hits = [d for d in analyze(src) if d['code'] == 'LatinAndCyrillicSymbolInWord']
+    assert [(d['line'], d['column'], d['level']) for d in hits] == [(1, 11, 'warning')]
+
+
+@pytest.mark.parametrize('src', [
+    # Автозгенерований обробник події поля: латиниця походить від імені реквизита.
+    '&НаКлиенте\nПроцедура АвтоупаковкаЗаказовWBПриИзменении(Элемент)\nКонецПроцедуры',
+    'Процедура АвтоупаковкаЗаказовWBПередНачаломРазмещения(Элемент)\nКонецПроцедуры',
+    'Процедура ЗаказWBПриВыводе(Элемент, СтандартнаяОбработка)\nКонецПроцедуры',
+    'Процедура WBПанельПриОткрытии()\nКонецПроцедуры',
+    # Односкриптні імена — не змішування.
+    'Процедура ОбработкаТоваров()\nКонецПроцедуры',
+    'Procedure HandleGoods()\nEndProcedure',
+    # Діагностика перевіряє імена оголошень, а не присвоєння змінних.
+    'Процедура Тест()\nWBТовар = 1;\nСообщить(WBТовар);\nКонецПроцедуры',
+])
+def test_latin_cyrillic_has_no_false_positives(src):
+    assert 'LatinAndCyrillicSymbolInWord' not in codes(src)
+
+
 def test_local_scopes_and_non_code_words():
     src = '''Процедура Первый(А)
 Перем НеЧитается, Используется;

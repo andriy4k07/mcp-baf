@@ -42,6 +42,40 @@ RESERVED_DECLARATION_NAMES = frozenset({
 })
 
 
+# Аналог LatinAndCyrillicSymbolInWord з 1c-syntax/bsl-language-server#4900
+# (поведінка, не код — LGPL). У режимі фрагмента метаданих немає, тому
+# автозгенероване ім'я обробника <реквизит><Подія> розпізнається евристиною за
+# суфіксом події форми/поля: такі імена придушаються, бо латиниця в них походить
+# від імені реквизита, а не від стиля коду розробника.
+FORM_EVENT_SUFFIXES = tuple(suffix.casefold() for suffix in (
+    'ПриИзменении', 'ПриАктивизации', 'ПриДеактивизации',
+    'ПриАктивизацииЯчейки', 'ПриДеактивизацииЯчейки',
+    'ПриАктивизацииСтроки', 'ПриДеактивизацииСтроки',
+    'ПередНачаломРазмещения', 'ПриНачалеРазмещения', 'ПриРазмещении',
+    'ПриВыводе', 'ПередЭлементомВывода', 'ПриЭлементеВывода',
+    'ПередРодительскимЭлементомВывода', 'ПриРодительскимЭлементомВывода',
+    'ПриИзмененииРодительскойСтроки',
+    'ПриОткрытии', 'ПриЗакрытии', 'ПередОткрытием', 'ПередЗакрытием',
+    'ОбработкаВыбора', 'ОбработкаОтбора', 'ПриНажатии', 'ПриВыборе',
+    'ПриПолученииДанных', 'ПриУстановкеНовыхДанных', 'ОтборПриОткрытии',
+    'OnChange', 'OnActivate', 'OnDeactivate', 'OnRowActivate', 'OnRowDeactivate',
+    'BeforeBrowse', 'OnOutput', 'BeforeOutput',
+    'OnOpen', 'OnClose', 'BeforeOpen', 'BeforeClose',
+    'OnPress', 'OnSelect', 'OnFilter', 'OnFetchData', 'OnSetNewData',
+))
+LATIN_LETTER = re.compile(r'[A-Za-z]')
+CYRILLIC_LETTER = re.compile(r'[\u0400-\u04FF]')
+
+
+def _is_mixed_script(name):
+    return bool(LATIN_LETTER.search(name) and CYRILLIC_LETTER.search(name))
+
+
+def _is_generated_handler(name):
+    folded = name.casefold()
+    return any(folded.endswith(suffix) and len(folded) > len(suffix) for suffix in FORM_EVENT_SUFFIXES)
+
+
 def _directives(tokens):
     """Проверяет пары директив, не пытаясь вычислять условия препроцессора."""
     diagnostics, stack = [], []
@@ -90,6 +124,12 @@ def _semantic(nodes, conditional, dynamic_eval):
                 'ReservedDeclarationName',
                 'Имя объявления зарезервировано встроенным методом платформы и будет отклонено компилятором',
                 method.name.line, method.name.column, 'error'))
+        if (method.name is not None and _is_mixed_script(method.name.text)
+                and not _is_generated_handler(method.name.text)):
+            diagnostics.append(Diagnostic(
+                'LatinAndCyrillicSymbolInWord',
+                'Смешение латиницы и кириллицы в имени объявления',
+                method.name.line, method.name.column))
         seen = {name.text.casefold() for name in method.declarations}
         local_names = []
         body = list(_walk(method.children))
