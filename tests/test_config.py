@@ -140,6 +140,23 @@ def test_timeout_defaults_are_split_by_phase(clean_env):
     assert cfg.connect_timeout == 10   # connect короткий
     assert cfg.write_timeout == 60
     assert cfg.pool_timeout == 10
+    # Дедлайн всего запроса больше read-таймаута: он покрывает все попытки.
+    assert cfg.request_deadline == 600
+    assert cfg.request_deadline > cfg.request_timeout
+
+
+def test_request_deadline_from_env_and_cli(clean_env):
+    clean_env.setenv("mcp_baf_REQUEST_DEADLINE", "90")
+    assert load_config(parse_args([])).request_deadline == 90
+    assert load_config(parse_args(["--request-deadline", "45"])).request_deadline == 45
+    # 0 вимикає дедлайн (env і CLI), від'ємне/некоректне — лишається дефолт
+    clean_env.setenv("mcp_baf_REQUEST_DEADLINE", "0")
+    assert load_config(parse_args([])).request_deadline == 0
+    clean_env.setenv("mcp_baf_REQUEST_DEADLINE", "-5")
+    assert load_config(parse_args([])).request_deadline == 600
+    assert load_config(parse_args(["--request-deadline", "0"])).request_deadline == 0
+    clean_env.delenv("mcp_baf_REQUEST_DEADLINE")
+    assert load_config(parse_args([])).request_deadline == 600
 
 
 def test_phase_timeouts_from_env(clean_env):

@@ -193,11 +193,13 @@ def test_dns_rebinding_explicit_host_without_port_matches_any_port():
     from mcp.server.transport_security import TransportSecurityMiddleware
 
     settings = _settings(http_allowed_hosts="mcp-baf", http_port=18001)
-    assert settings.allowed_hosts == ["mcp-baf:*"]
+    # Голый Host (reverse-proxy на 443) и шаблон на любой порт.
+    assert settings.allowed_hosts == ["mcp-baf", "mcp-baf:*"]
     # Host — любой порт, Origin — только реальный порт сервиса
     assert settings.allowed_origins == ["https://mcp-baf:18001"]
 
     mw = TransportSecurityMiddleware(settings)
+    assert mw._validate_host("mcp-baf") is True  # без порта: прокси на 443
     assert mw._validate_host("mcp-baf:18001") is True
     assert mw._validate_host("mcp-baf:8001") is True
     assert mw._validate_host("evil.example.com:18001") is False
@@ -210,7 +212,7 @@ def test_dns_rebinding_explicit_host_with_port_stays_exact():
     from mcp.server.transport_security import TransportSecurityMiddleware
 
     settings = _settings(http_allowed_hosts="mcp-baf, mcp.example.lan:18001", http_port=8001)
-    assert settings.allowed_hosts == ["mcp-baf:*", "mcp.example.lan:18001"]
+    assert settings.allowed_hosts == ["mcp-baf", "mcp-baf:*", "mcp.example.lan:18001"]
     assert settings.allowed_origins == [
         "https://mcp-baf:8001", "https://mcp.example.lan:18001"]
 
@@ -225,12 +227,13 @@ def test_dns_rebinding_ipv6_entries_are_bracketed():
     from mcp.server.transport_security import TransportSecurityMiddleware
 
     settings = _settings(http_allowed_hosts="[::1]:8001, [::2]")
-    assert settings.allowed_hosts == ["[::1]:8001", "[::2]:*"]
+    assert settings.allowed_hosts == ["[::1]:8001", "[::2]", "[::2]:*"]
     assert settings.allowed_origins == ["https://[::1]:8001", "https://[::2]:8001"]
 
     mw = TransportSecurityMiddleware(settings)
     assert mw._validate_host("[::1]:8001") is True
     assert mw._validate_host("[::1]:9000") is False
+    assert mw._validate_host("[::2]") is True
     assert mw._validate_host("[::2]:9000") is True
     assert mw._validate_origin("https://[::1]:8001") is True
     assert mw._validate_origin("https://[::2]:8001") is True
@@ -268,7 +271,47 @@ def test_dns_rebinding_empty_list_keeps_default_patterns():
     settings = _settings(http_allowed_hosts="")
     assert settings.allowed_hosts == _settings().allowed_hosts
     assert any(h.endswith(":*") for h in settings.allowed_hosts)
-    assert all(":" in h for h in settings.allowed_hosts)
+    assert "localhost" in settings.allowed_hosts  # голый Host за прокси на 443
+    assert "localhost:8001" in settings.allowed_hosts
+
+
+def test_dns_rebinding_any_loopback_bind_enables_protection():
+    """127.0.0.2 — теж loopback (127.0.0.0/8), захист має бути увімкнений."""
+    for host in ("127.0.0.1", "127.0.0.2", "127.10.20.30", "::1", "localhost"):
+        settings = _settings(http_host=host)
+        assert settings.enable_dns_rebinding_protection is True, host
+        assert settings.allowed_hosts, host
+    # не-loopback лишається вимкненим без явного списку
+    assert _settings(http_host="192.168.1.10").enable_dns_rebinding_protection is False
+
+
+def test_is_loopback_bind_covers_ipv4_loopback_and_falls_back():
+    from mcp_baf.__main__ import _is_loopback_bind
+
+    assert _is_loopback_bind("127.0.0.1") is True
+    assert _is_loopback_bind("127.0.0.2") is True
+    assert _is_loopback_bind("127.255.255.254") is True
+    assert _is_loopback_bind("::1") is True
+    assert _is_loopback_bind("localhost") is True
+    assert _is_loopback_bind("0.0.0.0") is False
+    assert _is_loopback_bind("192.168.1.10") is False
+    assert _is_loopback_bind("mcp-baf") is False  # ім'я: fallback не падає
+    assert _is_loopback_bind("") is False
+
+
+def test_is_loopback_bind_accepts_bracketed_ipv6():
+    """`--http-host [::1]` — поширена форма запису; дужки не мають вимикати захист."""
+    from mcp_baf.__main__ import _is_loopback_bind
+
+    assert _is_loopback_bind("[::1]") is True
+    assert _is_loopback_bind(" [::1] ") is True
+    assert _is_loopback_bind("127.0.0.1") is True
+    assert _is_loopback_bind("[0.0.0.0]") is False
+    assert _is_loopback_bind("[]") is False
+    # порожній allowlist + bind у дужках → DNS-rebinding захист лишається увімкненим
+    settings = _settings(http_host="[::1]", http_allowed_hosts="")
+    assert settings.enable_dns_rebinding_protection is True
+    assert settings.allowed_hosts
 
 
 def test_dns_rebinding_can_be_disabled_with_warning(caplog):

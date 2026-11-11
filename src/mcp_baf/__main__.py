@@ -237,13 +237,34 @@ def _default_host_names(config: Config) -> list[str]:
 _LOOPBACK_BINDS = ('127.0.0.1', '::1', 'localhost')
 
 
+def _is_loopback_bind(host: str) -> bool:
+    """True для loopback-bind: уся петля 127.0.0.0/8, ::1 і `localhost`.
+
+    Рядкового набору мало: 127.0.0.2..127.255.255.254 теж loopback, і bind на
+    них — такий самий локальний запуск, як 127.0.0.1. `ipaddress` розбирає
+    адресу, рядкове порівняння лишається для імен і некоректних значень.
+    """
+    import ipaddress
+
+    # `--http-host [::1]` — людина пише адресу в дужках, як у URL/Host-заголовку.
+    # `ipaddress` такої форми не розбирає (ValueError), тож нормалізуємо заздалегідь.
+    host = host.strip().strip("[]")
+    if host in _LOOPBACK_BINDS:
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:  # не адреса (ім'я хоста) — не loopback
+        return False
+
+
 def _origins(scheme: str, parsed: list[tuple[str, str | None]], config: Config) -> list[str]:
     """Origin-значення для `allowed_origins`.
 
-    SDK 2.3.0 порівнює Origin точно (без шаблонів), тому `:*` тут непридатний.
-    Елемент із портом — рівно `scheme://host:port`; без порту — реальний порт
-    сервіса (`config.http_port`), а для 80/443 ще й варіант без порту, бо
-    браузер його не пише.
+    SDK 2.3.0 порівнює Origin точно або по тому самому шаблону `:*`, що й Host
+    (`_validate_origin` повторює цикл `_validate_host`). Шаблоном не
+    користуємось: Origin з портом — рівно `scheme://host:port`; без порту —
+    реальний порт сервіса (`config.http_port`), а для 80/443 ще й варіант без
+    порту, бо браузер його не пише (шаблон `:*` вимагає порт і його не покриє).
     """
     from mcp_baf.tls import host_header, host_name
 
@@ -263,14 +284,15 @@ def _http_security(config: Config, scheme: str):
     """Захист від DNS-rebinding: увімкнений за замовчуванням.
 
     Явний `--http-allowed-hosts` вмикає її завжди. Без нього захист
-    увімкнений лише при loopback-bind (127.0.0.1/::1/localhost): там працює
-    браузерний DNS-rebinding, набір за замовчуванням — `_default_host_names`
-    плюс шаблони `:*`. При bind 0.0.0.0 (контейнер, server-to-server за
-    ім'ям сервісу) без явного списку вона вимкнена, як і було. Вимкнення
-    примусово — `--disable-dns-rebinding` / `mcp_baf_HTTP_DISABLE_DNS_REBINDING=1`.
+    увімкнений лише при loopback-bind (уся петля 127.0.0.0/8, ::1, localhost):
+    там працює браузерний DNS-rebinding, набір за замовчуванням —
+    `_default_host_names` плюс голий Host і шаблони `:*`. При bind 0.0.0.0
+    (контейнер, server-to-server за ім'ям сервісу) без явного списку вона
+    вимкнена, як і було. Вимкнення примусово — `--disable-dns-rebinding` /
+    `mcp_baf_HTTP_DISABLE_DNS_REBINDING=1`.
     """
     from mcp.server.transport_security import TransportSecuritySettings
-    from mcp_baf.tls import host_header, split_host_port
+    from mcp_baf.tls import host_header, host_name, split_host_port
 
     if not config.dns_rebinding_protection:
         logging.getLogger(__name__).warning(
@@ -279,19 +301,30 @@ def _http_security(config: Config, scheme: str):
         return TransportSecuritySettings(enable_dns_rebinding_protection=False)
 
     explicit = [h.strip() for h in config.http_allowed_hosts.split(",") if h.strip()]
-    if not explicit and config.http_host not in _LOOPBACK_BINDS:
+    if not explicit and not _is_loopback_bind(config.http_host):
         return TransportSecuritySettings(enable_dns_rebinding_protection=False)
     if explicit:
         # SDK 2.3.0 сверяет Host точно или по шаблону `host:*` (без него запрос
-        # с реальным `Host: mcp-baf:18001` получает 421). Поэтому элемент без
-        # порта расширяем до `:*`, а явный порт оставляем точным.
+        # с реальным `Host: mcp-baf:18001` получает 421). Элемент без порта
+        # получает ОБА варианта: голый `Host: mcp-baf` (reverse-proxy на 443
+        # отдаёт заголовок без порта) и `mcp-baf:*` (любой реальный порт).
+        # Явный порт остаётся точным.
         parsed = [split_host_port(h) for h in explicit]
-        hosts = [host_header(name, port) for name, port in parsed]
+        hosts: list[str] = []
+        for name, explicit_port in parsed:
+            if explicit_port:
+                hosts.append(host_header(name, explicit_port))
+            else:
+                hosts.append(host_name(name))
+                hosts.append(host_header(name, None))
+        hosts = list(dict.fromkeys(hosts))
         origins = _origins(scheme, parsed, config)
     else:
         names = _default_host_names(config)
-        hosts = [f"{n}:{config.http_port}" for n in names]
-        hosts += [f"{n}:*" for n in names]
+        hosts = []
+        for n in names:
+            # Голый Host (прокси на 443), реальный порт сервиса и любой порт.
+            hosts += [n, f"{n}:{config.http_port}", f"{n}:*"]
         origins = _origins(scheme, [(n, None) for n in names], config)
     return TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
