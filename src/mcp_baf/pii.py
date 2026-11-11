@@ -116,6 +116,11 @@ def configure_pii(
     Каждый вызов сбрасывает резолв ключа — это же «рестарт» для тестов:
     ключ лениво перечитывается из файла/окружения при первом токене.
     `rotate=True` выпускает новый ключ и перезаписывает файл немедленно.
+
+    Некорректный `mcp_baf_PII_KEY` — ошибка сразу здесь (fail-fast при
+    запуске), а не при первом токене: сервер с «плавающими» токенами
+    выглядит рабочим, пока кто-то не сравнит выборки. Сообщение называет
+    только ожидаемую длину, не значение ключа.
     """
     global _key, _key_file, _extra_markers
     _extra_markers = tuple(
@@ -123,8 +128,19 @@ def configure_pii(
     )
     _key_file = os.path.join(cache_dir, PII_KEY_FILENAME) if cache_dir else ""
     _key = None
+    _check_env_key()
     if rotate:
         rotate_pii_key()
+
+
+def _check_env_key() -> None:
+    """Проверяет формат env-ключа; молчит, когда ключ не задан."""
+    env_raw = os.environ.get(PII_KEY_ENV, "").strip()
+    if env_raw and _parse_key_hex(env_raw) is None:
+        raise ValueError(
+            f"{PII_KEY_ENV} должен містити {PII_KEY_HEX_CHARS} "
+            "шістнадцяткових символів (32 байти)"
+        )
 
 
 def _parse_key_hex(raw: str) -> bytes | None:
@@ -151,20 +167,16 @@ def _resolve_key() -> bytes:
 
     Файл создаётся при первом использовании (0600). Некорректный env-ключ
     — ошибка конфигурации, а не тихий фолбэк: молча «плавающие» токены
-    выглядят как работающий маскировщик.
+    выглядят как работающий маскировщик. Проверка дублирует
+    `configure_pii` — библиотечное использование без него тоже fail-closed.
     """
     global _key
     if _key is not None:
         return _key
     env_raw = os.environ.get(PII_KEY_ENV, "").strip()
     if env_raw:
-        key = _parse_key_hex(env_raw)
-        if key is None:
-            raise ValueError(
-                f"{PII_KEY_ENV} должен містити {PII_KEY_HEX_CHARS} "
-                "шістнадцяткових символів (32 байти)"
-            )
-        _key = key
+        _check_env_key()
+        _key = bytes.fromhex(env_raw)
         return _key
     if _key_file:
         try:

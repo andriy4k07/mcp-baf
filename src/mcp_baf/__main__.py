@@ -115,13 +115,19 @@ def main() -> None:
     # (файл pii.key создаётся при первом токене; mcp_baf_PII_KEY старше файла)
     # и пользовательские маркеры колонок из mcp_baf_PII_COLUMN_MARKERS /
     # --pii-column-markers. --rotate-pii-key — одноразовая ротация ключа.
+    # Некорректный mcp_baf_PII_KEY — отказ запуска (configure_pii валидирует
+    # env сразу; в тексте только ожидаемая длина, не значение ключа).
     from mcp_baf import pii
 
-    pii.configure_pii(
-        cache_dir=config.cache_dir or default_cache_dir("mcp-baf"),
-        extra_column_markers=pii.split_marker_list(config.pii_column_markers),
-        rotate=config.rotate_pii_key,
-    )
+    try:
+        pii.configure_pii(
+            cache_dir=config.cache_dir or default_cache_dir("mcp-baf"),
+            extra_column_markers=pii.split_marker_list(config.pii_column_markers),
+            rotate=config.rotate_pii_key,
+        )
+    except ValueError as exc:
+        print(f"Configuration error: {exc}", file=sys.stderr)
+        sys.exit(1)
     if config.rotate_pii_key:
         logging.getLogger(__name__).info("PII: ключ токенов заменён (--rotate-pii-key)")
 

@@ -218,9 +218,31 @@ def test_env_key_precedence_and_invalid(monkeypatch):
     assert pii.pii_token("x") == expected
 
     monkeypatch.setenv(pii.PII_KEY_ENV, "deadbeef")  # завороткий / не hex
-    pii.configure_pii(cache_dir="")
-    with pytest.raises(ValueError):
-        pii.pii_token("x")
+    # Ревю #53 (MINOR): некоректний env-ключ — помилка запуску (configure_pii),
+    # а не перший токен; в тексті лише очікувана довжина, не значення.
+    with pytest.raises(ValueError) as ei:
+        pii.configure_pii(cache_dir="")
+    msg = str(ei.value)
+    assert pii.PII_KEY_ENV in msg and str(pii.PII_KEY_HEX_CHARS) in msg
+    assert "deadbeef" not in msg
+    monkeypatch.delenv(pii.PII_KEY_ENV)
+
+
+def test_invalid_env_key_fails_fast_without_leaking_value(monkeypatch):
+    """MINOR реві #53: валідація mcp_baf_PII_KEY на старті, значення не витекає."""
+    bad = "deadbeef" * 8 + "ab"  # валідний hex, хибна довжина (66)
+    monkeypatch.setenv(pii.PII_KEY_ENV, bad)
+    try:
+        with pytest.raises(ValueError) as ei:
+            pii.configure_pii(cache_dir="", rotate=True)  # і до ротації дійти не повинен
+        msg = str(ei.value)
+        assert pii.PII_KEY_ENV in msg and str(pii.PII_KEY_HEX_CHARS) in msg
+        assert "deadbeef" not in msg
+        # Бібліотечний шлях без configure_pii — той самий fail-closed на токені.
+        with pytest.raises(ValueError):
+            pii.pii_token("x")
+    finally:
+        monkeypatch.delenv(pii.PII_KEY_ENV)
 
 
 def test_rotate_pii_key_breaks_and_freezes_tokens(tmp_path):
