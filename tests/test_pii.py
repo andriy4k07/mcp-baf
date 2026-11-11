@@ -272,12 +272,6 @@ def test_preexisting_weak_key_file_perms_are_tightened(tmp_path):
     os.chmod(kf, 0o644)
     pii.rotate_pii_key()
     assert kf.stat().st_mode & 0o777 == 0o600
-    # І шлях «бітий файл -> перевипуск» не залишає слабкий режим.
-    kf.write_text("not-hex", "ascii")
-    os.chmod(kf, 0o640)
-    pii.configure_pii(cache_dir=str(tmp_path))
-    assert pii.pii_token("x").startswith("PII:")
-    assert kf.stat().st_mode & 0o777 == 0o600
 
 
 def test_rotate_pii_key_breaks_and_freezes_tokens(tmp_path):
@@ -441,3 +435,56 @@ def test_bare_ten_digit_zero_prefix_is_accepted_overmasking():
     голі «0671234567» у вільному тексті — реальний канал витоку (#46)."""
     out = pii.mask_pii_text("код 0123456789 у коментарі")
     assert out.count("PII:") == 1 and "0123456789" not in _strip_tokens(out)
+
+
+# --- Ревю PR #58: життєвий цикл ключа, ротація, маркери ---------------------
+
+def test_key_file_race_loser_adopts_existing_key(tmp_path):
+    pii.configure_pii(cache_dir=str(tmp_path))
+    winner = pii.pii_token("x")
+    # Програвший гонку: файл уже є — link падає, береться чужий ключ.
+    assert pii._write_key_file(b"\x01" * pii.PII_KEY_BYTES) is False
+    assert not list(tmp_path.glob("*.tmp"))
+    pii.configure_pii(cache_dir=str(tmp_path))
+    assert pii.pii_token("x") == winner
+
+
+@pytest.mark.parametrize("content", ["", "not-hex", "ab" * 5])
+def test_invalid_existing_key_file_fails_closed(tmp_path, content):
+    kf = tmp_path / pii.PII_KEY_FILENAME
+    kf.write_text(content, "ascii")
+    with pytest.raises(ValueError, match="--rotate-pii-key") as ei:
+        pii.configure_pii(cache_dir=str(tmp_path))
+    assert content not in str(ei.value) or content == ""
+    assert kf.read_text("ascii") == content  # не перезаписано
+    pii.configure_pii(cache_dir=str(tmp_path), rotate=True)  # ротація лікує
+    assert len(bytes.fromhex(kf.read_text("ascii"))) == pii.PII_KEY_BYTES
+
+
+def test_rotate_with_env_key_rejected(monkeypatch, tmp_path):
+    monkeypatch.setenv(pii.PII_KEY_ENV, "ab" * pii.PII_KEY_BYTES)
+    with pytest.raises(ValueError, match="--rotate-pii-key"):
+        pii.configure_pii(cache_dir=str(tmp_path), rotate=True)
+    assert not (tmp_path / pii.PII_KEY_FILENAME).exists()
+
+
+def test_configure_creates_dir_and_key_eagerly(tmp_path):
+    d = tmp_path / "new" / "cache"
+    pii.configure_pii(cache_dir=str(d))
+    assert (d / pii.PII_KEY_FILENAME).exists()
+    d2 = tmp_path / "off"
+    pii.configure_pii(cache_dir=str(d2), enabled=False)
+    assert not d2.exists()
+
+
+def test_ukrainian_default_markers():
+    cols = ["Логін", "ІмяКористувача", "Ім'яКористувача", "Серія"]
+    out = mask_pii_result(_r(cols, [["a", "b", "c", "d"]]))["rows"][0]
+    assert all(v.startswith("PII:") for v in out)
+
+
+def test_short_markers_rejected():
+    with pytest.raises(ValueError, match="закороткий"):
+        pii.split_marker_list("БонусныйСчет, а")
+    with pytest.raises(ValueError, match="закороткий"):
+        pii.configure_pii(extra_column_markers=["ab"])
