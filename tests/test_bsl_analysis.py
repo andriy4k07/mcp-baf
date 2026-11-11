@@ -111,6 +111,41 @@ def test_reserved_declaration_name_flags_true_globals_and_aliases(src):
     assert 'ReservedDeclarationName' in codes(src)
 
 
+@pytest.mark.parametrize('src', [
+    # Гілка з хибним літеральним умовою не компілюється 1С-компілятором —
+    # діагностика в ній хибнопозитивна (прецедент: придушення DuplicateVariable
+    # за прапорцем `conditional`).
+    '#Если Ложь Тогда\nФункция Найти()\nКонецФункции\n#КонецЕсли',
+    '#If False Then\nFunction Find()\nEndFunction\n#EndIf',
+    # Мертва гілка після достовірно істинної.
+    '#Если Истина Тогда\nА = 1;\n#Иначе\nФункция Найти()\nКонецФункции\n#КонецЕсли',
+    # Неперевірне умовою компілятора — консервативно придушаємо (гілка може не
+    # потрапити в збірку).
+    '#Если Сервер Тогда\nФункция Найти()\nКонецФункции\n#КонецЕсли',
+])
+def test_reserved_declaration_name_suppressed_in_non_compiled_branch(src):
+    assert 'ReservedDeclarationName' not in codes(src)
+
+
+@pytest.mark.parametrize('src', [
+    # Істинне літеральне умовою: компілятор точно компілює гілку — чіпаємо.
+    '#Если Истина Тогда\nФункция Найти()\nКонецФункции\n#КонецЕсли',
+    '#If True Then\nFunction Find()\nEndFunction\n#EndIf',
+    # Жива гілка #Иначе після хибної — теж компілюється.
+    '#Если Ложь Тогда\nА = 1;\n#Иначе\nФункция Найти()\nКонецФункции\n#КонецЕсли',
+])
+def test_reserved_declaration_name_reported_in_compiled_branch(src):
+    assert 'ReservedDeclarationName' in codes(src)
+
+
+def test_reserved_declaration_name_outside_branches_even_with_dead_siblings():
+    # Хибна гілка поруч не приглушає перевірку поза препроцесором.
+    src = ('#Если Ложь Тогда\nБ = 1;\n#КонецЕсли\nПроцедура Тест()\nКонецПроцедуры\n'
+           'Функция Найти()\nКонецФункции')
+    hits = [d for d in analyze(src) if d['code'] == 'ReservedDeclarationName']
+    assert [(d['line'], d['column']) for d in hits] == [(6, 9)]
+
+
 # Сценарії 1c-syntax/bsl-language-server#4900 (поведінка, не код).
 def test_latin_cyrillic_mixed_declaration_name_is_reported():
     src = 'Процедура WBОбработатьТовар()\nКонецПроцедуры'
