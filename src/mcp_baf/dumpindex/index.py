@@ -354,6 +354,11 @@ class DumpIndex:
                     )
             finally:
                 db.close()
+            if self._closed:  # close() уже отработал — не подменяем index.db
+                for suffix in ("", "-journal", "-wal", "-shm"):
+                    with contextlib.suppress(OSError):
+                        os.unlink(tmp_path + suffix)
+                return
             self._replace_db(tmp_path)
         except BaseException:
             for suffix in ("", "-journal", "-wal", "-shm"):
