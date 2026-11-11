@@ -215,6 +215,75 @@ def test_no_retry_on_read_timeout(tmp_path):
     with pytest.raises(OneCError, match="executing request to 1C"):
         asyncio.run(client.get("/version"))
     assert len(seen) == 1
+    http = [e for e in _events(tmp_path) if e["event"] == "one_c.http"]
+    assert len(http) == 1
+    # ReadTimeout — таймаут, а не «транспортная ошибка»: честный ярлык в аудите.
+    assert http[0]["error"] == "timeout"
+    assert http[0]["payload"]["error_kind"] == "timeout"
+    assert http[0]["payload"]["attempts"] == 1
+    asyncio.run(client.aclose())
+
+
+# ── Дедлайн запроса (issue #48) ──
+
+
+class _DripStream(httpx.AsyncByteStream):
+    """Медленно «капающий» ответ: read-таймаут на чанк не срабатывает."""
+
+    async def __aiter__(self):
+        for _ in range(10_000):
+            await asyncio.sleep(0.01)
+            yield b" "
+
+
+def test_request_deadline_aborts_drip_stream(tmp_path):
+    """Drip-стрим не должен жить бесконечно: дедлайн → error_kind=timeout."""
+    async def drip(request):
+        return httpx.Response(200, stream=_DripStream())
+
+    async def run():
+        set_trace_id(None)
+        client = _client(tmp_path, drip, request_deadline=0.2)
+        with pytest.raises(OneCError, match="дедлайн"):
+            await client.get("/query")
+        await client.aclose()
+
+    asyncio.run(run())
+
+    http = [e for e in _events(tmp_path) if e["event"] == "one_c.http"]
+    assert len(http) == 1  # ровно одно событие даже при дедлайне
+    e = http[0]
+    assert e["ok"] is False
+    assert e["error"] == "timeout"
+    assert e["payload"]["error_kind"] == "timeout"
+    assert e["status"] == 200  # заголовки уже пришли, тело не дочитано
+    assert e["payload"]["attempts"] == 1
+
+
+def test_request_deadline_covers_all_retries(tmp_path):
+    """Дедлайн — на весь вызов: повторы не продлевают его бесконечно."""
+    seen = []
+    handler = _flaky_handler([httpx.ConnectError("down")], seen)
+    client = _client(tmp_path, handler, retry_attempts=10, retry_backoff=0.05,
+                     request_deadline=0.2)
+
+    with pytest.raises(OneCError, match="дедлайн"):
+        asyncio.run(client.get("/version"))
+    assert len(seen) >= 1
+    http = [e for e in _events(tmp_path) if e["event"] == "one_c.http"]
+    assert len(http) == 1
+    # Причина незавершённого вызова — дедлайн, а не последняя попытка.
+    assert http[0]["payload"]["error_kind"] == "timeout"
+    assert http[0]["payload"]["attempts"] == len(seen)
+    asyncio.run(client.aclose())
+
+
+def test_request_deadline_zero_disables_it(tmp_path):
+    """request_deadline=0 — без дедлайна (для тестов/особых сценариев)."""
+    client = _client(tmp_path, lambda r: httpx.Response(200, json={}),
+                     request_deadline=0)
+    assert client._request_deadline == 0
+    assert asyncio.run(client.get("/version")) == {}
     asyncio.run(client.aclose())
 
 
