@@ -57,6 +57,28 @@ def test_errors_are_reported_and_format_refuses(src):
         format_source(src)
 
 
+# Сценарії 1c-syntax/bsl-language-server#4904 (поведінка, не код).
+def test_reserved_declaration_name_reports_error_on_declaration():
+    src = 'Функция Найти(Значение) Экспорт\nВозврат Значение;\nКонецФункции'
+    hits = [d for d in analyze(src) if d['code'] == 'ReservedDeclarationName']
+    assert [(d['line'], d['column'], d['level']) for d in hits] == [(1, 9, 'error')]
+    assert codes('Function Find(Value) Export\nReturn Value;\nEndFunction') >= {'ReservedDeclarationName'}
+
+
+@pytest.mark.parametrize('src', [
+    # Контролі з #4904: компілятор ці імена/виклики приймає.
+    'Функция ПолучитьЗначение(Значение) Экспорт\nВозврат Значение;\nКонецФункции',
+    'Функция ИндексВМассиве(Массив, Значение) Экспорт\nВозврат Массив.Найти(Значение);\nКонецФункции',
+    'Процедура Тест()\nСправочники.НайтиПоКоду("00000001");\nСтроки = ТаблицаЗначений.НайтиСтроки(Новый Структура("Ключ", 1));\nКонецПроцедуры',
+    # Виклик за іменем не є оголошенням: діагностика чіпає лише Функция/Процедура.
+    'Процедура Тест()\nРезультат = Найти(1);\nКонецПроцедуры',
+    # Префікс/похідне від зарезервованого імені — звичайне ім'я.
+    'Функция НайтиПоШаблону(Шаблон) Экспорт\nВозврат Шаблон;\nКонецФункции',
+])
+def test_reserved_declaration_name_has_no_false_positives(src):
+    assert 'ReservedDeclarationName' not in codes(src)
+
+
 def test_local_scopes_and_non_code_words():
     src = '''Процедура Первый(А)
 Перем НеЧитается, Используется;

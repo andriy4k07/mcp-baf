@@ -16,6 +16,29 @@ DIAGNOSTIC_CODES = frozenset({
     'ParseError', 'DuplicateParameter', 'DuplicateVariable',
     'UnusedLocalVariable', 'UnreachableCode', 'EmptyExcept',
     'TrailingWhitespace', 'LineLength',
+    'ReservedDeclarationName', 'LatinAndCyrillicSymbolInWord',
+})
+
+# Курований перелік імен, які лексер BSL приймає як ідентифікатор, але компілятор
+# 1С 8.3.27 відхиляє в оголошенні Функция/Процедура («Ожидается имя функции»):
+# вбудовані методи глобального контекста цільової версії платформи. Перелік
+# розширюється за документами платформи; поведінка запозичена з опису
+# 1c-syntax/bsl-language-server#4904, код не переноситься (LGPL).
+RESERVED_DECLARATION_NAMES = frozenset({
+    name.casefold() for name in (
+        'Найти', 'Find', 'Вычислить', 'Evaluate',
+        'ЗагрузитьЗначение', 'LoadValue', 'СохранитьЗначение', 'SaveValue',
+        'ПоместитьВоВременноеХранилище', 'PutToTempStorage',
+        'ПолучитьИзВременногоХранилища', 'GetFromTempStorage',
+        'УдалитьИзВременногоХранилища', 'DeleteFromTempStorage',
+        'ОткрытьФорму', 'OpenForm', 'ЗакрытьФорму', 'CloseForm',
+        'ОткрытьЗначение', 'OpenValue', 'ЗакрытьЗначение', 'CloseValue',
+        'Представление', 'Present', 'ШаблонСтроки', 'StrTemplate',
+        'Формат', 'Format',
+        'Абс', 'Abs', 'Эксп', 'Exp', 'Лог', 'Log', 'Лог10', 'Log10',
+        'Квадрат', 'Sqr', 'Корень', 'Sqrt', 'Степень', 'Pow',
+        'Син', 'Sin', 'Кос', 'Cos', 'Тан', 'Tan',
+    )
 })
 
 
@@ -60,6 +83,13 @@ def _walk(nodes):
 def _semantic(nodes, conditional, dynamic_eval):
     diagnostics = []
     for method in (node for node in nodes if node.kind in {'procedure', 'function'}):
+        # Виклики на кшталт Массив.Найти() — вузли member/call, сюди не доходять:
+        # перевіряється лише іменник оголошення, а не будь-який токен імені.
+        if method.name is not None and method.name.text.casefold() in RESERVED_DECLARATION_NAMES:
+            diagnostics.append(Diagnostic(
+                'ReservedDeclarationName',
+                'Имя объявления зарезервировано встроенным методом платформы и будет отклонено компилятором',
+                method.name.line, method.name.column, 'error'))
         seen = {name.text.casefold() for name in method.declarations}
         local_names = []
         body = list(_walk(method.children))
