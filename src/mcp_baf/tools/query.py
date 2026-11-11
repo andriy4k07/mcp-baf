@@ -91,7 +91,7 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter,
 
             result = await client.post("/query", body)
             return format_query_result(
-                mask_pii_result(result) if mask_pii else result, offset
+                mask_pii_result(result, query) if mask_pii else result, offset
             )
 
         return await traced_text(
