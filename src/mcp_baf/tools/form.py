@@ -171,13 +171,16 @@ def convert_dump_form(form_name: str, info: formparser.FormInfo) -> dict[str, An
 def merge_dump_into_form(form: dict[str, Any], dump_form: dict[str, Any]) -> None:
     """Дополняет HTTP-ответ данными из dump.
 
-    Имя и заголовок остаются из HTTP (там настроенный синоним), dump —
-    запасной вариант. Элементы/команды/обработчики всегда берутся из dump,
+    HTTP всегда отдаёт основную форму объекта, а dump — выбранную (form_name
+    или первую по алфавиту). Если формы разные, имя и заголовок берутся из dump,
+    иначе шапка и элементы описывали бы разные формы. Совпадающие имя и синоним
+    остаются из HTTP. Элементы/команды/обработчики всегда берутся из dump,
     потому что HTTP их не отдаёт вовсе.
     """
-    if not form.get("name"):
+    if nfc(form.get("name") or "") != dump_form["name"]:
         form["name"] = dump_form["name"]
-    if not form.get("title"):
+        form["title"] = dump_form["title"]
+    elif not form.get("title"):
         form["title"] = dump_form["title"]
     for key in ("elements", "commands", "handlers"):
         if dump_form[key]:
