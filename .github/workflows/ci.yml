@@ -28,17 +28,16 @@ jobs:
       # на teardown stdio/asyncio-сессий в test_protocol.py.
       - name: Run test suite (кроме test_protocol.py)
         env:
-          # Див. protocol-tests: флатовий краш інтерпретатора (issue #56)
-          # мусить залишити faulthandler-дамп у логу й у головному джобі,
-          # якщо тест туди мігрує.
+          # См. protocol-tests: плавающий краш интерпретатора (issue #56)
+          # должен оставить faulthandler-дамп в логе и в основном джобе,
+          # если тест туда мигрирует.
           PYTHONFAULTHANDLER: "1"
         run: python -m pytest tests/ -q --ignore=tests/test_protocol.py
 
   protocol-tests:
-    # Изолированный прогон tests/test_protocol.py (issue #56): чистий
-    # інтерпретатор без попередніх тестових файлів, faulthandler увімкнено,
-    # ретрай ТІЛЬКИ для жорстких крахів інтерпретатора (SIGSEGV/SIGILL/
-    # SIGABRT/SIGBUS), ніколи — для реальних падінь тестів (rc 1/2).
+    # Изолированный прогон tests/test_protocol.py (issue #56): чистый
+    # интерпретатор без предыдущих тестовых файлов, faulthandler включён.
+    # Без ретраев: повтор скрыл бы именно тот сегфолт, который чинит #56.
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -54,26 +53,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
-      - name: Run protocol contract tests (isolated, crash-only retry)
+      - name: Run protocol contract tests (isolated)
         env:
           PYTHONFAULTHANDLER: "1"
         run: |
-          rc=1
-          for attempt in 1 2 3; do
-            # Групу { ...; rc=${PIPESTATUS[0]}; } || true: під будь-яким
-            # `set -e` (зокрема майбутнім `shell: bash` = bash -eo pipefail)
-            # pipeline, що падає, не перериває крок до захоплення rc —
-            # інакше ретраї мовчки вимкнулися б. `|| true` просто після
-            # pipes НЕ підходить: він перезатирає PIPESTATUS.
-            { python -m pytest tests/test_protocol.py -q -p no:cacheprovider 2>&1 | tee protocol-pytest.log; rc="${PIPESTATUS[0]}"; } || true
-            if [ "$rc" -eq 0 ]; then break; fi
-            # 132=SIGILL 134=SIGABRT 135=SIGBUS 139=SIGSEGV: process die without
-            # any test report. Test failures (rc=1), collection errors (rc=2) and
-            # no-tests (rc=5) are NEVER retried.
-            if [ "$rc" -ne 132 ] && [ "$rc" -ne 134 ] && [ "$rc" -ne 135 ] && [ "$rc" -ne 139 ]; then break; fi
-            echo "::warning::pytest crashed with rc=$rc on attempt $attempt/3 (interpreter crash, no test report) — retrying"
-          done
-          exit "$rc"
+          set -o pipefail  # иначе tee замаскирует код возврата pytest
+          python -m pytest tests/test_protocol.py -q -p no:cacheprovider 2>&1 | tee protocol-pytest.log
       - name: Upload protocol test log on failure
         if: failure()
         uses: actions/upload-artifact@v4
