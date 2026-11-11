@@ -77,6 +77,8 @@ METADATA_NAME_RE = re.compile(r"^[^\W\d]\w*$", re.UNICODE)
 # Потолок вывода инструментов: огромное дерево/структура не должно вытеснять
 # из контекста агента всё остальное. Усечение всегда явно помечено в тексте.
 MAX_TOOL_OUTPUT_CHARS = 60_000
+# Одна ячейка таблицы (например, длинное текстовое поле): выше — обрезается с пометкой.
+MAX_CELL_CHARS = 2000
 
 
 def validate_metadata_name(value: str, field: str) -> str:
@@ -140,4 +142,8 @@ def format_cell(v: Any) -> str:
         s = v
     else:
         s = str(v)
-    return escape_pipe(s)
+    # Обрезка до экранирования: иначе можно разрезать «\|» и сломать таблицу.
+    if len(s) > MAX_CELL_CHARS:
+        s = s[:MAX_CELL_CHARS] + "…"
+    # Перевод строки рвёт строку markdown-таблицы
+    return escape_pipe(re.sub(r"\r\n|\r|\n", " ", s))
