@@ -13,6 +13,7 @@ import tempfile
 import threading
 import unicodedata
 import zipfile
+import zlib
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -158,7 +159,7 @@ class HelpIndex:
                         parts = " ".join(NAME_PARTS.findall(title))
                         connection.execute("INSERT INTO search(rowid,title,aliases,content) VALUES (?,?,?,?)", (cursor.lastrowid, title, f"{aliases} {parts}", content))
                         count += 1
-                except (ValueError, zipfile.BadZipFile, struct.error) as exc:
+                except (ValueError, zipfile.BadZipFile, struct.error, zlib.error, EOFError, NotImplementedError, RuntimeError) as exc:
                     # Один повреждённый файл не отключает справку остальных.
                     logger.warning("HBK пропущен: %s: %s", name, exc)
                     broken = broken or ValueError(f"{name}: {exc}")
