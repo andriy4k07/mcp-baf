@@ -140,4 +140,5 @@ def format_cell(v: Any) -> str:
         s = v
     else:
         s = str(v)
-    return escape_pipe(s)
+    # Перевод строки рвёт строку markdown-таблицы
+    return escape_pipe(re.sub(r"\r\n|\r|\n", " ", s))

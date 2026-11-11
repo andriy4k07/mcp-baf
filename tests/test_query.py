@@ -115,3 +115,8 @@ def test_mask_pii_tool_level_reports_contract_error(tmp_path):
     tools, client, _ = setup(tmp_path, {"columns": ["A"], "rows": [1, 2]}, mask_pii=True)
     with pytest.raises(ToolError, match="rows"):
         call(tools, client, query="ВЫБРАТЬ 1")
+
+
+def test_format_cell_newlines_replaced():
+    from mcp_baf.tools.common import format_cell
+    assert format_cell("a\r\nb\rc\nd|e") == "a b c d\\|e"
