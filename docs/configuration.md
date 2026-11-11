@@ -49,8 +49,9 @@
   CLI — окремої змінної оточення саме під ці прапори немає (у `--quiet` є
   окремий, не однойменний, env-перемикач `mcp_baf_NO_TTY` — див. нижче).
 - Усі прапори режиму встановлення (`--install`, `--lang`, `--server`,
-  `--platform`, `--platform-version`, `--db-user`, `--db-password`) —
-  **тільки CLI**, без env.
+  `--platform`, `--platform-version`, `--db-user`, `--db-password`,
+  `--dump-extensions`) — **тільки CLI**, без env (виняток — env-змінні пароля
+  бази, перелічені в розділі режиму встановлення).
 
 ## Параметри роботи сервера
 
@@ -58,7 +59,7 @@
 |--------|---------|------------------|------|
 | `--base` | `mcp_baf_BASE_URL` | `http://localhost:8080/hs/mcp-baf` | URL HTTP-сервісу 1С |
 | `--user` | `mcp_baf_USER` | — | Користувач HTTP-сервісу 1С |
-| `--pass` / `--password` | `mcp_baf_PASSWORD` | — | Пароль HTTP-сервісу 1С |
+| `--pass` / `--password` | `mcp_baf_PASSWORD` (`_FILE`) | — | Пароль HTTP-сервісу 1С. Задавайте через env або `mcp_baf_PASSWORD_FILE` (шлях до файлу з паролем): CLI-прапор видно в `ps` |
 | `--max-response-size` | `mcp_baf_MAX_RESPONSE_SIZE` | `128` | Максимальний розмір відповіді 1С у мебібайтах (MiB) |
 | `--request-timeout` | `mcp_baf_REQUEST_TIMEOUT` | `300` | Таймаут фази **read** (очікування відповіді 1С) у секундах | 
 | `--request-deadline` | `mcp_baf_REQUEST_DEADLINE` | `600` | Дедлайн **усього** запиту до 1С разом з усіма повторами, у секундах. Read-таймаут діє на чанк, тому без дедлайна повільний «капаючий» потік жив би нескінченно; перевищення дає `error_kind=timeout` в `audit.log`; `0` — без дедлайна |
@@ -77,6 +78,7 @@
 | `--verbose` | — | вимкнено | Примусово ввімкнути прогрес навіть при запуску через pipe |
 | `--audit-max-size` | `mcp_baf_AUDIT_MAX_SIZE` | `50` | Ротація `audit.log` при перевищенні розміру (MiB) |
 | `--audit-archives` | `mcp_baf_AUDIT_ARCHIVES` | `20` | Кількість архівів `audit-*.log`, що зберігаються |
+| `--mask-pii` | `mcp_baf_MASK_PII` | вимкнено | Маскувати персональні дані в результатах `execute_query`, `get_event_log`, `get_form_structure`, `search_code` і в текстах помилок 1С: ПІБ/ІПН/телефон/email/паспорт/адреса тощо замінюються токеном `PII:xxxxxxxx`. Env приймає `1`, `true`, `yes`, `on` |
 | `--version` | — | — | Вивести версію `mcp-baf` (`mcp-baf <version>`) і вийти |
 | `--transport` | `mcp_baf_TRANSPORT` | `stdio` (в Docker-образі `https`) | Транспорт MCP: `stdio` (підпроцес), `https` (streamable-http за TLS, шлях `/mcp`) або `http` (без TLS, лише з `--allow-insecure-http`) |
 | `--allow-insecure-http` | `mcp_baf_ALLOW_INSECURE_HTTP` | вимкнено | Явний дозвіл на `--transport http`; без нього сервер не стартує |
@@ -91,6 +93,12 @@
 `cp .env.example .env`, заповнити, `docker compose up -d --build`. Порт
 публікується на `127.0.0.1:8001` хоста (`MCP_BAF_BIND=0.0.0.0` — для мережі);
 CA: `docker compose cp mcp-baf:/data/tls/ca.crt .`.
+
+> `MCP_BAF_BIND` і `MCP_BAF_PUBLISHED_PORT` читає **лише `docker-compose.yaml`**
+> (підстановка `${…}` під час `docker compose up`, значення беруться з `.env`).
+> Python-код їх не читає і в контейнер не передає — це змінні рівня compose,
+> не сервера. Прив'язка всередині контейнера керується `mcp_baf_HTTP_HOST`
+> (у образі `0.0.0.0`).
 
 Контейнер стартує від root лише в `docker-entrypoint.sh`: той створює `/data`
 і `/data/tls`, передає файли з іншим власником uid **10001** (`chown`) і
@@ -273,8 +281,8 @@ CA: `docker compose cp mcp-baf:/data/tls/ca.crt .`.
 
 Ці прапори діють **тільки разом із `--install`** і потрібні одноразово під
 час розгортання розширення в базу (детальніше, з прикладами команд і
-розбором помилок — у [Швидкому старті](getting-started.md)). Змінних
-оточення вони не мають.
+розбором помилок — у [Швидкому старті](getting-started.md)). Самі прапори
+змінних оточення не мають; для пароля бази є окремі env-змінні (нижче).
 
 | Прапор | Опис |
 |--------|------|
@@ -285,6 +293,7 @@ CA: `docker compose cp mcp-baf:/data/tls/ca.crt .`.
 | `--platform-version` | Версія платформи (напр. `8.3.13`), якщо її не видно зі шляху. Мінімальна підтримувана версія — **8.3.10**; на старіших `--install` завершується помилкою ще до звернення до DESIGNER |
 | `--db-user` | Користувач бази 1С для DESIGNER (Конфігуратора) |
 | `--db-password` | Пароль бази 1С для DESIGNER. Потрапляє в `ps` та історію оболонки — надійніше використовувати змінні оточення нижче; прапор друкує попередження |
+| `--dump-extensions` | Разом із `--install --dump DIR`: вивантажити в `DIR` також розширення, кожне в свою підкаталог. Без значення або `all` — усі розширення; `A,B` — список імен. Без прапора — лише основна конфігурація. Змінної оточення немає |
 
 Змінні оточення режиму встановлення (прапорів не мають):
 
