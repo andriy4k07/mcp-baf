@@ -153,10 +153,14 @@ def _parse_key_hex(raw: str) -> bytes | None:
 
 def _write_key_file(key: bytes) -> None:
     # 0600: ключ — материал для повторного вычисления токенов по audit.log.
+    # fchmod после O_CREAT: режим из open применяется только при создании,
+    # а при перезаписи уже существующего файла (чужой/ослабленный режим)
+    # его нужно выставить явно — иначе инвариант 0600 из доков не держится.
     fd = os.open(
         _key_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600
     )
     try:
+        os.fchmod(fd, 0o600)
         os.write(fd, key.hex().encode("ascii"))
     finally:
         os.close(fd)
@@ -187,6 +191,11 @@ def _resolve_key() -> bytes:
         if key is None:  # нет файла или битый — выпускаем новый
             key = secrets.token_bytes(PII_KEY_BYTES)
             _write_key_file(key)
+        else:
+            # Файл мог быть создан вне инструмента (umask, cp, git checkout)
+            # с 0644: читаем — и сразу поднимаем режим к задокументированному
+            # 0600. Не смогли — падение, а не работа с миром-читаемым ключом.
+            os.chmod(_key_file, 0o600)
         _key = key
         return _key
     # Библиотечное использование без кэш-каталога: соль на процесс,
