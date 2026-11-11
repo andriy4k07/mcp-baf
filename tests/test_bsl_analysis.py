@@ -79,6 +79,38 @@ def test_reserved_declaration_name_has_no_false_positives(src):
     assert 'ReservedDeclarationName' not in codes(src)
 
 
+@pytest.mark.parametrize('src', [
+    # Рев'ю #54: ці імена вибито з переліку — вони НЕ методи глобального
+    # контекста, тому їхні оголошення компілятор приймає (помилкового 'error'
+    # бути не повинно).
+    'Процедура ЗакрытьФорму()\nКонецПроцедуры',
+    'Procedure CloseForm()\nEndProcedure',
+    'Процедура ЗакрытьЗначение()\nКонецПроцедуры',
+    'Procedure CloseValue()\nEndProcedure',
+    'Функция Представление(Объект) Экспорт\nВозврат "x";\nКонецФункции',
+    'Function Present(Object) Export\nReturn "x";\nEndFunction',
+    # Справжній глобальний метод — СтрШаблон; ШаблонСтроки — звичайне ім'я.
+    'Функция ШаблонСтроки(Шаблон) Экспорт\nВозврат Шаблон;\nКонецФункции',
+    # Англійська назва глобального Вычислить — Eval, не Evaluate.
+    'Function Evaluate(Code) Export\nReturn 1;\nEndFunction',
+])
+def test_reserved_declaration_name_allows_names_outside_global_context(src):
+    assert 'ReservedDeclarationName' not in codes(src)
+
+
+@pytest.mark.parametrize('src', [
+    # Регресія з рев'ю #54: справжні глобальні методи та їхні англомовні
+    # алиаси мають чіпатися (раніше СтрШаблон/Eval проходили повз перелік).
+    'Функция СтрШаблон(Шаблон) Экспорт\nВозврат Шаблон;\nКонецФункции',
+    'Function StrTemplate(Template) Export\nReturn Template;\nEndFunction',
+    'Function Eval(Code) Export\nReturn 1;\nEndFunction',
+    'Функция Вычислить(Выражение) Экспорт\nВозврат 1;\nКонецФункции',
+    'Процедура ОткрытьФорму(ИмяФормы)\nКонецПроцедуры',
+])
+def test_reserved_declaration_name_flags_true_globals_and_aliases(src):
+    assert 'ReservedDeclarationName' in codes(src)
+
+
 # Сценарії 1c-syntax/bsl-language-server#4900 (поведінка, не код).
 def test_latin_cyrillic_mixed_declaration_name_is_reported():
     src = 'Процедура WBОбработатьТовар()\nКонецПроцедуры'
