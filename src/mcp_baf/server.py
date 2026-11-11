@@ -118,7 +118,10 @@ def create_server(config: Config) -> MCPServer:
             version_check.cancel()
             await client.aclose()
             if index is not None:
-                index.close()
+                # close() ждёт поток-строителя индекса (join с таймаутом),
+                # чтобы не закрыть SQLite-соединение посреди sqlite3_step
+                # (issue #56) — выносим из event loop, как и help_index.
+                await asyncio.to_thread(index.close)
             if help_index is not None:
                 await asyncio.to_thread(help_index.close)
             audit.write("server_stop")
