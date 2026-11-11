@@ -222,6 +222,12 @@ def ensure_self_signed(directory: str, hosts: list[str]) -> tuple[str, str, str]
     key_path = os.path.join(directory, SERVER_KEY_NAME)
     ca_key_path = os.path.join(directory, CA_KEY_NAME)
 
+    # SAN порту й дужок не містить (`_san_name`), а `_build_leaf` пише в SAN те,
+    # що йому дали. Без нормалізації тут `ensure_self_signed(d, ["mcp-baf:8001"])`
+    # клав би в SAN `mcp-baf:8001`, `_san_covers` шукав би `mcp-baf` — і лист
+    # перевипускався б на кожному старті. Порівнюємо те саме, що пишемо.
+    hosts = [h for h in dict.fromkeys(_san_name(h) for h in hosts) if h]
+
     os.makedirs(directory, exist_ok=True)
     with file_lock(os.path.join(directory, LOCK_NAME)):
         # Повторная проверка уже под локом: второй процесс мог всё сделать,
