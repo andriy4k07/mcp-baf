@@ -18,6 +18,8 @@ dependencies = [
     "pydantic>=2.12,<3",
     "uvicorn>=0.31,<1",
     "anyio>=4.9,<5",
+    # Пользовательский regex в search_code исполняется с timeout= (ReDoS, #61).
+    "regex>=2024.11.6,<2027",
     # Корневой набор CA для httpx/ssl. Ниже 2026.10.23 — скомпрометированные
     # промежуточные CA (GHSA-6q48-6c7w-9gw2).
     "certifi>=2026.10.23",
