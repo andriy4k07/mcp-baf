@@ -22,5 +22,53 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
-      - name: Run test suite
-        run: python -m pytest tests/ -q
+      # Контрактные протокольные тесты — в отдельном джобе protocol-tests:
+      # их сегфолт (issue #56) не должен отравлять сигнал по всему сьюту,
+      # и наоборот — фоновые потоки из остальных файлов не должны влиять
+      # на teardown stdio/asyncio-сессий в test_protocol.py.
+      - name: Run test suite (кроме test_protocol.py)
+        run: python -m pytest tests/ -q --ignore=tests/test_protocol.py
+
+  protocol-tests:
+    # Изолированный прогон tests/test_protocol.py (issue #56): чистий
+    # інтерпретатор без попередніх тестових файлів, faulthandler увімкнено,
+    # ретрай ТІЛЬКИ для жорстких крахів інтерпретатора (SIGSEGV/SIGILL/
+    # SIGABRT/SIGBUS), ніколи — для реальних падінь тестів (rc 1/2).
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install package and dev extras
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Run protocol contract tests (isolated, crash-only retry)
+        env:
+          PYTHONFAULTHANDLER: "1"
+        run: |
+          rc=1
+          for attempt in 1 2 3; do
+            python -m pytest tests/test_protocol.py -q -p no:cacheprovider 2>&1 | tee protocol-pytest.log
+            rc=${PIPESTATUS[0]}
+            if [ "$rc" -eq 0 ]; then break; fi
+            # 132=SIGILL 134=SIGABRT 135=SIGBUS 139=SIGSEGV: process die without
+            # any test report. Test failures (rc=1), collection errors (rc=2) and
+            # no-tests (rc=5) are NEVER retried.
+            if [ "$rc" -ne 132 ] && [ "$rc" -ne 134 ] && [ "$rc" -ne 135 ] && [ "$rc" -ne 139 ]; then break; fi
+            echo "::warning::pytest crashed with rc=$rc on attempt $attempt/3 (interpreter crash, no test report) — retrying"
+          done
+          exit "$rc"
+      - name: Upload protocol test log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: protocol-pytest-log-${{ matrix.python-version }}
+          path: protocol-pytest.log
+          if-no-files-found: ignore
