@@ -47,6 +47,11 @@ RESERVED_DECLARATION_NAMES = frozenset({
     )
 })
 
+# Подтверждено компилятором (#54: «Ожидается имя функции») — уровень error.
+# Остальные имена выше не проверены на платформе — уровень warning; их нужно
+# подтвердить на живой платформе, прежде чем повышать до error.
+CONFIRMED_RESERVED_NAMES = frozenset({'найти', 'find'})
+
 # Аналог LatinAndCyrillicSymbolInWord з 1c-syntax/bsl-language-server#4900
 # (поведінка, не код — LGPL). Звичайні змішані імена (ОтправитьВPDF, ЭтоLinuxКлиент)
 # не є помилкою: ловимо лише омогліфи — послідовність літер одного алфавіту, що
@@ -184,7 +189,8 @@ def _semantic(nodes, conditional, dynamic_eval, dead_lines):
             diagnostics.append(Diagnostic(
                 'ReservedDeclarationName',
                 'Имя объявления зарезервировано встроенным методом платформы и будет отклонено компилятором',
-                method.name.line, method.name.column, 'error'))
+                method.name.line, method.name.column,
+                'error' if method.name.text.casefold() in CONFIRMED_RESERVED_NAMES else 'warning'))
         if method.name is not None and _is_mixed_script(method.name.text):
             diagnostics.append(Diagnostic(
                 'LatinAndCyrillicSymbolInWord',
