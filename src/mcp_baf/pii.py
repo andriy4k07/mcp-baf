@@ -42,6 +42,7 @@ PII_COLUMN_MARKERS = tuple(m.lower() for m in (
     # сознательное перемаскивание (НомерДок, НомерГТД): промах в сторону
     # маскирования безопаснее утечки паспорта/карты.
     "Пароль", "Логин", "Токен", "ИмяПользователя",
+    "Логін", "ІмяКористувача", "Ім'яКористувача", "Серія",
     "Password", "Login", "Token",
     "СНИЛС", "НомерКарты", "ЛицевойСчет", "Серия", "Номер", "КемВыдан",
 ))
@@ -104,9 +105,24 @@ _key_file: str = ""
 _extra_markers: tuple[str, ...] = ()
 
 
+MIN_MARKER_LEN = 3
+
+
+def _validate_markers(markers: Iterable[str]) -> tuple[str, ...]:
+    """Маркер короче 3 символов («а») подстрокой маскирует почти все колонки."""
+    out = tuple(m.strip().lower() for m in markers if m and m.strip())
+    for m in out:
+        if len(m) < MIN_MARKER_LEN:
+            raise ValueError(
+                f"маркер колонки ПДн «{m}» закороткий: потрібно щонайменше "
+                f"{MIN_MARKER_LEN} символи (інакше маскуються майже всі колонки)"
+            )
+    return out
+
+
 def split_marker_list(raw: str) -> tuple[str, ...]:
     """Разбирает CSV-строку маркеров (env/CLI) в кортеж нижнего регистра."""
-    return tuple(m.strip().lower() for m in raw.split(",") if m.strip())
+    return _validate_markers(raw.split(","))
 
 
 def configure_pii(
@@ -114,6 +130,7 @@ def configure_pii(
     extra_column_markers: Iterable[str] = (),
     *,
     rotate: bool = False,
+    enabled: bool = True,
 ) -> None:
     """Инициализирует подсистему при старте сервера (см. `__main__.main`).
 
@@ -125,16 +142,30 @@ def configure_pii(
     запуске), а не при первом токене: сервер с «плавающими» токенами
     выглядит рабочим, пока кто-то не сравнит выборки. Сообщение называет
     только ожидаемую длину, не значение ключа.
+
+    При `enabled` (включён --mask-pii) каталог создаётся и ключ резолвится
+    сразу: ошибки доступа/формата всплывают на старте (ValueError/OSError),
+    а не посреди вызова инструмента.
     """
     global _key, _key_file, _extra_markers
-    _extra_markers = tuple(
-        m.lower() for m in extra_column_markers if m and m.strip()
-    )
+    _extra_markers = _validate_markers(extra_column_markers)
     _key_file = os.path.join(cache_dir, PII_KEY_FILENAME) if cache_dir else ""
     _key = None
     _check_env_key()
+    if rotate and os.environ.get(PII_KEY_ENV, "").strip():
+        # Ротация молча перебила бы env-ключ (он старше файла) — отказываем.
+        raise ValueError(
+            f"--rotate-pii-key несумісний з {PII_KEY_ENV}: ключ із середовища "
+            "не можна ротувати; приберіть змінну або прапорець"
+        )
+    if not (enabled or rotate):
+        return
+    if _key_file:
+        os.makedirs(os.path.dirname(_key_file), exist_ok=True)
     if rotate:
         rotate_pii_key()
+    else:
+        _resolve_key()
 
 
 def _check_env_key() -> None:
@@ -142,7 +173,7 @@ def _check_env_key() -> None:
     env_raw = os.environ.get(PII_KEY_ENV, "").strip()
     if env_raw and _parse_key_hex(env_raw) is None:
         raise ValueError(
-            f"{PII_KEY_ENV} должен містити {PII_KEY_HEX_CHARS} "
+            f"{PII_KEY_ENV} повинен містити {PII_KEY_HEX_CHARS} "
             "шістнадцяткових символів (32 байти)"
         )
 
@@ -155,19 +186,49 @@ def _parse_key_hex(raw: str) -> bytes | None:
     return key if len(key) == PII_KEY_BYTES else None
 
 
-def _write_key_file(key: bytes) -> None:
-    # 0600: ключ — материал для повторного вычисления токенов по audit.log.
-    # fchmod после O_CREAT: режим из open применяется только при создании,
-    # а при перезаписи уже существующего файла (чужой/ослабленный режим)
-    # его нужно выставить явно — иначе инвариант 0600 из доков не держится.
-    fd = os.open(
-        _key_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600
-    )
+def _write_key_file(key: bytes, *, replace: bool = False) -> bool:
+    """Атомарно кладёт ключ в файл; False, если файл уже есть (replace=False).
+
+    Пишем во временный файл 0600 рядом и публикуем `os.link` (падает, если
+    цель существует) либо `os.replace` (ротация — намеренная перезапись):
+    читатель не увидит пустой/недописанный файл, а два процесса, стартующие
+    одновременно, не выпустят разные ключи. 0600 — ключ позволяет заново
+    вычислять токены по audit.log.
+    """
+    tmp = f"{_key_file}.{os.getpid()}.tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
-        os.fchmod(fd, 0o600)
-        os.write(fd, key.hex().encode("ascii"))
+        try:
+            os.write(fd, key.hex().encode("ascii"))
+        finally:
+            os.close(fd)
+        if replace:
+            os.replace(tmp, _key_file)
+        else:
+            try:
+                os.link(tmp, _key_file)
+            except FileExistsError:
+                return False
+        return True
     finally:
-        os.close(fd)
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+
+
+def _read_key_file() -> bytes:
+    """Читает ключ; FileNotFoundError — файла нет, ValueError — он битый."""
+    with open(_key_file, encoding="ascii", errors="replace") as fh:
+        key = _parse_key_hex(fh.read().strip())
+    if key is None:
+        # Не перезаписываем молча: смена ключа тихо ломает связность токенов.
+        raise ValueError(
+            f"файл ключа PII {_key_file} порожній або має хибний формат "
+            f"(очікується {PII_KEY_HEX_CHARS} шістнадцяткових символів); "
+            "виправте його або запустіть з --rotate-pii-key"
+        )
+    return key
 
 
 def _resolve_key() -> bytes:
@@ -188,18 +249,15 @@ def _resolve_key() -> bytes:
         return _key
     if _key_file:
         try:
-            with open(_key_file, encoding="ascii") as fh:
-                key = _parse_key_hex(fh.read().strip())
-        except OSError:
-            key = None
-        if key is None:  # нет файла или битый — выпускаем новый
+            key = _read_key_file()
+        except FileNotFoundError:  # только отсутствие файла создаёт ключ
             key = secrets.token_bytes(PII_KEY_BYTES)
-            _write_key_file(key)
-        else:
-            # Файл мог быть создан вне инструмента (umask, cp, git checkout)
-            # с 0644: читаем — и сразу поднимаем режим к задокументированному
-            # 0600. Не смогли — падение, а не работа с миром-читаемым ключом.
-            os.chmod(_key_file, 0o600)
+            if not _write_key_file(key):
+                key = _read_key_file()  # соседний процесс успел раньше
+        # Файл мог быть создан вне инструмента (umask, cp, git checkout)
+        # с 0644: поднимаем режим к задокументированному 0600. Не смогли —
+        # падение, а не работа с миром-читаемым ключом.
+        os.chmod(_key_file, 0o600)
         _key = key
         return _key
     # Библиотечное использование без кэш-каталога: соль на процесс,
@@ -213,7 +271,7 @@ def rotate_pii_key() -> bytes:
     global _key
     _key = secrets.token_bytes(PII_KEY_BYTES)
     if _key_file:
-        _write_key_file(_key)
+        _write_key_file(_key, replace=True)
     return _key
 
 
