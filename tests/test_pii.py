@@ -6,6 +6,7 @@ import hmac
 import importlib
 import inspect
 import json
+import os
 import pkgutil
 import re
 from pathlib import Path
@@ -243,6 +244,30 @@ def test_invalid_env_key_fails_fast_without_leaking_value(monkeypatch):
             pii.pii_token("x")
     finally:
         monkeypatch.delenv(pii.PII_KEY_ENV)
+
+
+def test_preexisting_weak_key_file_perms_are_tightened(tmp_path):
+    """MINOR реві #53: 0600 у README — інваріант, а не лише режим створення.
+
+    Файл, створений поза інструментом із 0644 (umask, cp), мусить бути
+    піджатий і при читанні ключа, і при ротації (режим O_CREAT для
+    наявного файлу ігнорується)."""
+    kf = tmp_path / pii.PII_KEY_FILENAME
+    kf.write_text("aa" * pii.PII_KEY_BYTES, "ascii")
+    os.chmod(kf, 0o644)
+    pii.configure_pii(cache_dir=str(tmp_path))
+    assert pii.pii_token("x").startswith("PII:")  # читання існуючого файлу
+    assert kf.stat().st_mode & 0o777 == 0o600
+    # Ротація перезаписує наявний файл: O_CREAT-режим не діє — рятує fchmod.
+    os.chmod(kf, 0o644)
+    pii.rotate_pii_key()
+    assert kf.stat().st_mode & 0o777 == 0o600
+    # І шлях «бітий файл -> перевипуск» не залишає слабкий режим.
+    kf.write_text("not-hex", "ascii")
+    os.chmod(kf, 0o640)
+    pii.configure_pii(cache_dir=str(tmp_path))
+    assert pii.pii_token("x").startswith("PII:")
+    assert kf.stat().st_mode & 0o777 == 0o600
 
 
 def test_rotate_pii_key_breaks_and_freezes_tokens(tmp_path):
