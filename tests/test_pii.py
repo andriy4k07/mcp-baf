@@ -31,6 +31,15 @@ def _r(columns, rows):
     return {"columns": columns, "rows": rows, "total": len(rows)}
 
 
+def _strip_tokens(out: str) -> str:
+    """Прибрати токени PII:<8 hex>, щоб перевіряти «сирі» ПДн поза токенами.
+
+    Хеш-токен (HMAC) може випадково містити будь-яку цифрову підстроку
+    (напр. «380»), тому «digits not in out» без цього кроку — flaky за дизайном.
+    """
+    return re.sub(r"PII:[0-9a-f]{8}", "", out)
+
+
 def test_column_masking_stable_tokens():
     out = mask_pii_result(_r(
         ["Контрагент.ИНН", "Сумма", "Телефон"],
@@ -44,7 +53,8 @@ def test_column_masking_stable_tokens():
 def test_regex_phone_email():
     cell = "тел +380 50 123-45-67, 0671234567, a.b@ex.com; код 12345"
     out = mask_pii_result(_r(["Комментарий"], [[cell]]))["rows"][0][0]
-    assert out.count("PII:") == 3 and "12345" in out and "@" not in out and "380" not in out
+    body = _strip_tokens(out)
+    assert out.count("PII:") == 3 and "12345" in out and "@" not in out and "380" not in body
 
 
 def test_config_default_env_cli(monkeypatch):
@@ -97,7 +107,7 @@ def test_phones_masked_around_guid_tokens():
     )
     assert "f1781d67-5012-4361-b3d4-0123456789ab" in out
     assert "a1b2c3d4-0123456789-abcdef" in out
-    assert "0671234567" not in out and out.count("PII:") == 1
+    assert "0671234567" not in _strip_tokens(out) and out.count("PII:") == 1
 
 
 def test_email_in_code_like_token_still_masked():
@@ -113,7 +123,7 @@ def test_error_detail_scrub_keeps_guids():
     detail = "Ошибка обращения к Справочник.Номенклатура {a1b2c3d4-0123456789-abcdef-000000000000}; тел 0671234567"
     out = scrub_error_detail(detail)
     assert "a1b2c3d4-0123456789-abcdef-000000000000" in out
-    assert "0671234567" not in out and "***" in out
+    assert "0671234567" not in _strip_tokens(out) and "***" in out
 
 
 def test_form_structure_masks_title_and_handlers():
@@ -430,4 +440,4 @@ def test_bare_ten_digit_zero_prefix_is_accepted_overmasking():
     телефон — прийнятне перемаскування. Вимагати роздільники не можна:
     голі «0671234567» у вільному тексті — реальний канал витоку (#46)."""
     out = pii.mask_pii_text("код 0123456789 у коментарі")
-    assert out.count("PII:") == 1 and "0123456789" not in out
+    assert out.count("PII:") == 1 and "0123456789" not in _strip_tokens(out)
