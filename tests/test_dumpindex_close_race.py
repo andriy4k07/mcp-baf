@@ -12,6 +12,7 @@ main уже вернулся из `index.close()` в lifespan сервера. П
 statement'ами (никаких «Cannot operate on a closed database» и крашей).
 """
 
+import logging
 import threading
 import time
 
@@ -116,3 +117,68 @@ def test_repeated_create_close_cycles_stay_clean(tmp_path):
         assert not idx._thread.is_alive(), f"цикл {attempt}: поток остался жив"
         error = idx.build_error()
         assert error is None or "closed database" not in str(error), (attempt, error)
+
+
+def test_close_bounds_lock_wait_and_defers_to_builder(tmp_path, monkeypatch, caplog):
+    """close() не висит на _db_lock дольше таймаута и не теряет соединение.
+
+    Поток-строитель держит _db_lock весь тёплый старт (_open_cache_and_diff:
+    обход дерева + перечитывание файлов + diff-запросы). Если join истёк, а
+    замок занят, close() обязана: вернуться за ~2×CLOSE_JOIN_TIMEOUT,
+    предупредить и ОТЛОЖИТЬ закрытие соединения на строительный поток —
+    иначе lifespan сервера (await asyncio.to_thread(index.close)) висел бы
+    на бесконечном acquire замка всю сборку, либо соединение утекало бы.
+
+    Синхронизация детерминированная (Event'ы), без sleep-гонок: строитель
+    блокируется ровно внутри держания замка, пока тест его не отпустит.
+    """
+    monkeypatch.setattr(idxmod, "CLOSE_JOIN_TIMEOUT", 0.5)
+    dump_dir = str(tmp_path / "dump")
+    cache_dir = str(tmp_path / "cache")
+
+    # Тёплый кэш: следующее открытие пойдёт в _open_cache_and_diff.
+    warm = _SyntheticBuild(dump_dir, cache_dir=cache_dir, n_rows=200)
+    assert warm.wait_ready(timeout=30), f"тёплый пролог не собрался: {warm.build_error()!r}"
+    warm.close()
+
+    class HoldingBuilder(_SyntheticBuild):
+        """Строитель, который держит _db_lock после открытия соединения.
+
+        _open_cache_and_diff_locked вызывается уже под _db_lock — блокировка
+        внутри неё означает «замок занят, self._db открыт».
+        """
+
+        def __init__(self, *args, **kwargs):
+            self.lock_held = threading.Event()
+            self.release_lock = threading.Event()
+            super().__init__(*args, **kwargs)
+
+        def _open_cache_and_diff_locked(self):
+            super()._open_cache_and_diff_locked()  # соединение self._db уже открыто
+            self.lock_held.set()
+            assert self.release_lock.wait(timeout=30), "тест не отпустил замок"
+
+    idx = HoldingBuilder(dump_dir, cache_dir=cache_dir)
+    assert idx.lock_held.wait(timeout=30), "строитель не занял _db_lock"
+
+    started = time.monotonic()
+    with caplog.at_level(logging.WARNING, logger=idxmod.logger.name):
+        idx.close()
+    elapsed = time.monotonic() - started
+    # join(0.5) + acquire(0.5): close() обязана вернуться, не дожидаясь строителя.
+    assert elapsed < 4 * idxmod.CLOSE_JOIN_TIMEOUT, (
+        f"close() зависла на замке: {elapsed:.1f}s"
+    )
+    assert idx._db is not None, (
+        "соединение закрыто под активным замком строителя — отложения не случилось"
+    )
+    warnings = [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
+    assert any("deferring" in m for m in warnings), f"нет предупреждения об отложении: {warnings}"
+
+    # Отпускаем строитель: он обязан увидеть _closed под _db_lock и закрыть
+    # соединение сам (отложенное закрытие), без краша и без утечки.
+    idx.release_lock.set()
+    idx._thread.join(timeout=30)
+    assert not idx._thread.is_alive(), "строитель не завершился после отпуска замка"
+    assert idx._db is None, "строитель не освободил соединение после _closed"
+    idx.close()  # повторный close() — идемпотентность, без краша
