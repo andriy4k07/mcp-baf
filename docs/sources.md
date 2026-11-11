@@ -33,7 +33,7 @@ mcp-baf — самостійний проєкт. Ця сторінка фікс�
 | Фільтрація інструментів за capabilities | `access.py` | Власна реалізація, ідея з vladimir-kharin/1c_mcp | Ліцензія проєкту |
 | `search_platform_help`, `get_platform_element` | `helpindex/` | Парсер HBK адаптовано з rzateev/onec-help-mcp, решта власна | MIT (Roman Zateev) + ліцензія проєкту |
 | `bsl_analyze`, `bsl_format` | `bsl_native/` | Власна реалізація; mcp-bsl-ls / bsl-language-server лише вивчалися | Ліцензія проєкту |
-| `--mask-pii` — маскування PII у результатах запитів | `pii.py`, `tools/query.py` (`mask_pii_result`) | Власна реалізація; vladimir-kharin/1c_mcp v1.10.0 — лише референс дизайну політик обезличивання (код не перенесено) | Ліцензія проєкту |
+| `--mask-pii` — маскування PII у результатах інструментів і текстах помилок 1С | `pii.py`, `tools/query.py` (`mask_pii_result`) | Власна реалізація; vladimir-kharin/1c_mcp v1.10.0 — лише референс дизайну політик обезличивання (код не перенесено) | Ліцензія проєкту |
 | Транспорт HTTPS/streamable-http, bearer-токен, самопідписаний CA, Docker | `tls.py`, `__main__.py`, `Dockerfile` | Власна реалізація поверх офіційного MCP SDK, зовнішнього джерела немає | Ліцензія проєкту |
 | Аудит/логування | залежність `mcp-baf-audit` | Див. таблицю вище | Див. таблицю вище |
 
