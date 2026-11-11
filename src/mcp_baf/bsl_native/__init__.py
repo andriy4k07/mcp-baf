@@ -16,7 +16,70 @@ DIAGNOSTIC_CODES = frozenset({
     'ParseError', 'DuplicateParameter', 'DuplicateVariable',
     'UnusedLocalVariable', 'UnreachableCode', 'EmptyExcept',
     'TrailingWhitespace', 'LineLength',
+    'ReservedDeclarationName', 'LatinAndCyrillicSymbolInWord',
 })
+
+# Курований перелік імен, які лексер BSL приймає як ідентифікатор, але компілятор
+# 1С 8.3.27 відхиляє в оголошенні Функция/Процедура («Ожидается имя функции»):
+# лише імена, задокументовані як методи глобального контекста цільової версії
+# платформи. Правило з опису 1c-syntax/bsl-language-server#4904 (поведінка, не
+# код — LGPL): не чіпати всі підряд збіги з іменами вбудованих методів без
+# перевірки правил компілятора — у переліку (рівень 'error') залишаються тільки
+# імена, достовірно підтверджені компілятором/документацією платформи; все
+# інше з переліку вибивається. Тому тут немає ЗакрытьФорму (форма закривається
+# через Форма.Закрыть(), ім'я легітимне для власного коду), ЗакрытьЗначение,
+# голого Представления (метод об'єкта метаданих, не глобальний), ШаблонСтроки
+# (справжній глобальний метод — СтрШаблон/StrTemplate) і Evaluate (англійська
+# назва глобального Вычислить — Eval).
+RESERVED_DECLARATION_NAMES = frozenset({
+    name.casefold() for name in (
+        'Найти', 'Find', 'Вычислить', 'Eval',
+        'СтрШаблон', 'StrTemplate',
+        'ЗагрузитьЗначение', 'LoadValue', 'СохранитьЗначение', 'SaveValue',
+        'ПоместитьВоВременноеХранилище', 'PutToTempStorage',
+        'ПолучитьИзВременногоХранилища', 'GetFromTempStorage',
+        'УдалитьИзВременногоХранилища', 'DeleteFromTempStorage',
+        'ОткрытьФорму', 'OpenForm', 'ОткрытьЗначение', 'OpenValue',
+        'Формат', 'Format',
+        'Абс', 'Abs', 'Эксп', 'Exp', 'Лог', 'Log', 'Лог10', 'Log10',
+        'Квадрат', 'Sqr', 'Корень', 'Sqrt', 'Степень', 'Pow',
+        'Син', 'Sin', 'Кос', 'Cos', 'Тан', 'Tan',
+    )
+})
+
+# Подтверждено компилятором (#54: «Ожидается имя функции») — уровень error.
+# Остальные имена выше не проверены на платформе — уровень warning; их нужно
+# подтвердить на живой платформе, прежде чем повышать до error.
+CONFIRMED_RESERVED_NAMES = frozenset({'найти', 'find'})
+
+# Аналог LatinAndCyrillicSymbolInWord з 1c-syntax/bsl-language-server#4900
+# (поведінка, не код — LGPL). Звичайні змішані імена (ОтправитьВPDF, ЭтоLinuxКлиент)
+# не є помилкою: ловимо лише омогліфи — послідовність літер одного алфавіту, що
+# ПОВНІСТЮ складається з літер, візуально ідентичних літерам іншого алфавіту, і
+# впритул межує з послідовністю іншого алфавіту (ПриCоздании з латинською C).
+_LATIN_LOOKALIKES = frozenset('ABCEHKMOPTXaceopxyiI')
+_CYRILLIC_LOOKALIKES = frozenset('АВСЕНКМОРТХасеорхуіІ')
+_SCRIPT_RUN = re.compile(r'[A-Za-z]+|[\u0400-\u04FF]+')
+
+
+def _is_mixed_script(name):
+    runs = list(_SCRIPT_RUN.finditer(name))
+    for i, run in enumerate(runs):
+        text = run.group()
+        latin = text[0] < '\u0400'
+        if not set(text) <= (_LATIN_LOOKALIKES if latin else _CYRILLIC_LOOKALIKES):
+            continue
+        # Аббревиатуры (COM, HTTP, C14N) целиком из омоглифов — не ошибка.
+        if (len(text) > 1 and text.isupper()) or name[run.end():run.end() + 1].isdigit() \
+                or name[max(run.start() - 1, 0):run.start()].isdigit():
+            continue
+        # Соседняя последовательность другого алфавита должна примыкать вплотную.
+        # Предлог В между аббревиатурами (XMLВXDTO) — не омоглиф.
+        near = [other.group() for other in runs[max(i - 1, 0):i + 2]
+                if other is not run and (other.end() == run.start() or other.start() == run.end())]
+        if near and not (not latin and any(len(w) > 1 and w.isupper() for w in near)):
+            return True
+    return False
 
 
 def _directives(tokens):
@@ -51,15 +114,88 @@ def _directives(tokens):
     return diagnostics
 
 
+# Метод _semantic уже покладається на обчислений прапорець `conditional`
+# (див. придушення DuplicateVariable): код у гілкових директивах може не
+# компілюватися. Те саме правило застосовуємо до ReservedDeclarationName, але
+# точніше — за рядками: компілятор 1С гарантовано не компілює гілки з хибним
+# літеральним умовою, а непередбачувані умови (Сервер, Клиент...) можуть
+# виключити код із збірки. Тож оголошення в таких рядках не чіпаємо, тоді як
+# гілки з істинним літеральним умовою лишаються під перевіркою.
+PREPROCESSOR_TRUE_WORDS = frozenset({'истина', 'true'})
+PREPROCESSOR_FALSE_WORDS = frozenset({'ложь', 'false'})
+
+
+def _branch_state(condition_text):
+    condition = condition_text.strip().rstrip('.').casefold()
+    condition = re.sub(r'\s+(?:тогда|then)$', '', condition).strip()
+    if condition in PREPROCESSOR_TRUE_WORDS:
+        return 'active'
+    if condition in PREPROCESSOR_FALSE_WORDS:
+        return 'dead'
+    return 'unknown'
+
+
+def _preprocessor_dead_lines(tokens):
+    """Рядки, які компілятор не компілює достовірно або ймовірно (dead/unknown)."""
+    dead_lines, stack = set(), []
+    for token in tokens:
+        if token.kind == 'eof':
+            continue
+        if token.kind != 'directive':
+            if any(block['state'] != 'active' for block in stack):
+                dead_lines.add(token.line)
+            continue
+        match = re.match(r'#\s*(\w+)(.*)', token.text, re.I)
+        if not match:
+            continue
+        word = match[1].casefold()
+        if word in {'если', 'if'}:
+            state = _branch_state(match[2])
+            stack.append({'state': state, 'states': [state]})
+        elif word in {'иначеесли', 'elsif'} and stack:
+            # Перша достовірно істинна гілка робить наступні мертвими.
+            state = 'dead' if 'active' in stack[-1]['states'] else _branch_state(match[2])
+            stack[-1]['states'].append(state)
+            stack[-1]['state'] = state
+        elif word in {'иначе', 'else'} and stack:
+            if 'active' in stack[-1]['states']:
+                state = 'dead'
+            elif 'unknown' in stack[-1]['states']:
+                state = 'unknown'
+            else:
+                state = 'active'
+            stack[-1]['states'].append(state)
+            stack[-1]['state'] = state
+        elif word in {'конецесли', 'endif'} and stack:
+            stack.pop()
+    return dead_lines
+
+
 def _walk(nodes):
     for node in nodes:
         yield node
         yield from _walk(node.children)
 
 
-def _semantic(nodes, conditional, dynamic_eval):
+def _semantic(nodes, conditional, dynamic_eval, dead_lines):
     diagnostics = []
     for method in (node for node in nodes if node.kind in {'procedure', 'function'}):
+        # Виклики на кшталт Массив.Найти() — вузли member/call, сюди не доходять:
+        # перевіряється лише іменник оголошення, а не будь-який токен імені.
+        # Гілки препроцесора, які компілятор не компілює, придушаються за
+        # рядками (той самий підхід, що й `conditional` нижче).
+        if (method.name is not None and method.name.text.casefold() in RESERVED_DECLARATION_NAMES
+                and method.name.line not in dead_lines):
+            diagnostics.append(Diagnostic(
+                'ReservedDeclarationName',
+                'Имя объявления зарезервировано встроенным методом платформы и будет отклонено компилятором',
+                method.name.line, method.name.column,
+                'error' if method.name.text.casefold() in CONFIRMED_RESERVED_NAMES else 'warning'))
+        if method.name is not None and _is_mixed_script(method.name.text):
+            diagnostics.append(Diagnostic(
+                'LatinAndCyrillicSymbolInWord',
+                'Омоглиф: латинская и кириллическая буквы одинакового вида в одном слове',
+                method.name.line, method.name.column))
         seen = {name.text.casefold() for name in method.declarations}
         local_names = []
         body = list(_walk(method.children))
@@ -99,7 +235,7 @@ def _inspect(source):
         else:
             conditional = any(t.kind == 'directive' and re.match(r'#\s*(если|if)\b', t.text, re.I) for t in tokens)
             dynamic_eval = any(t.kind == 'identifier' and t.text.casefold() in {'вычислить', 'eval'} for t in tokens)
-            diagnostics.extend(_semantic(nodes, conditional, dynamic_eval))
+            diagnostics.extend(_semantic(nodes, conditional, dynamic_eval, _preprocessor_dead_lines(tokens)))
         diagnostics.extend(parser.diagnostics)
     # Строковые литералы, включая продолжения, должны сохраняться побайтно.
     protected = set()

@@ -57,6 +57,149 @@ def test_errors_are_reported_and_format_refuses(src):
         format_source(src)
 
 
+# Сценарії 1c-syntax/bsl-language-server#4904 (поведінка, не код).
+def test_reserved_declaration_name_reports_error_on_declaration():
+    src = 'Функция Найти(Значение) Экспорт\nВозврат Значение;\nКонецФункции'
+    hits = [d for d in analyze(src) if d['code'] == 'ReservedDeclarationName']
+    assert [(d['line'], d['column'], d['level']) for d in hits] == [(1, 9, 'error')]
+    assert codes('Function Find(Value) Export\nReturn Value;\nEndFunction') >= {'ReservedDeclarationName'}
+
+
+@pytest.mark.parametrize('src', [
+    # Контролі з #4904: компілятор ці імена/виклики приймає.
+    'Функция ПолучитьЗначение(Значение) Экспорт\nВозврат Значение;\nКонецФункции',
+    'Функция ИндексВМассиве(Массив, Значение) Экспорт\nВозврат Массив.Найти(Значение);\nКонецФункции',
+    'Процедура Тест()\nСправочники.НайтиПоКоду("00000001");\nСтроки = ТаблицаЗначений.НайтиСтроки(Новый Структура("Ключ", 1));\nКонецПроцедуры',
+    # Виклик за іменем не є оголошенням: діагностика чіпає лише Функция/Процедура.
+    'Процедура Тест()\nРезультат = Найти(1);\nКонецПроцедуры',
+    # Префікс/похідне від зарезервованого імені — звичайне ім'я.
+    'Функция НайтиПоШаблону(Шаблон) Экспорт\nВозврат Шаблон;\nКонецФункции',
+])
+def test_reserved_declaration_name_has_no_false_positives(src):
+    assert 'ReservedDeclarationName' not in codes(src)
+
+
+@pytest.mark.parametrize('src', [
+    # Рев'ю #54: ці імена вибито з переліку — вони НЕ методи глобального
+    # контекста, тому їхні оголошення компілятор приймає (помилкового 'error'
+    # бути не повинно).
+    'Процедура ЗакрытьФорму()\nКонецПроцедуры',
+    'Procedure CloseForm()\nEndProcedure',
+    'Процедура ЗакрытьЗначение()\nКонецПроцедуры',
+    'Procedure CloseValue()\nEndProcedure',
+    'Функция Представление(Объект) Экспорт\nВозврат "x";\nКонецФункции',
+    'Function Present(Object) Export\nReturn "x";\nEndFunction',
+    # Справжній глобальний метод — СтрШаблон; ШаблонСтроки — звичайне ім'я.
+    'Функция ШаблонСтроки(Шаблон) Экспорт\nВозврат Шаблон;\nКонецФункции',
+    # Англійська назва глобального Вычислить — Eval, не Evaluate.
+    'Function Evaluate(Code) Export\nReturn 1;\nEndFunction',
+])
+def test_reserved_declaration_name_allows_names_outside_global_context(src):
+    assert 'ReservedDeclarationName' not in codes(src)
+
+
+@pytest.mark.parametrize('src', [
+    # Регресія з рев'ю #54: справжні глобальні методи та їхні англомовні
+    # алиаси мають чіпатися (раніше СтрШаблон/Eval проходили повз перелік).
+    'Функция СтрШаблон(Шаблон) Экспорт\nВозврат Шаблон;\nКонецФункции',
+    'Function StrTemplate(Template) Export\nReturn Template;\nEndFunction',
+    'Function Eval(Code) Export\nReturn 1;\nEndFunction',
+    'Функция Вычислить(Выражение) Экспорт\nВозврат 1;\nКонецФункции',
+    'Процедура ОткрытьФорму(ИмяФормы)\nКонецПроцедуры',
+])
+def test_reserved_declaration_name_flags_true_globals_and_aliases(src):
+    assert 'ReservedDeclarationName' in codes(src)
+
+
+@pytest.mark.parametrize('src', [
+    # Гілка з хибним літеральним умовою не компілюється 1С-компілятором —
+    # діагностика в ній хибнопозитивна (прецедент: придушення DuplicateVariable
+    # за прапорцем `conditional`).
+    '#Если Ложь Тогда\nФункция Найти()\nКонецФункции\n#КонецЕсли',
+    '#If False Then\nFunction Find()\nEndFunction\n#EndIf',
+    # Мертва гілка після достовірно істинної.
+    '#Если Истина Тогда\nА = 1;\n#Иначе\nФункция Найти()\nКонецФункции\n#КонецЕсли',
+    # Неперевірне умовою компілятора — консервативно придушаємо (гілка може не
+    # потрапити в збірку).
+    '#Если Сервер Тогда\nФункция Найти()\nКонецФункции\n#КонецЕсли',
+])
+def test_reserved_declaration_name_suppressed_in_non_compiled_branch(src):
+    assert 'ReservedDeclarationName' not in codes(src)
+
+
+@pytest.mark.parametrize('src', [
+    # Істинне літеральне умовою: компілятор точно компілює гілку — чіпаємо.
+    '#Если Истина Тогда\nФункция Найти()\nКонецФункции\n#КонецЕсли',
+    '#If True Then\nFunction Find()\nEndFunction\n#EndIf',
+    # Жива гілка #Иначе після хибної — теж компілюється.
+    '#Если Ложь Тогда\nА = 1;\n#Иначе\nФункция Найти()\nКонецФункции\n#КонецЕсли',
+])
+def test_reserved_declaration_name_reported_in_compiled_branch(src):
+    assert 'ReservedDeclarationName' in codes(src)
+
+
+def test_reserved_declaration_name_outside_branches_even_with_dead_siblings():
+    # Хибна гілка поруч не приглушає перевірку поза препроцесором.
+    src = ('#Если Ложь Тогда\nБ = 1;\n#КонецЕсли\nПроцедура Тест()\nКонецПроцедуры\n'
+           'Функция Найти()\nКонецФункции')
+    hits = [d for d in analyze(src) if d['code'] == 'ReservedDeclarationName']
+    assert [(d['line'], d['column']) for d in hits] == [(6, 9)]
+
+
+# Сценарії 1c-syntax/bsl-language-server#4900 (поведінка, не код).
+def test_latin_cyrillic_mixed_declaration_name_is_reported():
+    src = 'Процедура ПриCоздании()\nКонецПроцедуры'  # латинская C
+    hits = [d for d in analyze(src) if d['code'] == 'LatinAndCyrillicSymbolInWord']
+    assert [(d['line'], d['column'], d['level']) for d in hits] == [(1, 11, 'warning')]
+
+
+def test_latin_lowercase_o_homoglyph_is_reported():
+    src = 'Процедура Прoдажи()\nКонецПроцедуры'  # латинская o
+    hits = [d for d in analyze(src) if d['code'] == 'LatinAndCyrillicSymbolInWord']
+    assert len(hits) == 1
+
+
+@pytest.mark.parametrize('src', [
+    # Обычные смешанные имена с аббревиатурами и латинскими словами (#54).
+    'Процедура ПреобразоватьЗначениеXML()\nКонецПроцедуры',
+    'Процедура ОтправитьВPDF()\nКонецПроцедуры',
+    'Функция ЭтоLinuxКлиент()\nВозврат Истина;\nКонецФункции',
+    'Функция ЧтениеJSONВСтруктуру()\nВозврат 1;\nКонецФункции',
+    'Функция ПолучитьGETЗапрос()\nВозврат 1;\nКонецФункции',
+    'Функция ВызватьHTTPМетод()\nВозврат 1;\nКонецФункции',
+    'Функция КонвертироватьИзJSONВXML()\nВозврат 1;\nКонецФункции',
+    'Функция ПолучитьCOMКлассы()\nВозврат 1;\nКонецФункции',
+    'Процедура Подписание_ПослеВыполненияC14N_Ошибка()\nКонецПроцедуры',
+    'Процедура АвтоупаковкаЗаказовWBПриИзменении(Элемент)\nКонецПроцедуры',
+    # Односкриптные имена — не смешивание.
+    'Процедура ОбработкаТоваров()\nКонецПроцедуры',
+    'Procedure HandleGoods()\nEndProcedure',
+    # Диагностика проверяет имена объявлений, а не присваивания переменных.
+    'Процедура Тест()\nWBТовар = 1;\nСообщить(WBТовар);\nКонецПроцедуры',
+])
+def test_latin_cyrillic_has_no_false_positives(src):
+    assert 'LatinAndCyrillicSymbolInWord' not in codes(src)
+
+
+def test_latin_homoglyph_inside_cyrillic_word_is_reported():
+    assert 'LatinAndCyrillicSymbolInWord' in codes('Функция CформироватьТекст()\nВозврат 1;\nКонецФункции')
+    assert 'LatinAndCyrillicSymbolInWord' in codes('Процедура ЗагрузитьCУчетом()\nКонецПроцедуры')
+
+
+def test_unconfirmed_reserved_name_is_warning_confirmed_is_error():
+    level = lambda src: [d['level'] for d in analyze(src) if d['code'] == 'ReservedDeclarationName']
+    assert level('Функция Найти()\nКонецФункции') == ['error']
+    assert level('Функция СтрШаблон()\nКонецФункции') == ['warning']
+
+
+# Текущее поведение: Не/NOT-условия не вычисляются — ветка считается невычислимой
+# и подавляет ReservedDeclarationName (консервативно, как #Если Сервер).
+@pytest.mark.parametrize('cond', ['Не Ложь', 'НЕ Истина', 'Not False'])
+def test_negated_literal_preprocessor_condition_is_treated_as_unknown(cond):
+    src = f'#Если {cond} Тогда\nФункция Найти()\nКонецФункции\n#КонецЕсли'
+    assert 'ReservedDeclarationName' not in codes(src)
+
+
 def test_local_scopes_and_non_code_words():
     src = '''Процедура Первый(А)
 Перем НеЧитается, Используется;
