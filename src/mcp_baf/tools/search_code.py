@@ -11,7 +11,7 @@ from pydantic import Field
 
 from mcp_baf_audit import AuditWriter
 from mcp_baf.dumpindex import DumpIndex, Match, SearchParams
-from mcp_baf.pii import mask_pii_text
+from mcp_baf.pii import MASKING_NOTE, mask_pii_text
 from mcp_baf.tools.common import clamp_limit, traced_text
 
 DEFAULT_SEARCH_LIMIT = 50
@@ -31,7 +31,7 @@ def register(mcp: MCPServer, index: DumpIndex, audit: AuditWriter,
             "BSL-синонимы: поиск по английским именам находит русские и наоборот "
             "(StrFind -> СтрНайти, Procedure -> Процедура). "
             "Работает по локальной выгрузке конфигурации (DumpConfigToFiles). "
-            "Фильтруй по category и module для сужения результатов."
+            "Фильтруй по category и module для сужения результатов. " + MASKING_NOTE
         ),
         annotations=ToolAnnotations(read_only_hint=True),
     )

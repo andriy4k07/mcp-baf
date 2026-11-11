@@ -10,7 +10,7 @@ from pydantic import Field
 
 from mcp_baf_audit import AuditWriter
 from mcp_baf.client import OneCClient
-from mcp_baf.pii import mask_pii_text
+from mcp_baf.pii import MASKING_NOTE, mask_pii_text
 from mcp_baf.tools.common import clamp_limit, traced_text
 
 DEFAULT_EVENT_LOG_LIMIT = 50
@@ -27,7 +27,7 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter,
         description=(
             "Прочитать журнал регистрации 1С — лог ошибок, действий пользователей "
             "и системных событий. Фильтрация по дате, уровню важности "
-            "(Ошибка/Предупреждение/Информация) и пользователю."
+            "(Ошибка/Предупреждение/Информация) и пользователю. " + MASKING_NOTE
         ),
         annotations=ToolAnnotations(read_only_hint=True),
     )

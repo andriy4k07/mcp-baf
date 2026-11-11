@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from mcp_baf.config import Config
-from mcp_baf.pii import scrub_pii_text
+from mcp_baf.pii import MASKED_ERROR_PHRASE, scrub_pii_text
 
 if TYPE_CHECKING:  # тип только для подсказок — без обязательной зависимости в рантайме
     from mcp_baf_audit import AuditWriter
@@ -84,6 +84,10 @@ class OneCClient:
         self._base_url = config.base_url.rstrip("/")
         self._max_response_size = config.max_response_size_mib * _MIB
         self._audit = audit
+        # При --mask-pii текст ошибки 1С уходит агенту фиксированной фразой,
+        # полный текст — только в audit.log (pii.error_text): regex-скруб
+        # гарантированно не вычищает ПІБ/адреса из произвольного текста.
+        self._mask_pii = config.mask_pii
         self._retry_attempts = max(0, config.retry_attempts)
         self._retry_backoff = max(0.0, config.retry_backoff)
         self._retry_non_idempotent = config.retry_non_idempotent
@@ -108,6 +112,25 @@ class OneCClient:
             headers={"Connection": "close"},
             transport=transport,
         )
+
+    def _safe_error_detail(self, raw: str, *, endpoint: str) -> str:
+        """Безопасный фрагмент ошибки 1С для текста исключения (и для агента).
+
+        Без --mask-pii — regex-скруб и обрезка (прежнее поведение). С
+        --mask-pii агенту возвращается фиксированная фраза: скруб ловит
+        только телефоны/email, а ПІБ, адреса и прочие реквизиты из тела
+        ошибки 1С остались бы в ответе. Полный текст (однострочный)
+        пишется в audit.log событием `pii.error_text` — это серверный
+        след для администратора, аналог события MCP.Обезличивание у kharin.
+        """
+        if not self._mask_pii:
+            return scrub_error_detail(raw)
+        if self._audit is not None:
+            full = " ".join(_CONTROL_RE.sub(" ", raw).split())
+            self._audit.write(
+                "pii.error_text", endpoint=endpoint, error_text=full,
+            )
+        return MASKED_ERROR_PHRASE
 
     async def get(self, endpoint: str, *, idempotent: bool | None = None) -> Any:
         """GET-запрос к эндпоинту 1С с разбором JSON-ответа."""
@@ -229,8 +252,9 @@ class OneCClient:
                 state["status"] = resp.status_code
                 if resp.status_code != 200:
                     # Тело ошибки 1С не утекает к агенту: маскируем ПДн и режем.
-                    detail = scrub_error_detail(
-                        (await resp.aread())[:4096].decode("utf-8", "replace")
+                    detail = self._safe_error_detail(
+                        (await resp.aread())[:4096].decode("utf-8", "replace"),
+                        endpoint=endpoint,
                     )
                     state["error_kind"] = f"http_{resp.status_code}"
                     message = f"1C returned status {resp.status_code}: {detail}"
@@ -253,7 +277,7 @@ class OneCClient:
             # Повтора нет: запрос уже дошёл до базы.
             state["error_kind"] = "timeout"
             raise OneCError(
-                f"executing request to 1C: {scrub_error_detail(str(exc))}"
+                f"executing request to 1C: {self._safe_error_detail(str(exc), endpoint=endpoint)}"
             ) from exc
         except httpx.WriteTimeout as exc:
             # Тело запроса не ушло за write-таймаут — тот же класс, что и
@@ -261,19 +285,19 @@ class OneCClient:
             # запроса могла уже дойти до 1С.
             state["error_kind"] = "timeout"
             raise OneCError(
-                f"executing request to 1C: {scrub_error_detail(str(exc))}"
+                f"executing request to 1C: {self._safe_error_detail(str(exc), endpoint=endpoint)}"
             ) from exc
         except _RETRYABLE_TRANSPORT as exc:
             # Не удалось соединиться/получить слот в пуле — запрос не ушёл.
             state["error_kind"] = "transport_error"
             raise _RetryableOneCError(
-                f"executing request to 1C: {scrub_error_detail(str(exc))}"
+                f"executing request to 1C: {self._safe_error_detail(str(exc), endpoint=endpoint)}"
             ) from exc
         except httpx.HTTPError as exc:
             # Некорректный URL/протокол и т.п. — повтор не поможет.
             state["error_kind"] = "transport_error"
             raise OneCError(
-                f"executing request to 1C: {scrub_error_detail(str(exc))}"
+                f"executing request to 1C: {self._safe_error_detail(str(exc), endpoint=endpoint)}"
             ) from exc
 
         try:
