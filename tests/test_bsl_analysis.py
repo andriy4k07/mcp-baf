@@ -148,25 +148,50 @@ def test_reserved_declaration_name_outside_branches_even_with_dead_siblings():
 
 # Сценарії 1c-syntax/bsl-language-server#4900 (поведінка, не код).
 def test_latin_cyrillic_mixed_declaration_name_is_reported():
-    src = 'Процедура WBОбработатьТовар()\nКонецПроцедуры'
+    src = 'Процедура ПриCоздании()\nКонецПроцедуры'  # латинская C
     hits = [d for d in analyze(src) if d['code'] == 'LatinAndCyrillicSymbolInWord']
     assert [(d['line'], d['column'], d['level']) for d in hits] == [(1, 11, 'warning')]
 
 
 @pytest.mark.parametrize('src', [
-    # Автозгенерований обробник події поля: латиниця походить від імені реквизита.
-    '&НаКлиенте\nПроцедура АвтоупаковкаЗаказовWBПриИзменении(Элемент)\nКонецПроцедуры',
-    'Процедура АвтоупаковкаЗаказовWBПередНачаломРазмещения(Элемент)\nКонецПроцедуры',
-    'Процедура ЗаказWBПриВыводе(Элемент, СтандартнаяОбработка)\nКонецПроцедуры',
-    'Процедура WBПанельПриОткрытии()\nКонецПроцедуры',
-    # Односкриптні імена — не змішування.
+    # Обычные смешанные имена с аббревиатурами и латинскими словами (#54).
+    'Процедура ПреобразоватьЗначениеXML()\nКонецПроцедуры',
+    'Процедура ОтправитьВPDF()\nКонецПроцедуры',
+    'Функция ЭтоLinuxКлиент()\nВозврат Истина;\nКонецФункции',
+    'Функция ЧтениеJSONВСтруктуру()\nВозврат 1;\nКонецФункции',
+    'Функция ПолучитьGETЗапрос()\nВозврат 1;\nКонецФункции',
+    'Функция ВызватьHTTPМетод()\nВозврат 1;\nКонецФункции',
+    'Функция КонвертироватьИзJSONВXML()\nВозврат 1;\nКонецФункции',
+    'Функция ПолучитьCOMКлассы()\nВозврат 1;\nКонецФункции',
+    'Процедура Подписание_ПослеВыполненияC14N_Ошибка()\nКонецПроцедуры',
+    'Процедура АвтоупаковкаЗаказовWBПриИзменении(Элемент)\nКонецПроцедуры',
+    # Односкриптные имена — не смешивание.
     'Процедура ОбработкаТоваров()\nКонецПроцедуры',
     'Procedure HandleGoods()\nEndProcedure',
-    # Діагностика перевіряє імена оголошень, а не присвоєння змінних.
+    # Диагностика проверяет имена объявлений, а не присваивания переменных.
     'Процедура Тест()\nWBТовар = 1;\nСообщить(WBТовар);\nКонецПроцедуры',
 ])
 def test_latin_cyrillic_has_no_false_positives(src):
     assert 'LatinAndCyrillicSymbolInWord' not in codes(src)
+
+
+def test_latin_homoglyph_inside_cyrillic_word_is_reported():
+    assert 'LatinAndCyrillicSymbolInWord' in codes('Функция CформироватьТекст()\nВозврат 1;\nКонецФункции')
+    assert 'LatinAndCyrillicSymbolInWord' in codes('Процедура ЗагрузитьCУчетом()\nКонецПроцедуры')
+
+
+def test_unconfirmed_reserved_name_is_warning_confirmed_is_error():
+    level = lambda src: [d['level'] for d in analyze(src) if d['code'] == 'ReservedDeclarationName']
+    assert level('Функция Найти()\nКонецФункции') == ['error']
+    assert level('Функция СтрШаблон()\nКонецФункции') == ['warning']
+
+
+# Текущее поведение: Не/NOT-условия не вычисляются — ветка считается невычислимой
+# и подавляет ReservedDeclarationName (консервативно, как #Если Сервер).
+@pytest.mark.parametrize('cond', ['Не Ложь', 'НЕ Истина', 'Not False'])
+def test_negated_literal_preprocessor_condition_is_treated_as_unknown(cond):
+    src = f'#Если {cond} Тогда\nФункция Найти()\nКонецФункции\n#КонецЕсли'
+    assert 'ReservedDeclarationName' not in codes(src)
 
 
 def test_local_scopes_and_non_code_words():
