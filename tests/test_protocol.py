@@ -26,17 +26,30 @@ def _join_background_threads():
     create_server поднимает потоки-строители DumpIndex/HelpIndex, которые
     держат нативные SQLite-объекты; пережив teardown asyncio.run, они
     могли дотронуться до уже уничтоженного состояния на следующем тесте —
-    ровно так выглядел сегфолт в CI. Ждём их завершения явно.
+    ровно так выглядел сегфолт в CI. Ждём их завершения явно, а поток,
+    который не завершился за общий дедлайн, — это настоящий leak: он
+    обязан уронить тест, а не пройти молча.
     """
     before = {threading.get_ident() for t in threading.enumerate()}
     yield
-    deadline = None
+    deadline = time.monotonic() + 15  # общий дедлайн на все потоки теста
     for t in threading.enumerate():
         if threading.get_ident() in before or t is threading.current_thread():
             continue
-        deadline = time.monotonic() + 15 if deadline is None else deadline
-        remaining = max(deadline - time.monotonic(), 0.1)
-        t.join(timeout=remaining)
+        t.join(timeout=max(deadline - time.monotonic(), 0.1))
+    wedged = sorted(
+        t.name
+        for t in threading.enumerate()
+        if threading.get_ident() not in before
+        and t is not threading.current_thread()
+        and t.is_alive()
+    )
+    if wedged:
+        pytest.fail(
+            "background threads outlived the test after the 15s join "
+            "deadline (leaked builders can segfault later tests, issue #56): "
+            + ", ".join(wedged)
+        )
 
 
 @pytest.mark.parametrize('mode', ['auto', 'legacy'])

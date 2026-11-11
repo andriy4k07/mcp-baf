@@ -28,10 +28,18 @@ class _SyntheticBuild(DumpIndex):
     `gate` — Event, который поток-строитель выставляет внутри последнего
     statement (count(*) в _finish_build) через progress handler SQLite:
     тест закрывает индекс именно посреди активного sqlite3_step.
+
+    Инвариант размера: синтетический скан обязан укладываться в
+    миллисекунды и на загрузженном раннере — він виконується під _db_lock
+    на шляху join'у close(), і якщо колись переросте CLOSE_JOIN_TIMEOUT
+    (10 с), сама регресія влізе у відкладений шлях close(). Тому тримаємо
+    рядки тисячами, не десятками тисяч: це запас безпеки, а не тюнінг —
+    gate спрацьовує на першій же віртуальній операції, довжина скану для
+    відтворення гонки не потрібна.
     """
 
     def __init__(self, *args, gate: threading.Event | None = None,
-                 n_rows: int = 20000, **kwargs):
+                 n_rows: int = 2000, **kwargs):
         self._gate = gate
         self._n_rows = n_rows
         super().__init__(*args, **kwargs)
@@ -110,7 +118,7 @@ def test_repeated_create_close_cycles_stay_clean(tmp_path):
     for attempt in range(3):
         gate = threading.Event()
         idx = _SyntheticBuild(
-            str(tmp_path / str(attempt)), use_cache=False, gate=gate, n_rows=5000
+            str(tmp_path / str(attempt)), use_cache=False, gate=gate, n_rows=1000
         )
         gate.wait(timeout=30)  # можем и не успеть в окно — это нормально
         idx.close()
