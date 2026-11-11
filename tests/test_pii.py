@@ -426,7 +426,7 @@ def test_registry_invariant_all_maskable_tools_pass_mask_pii():
         ).parameters
     # Очікуваний набір фіксований: новий канал із mask-aware formatter
     # зобов'язаний з'явитися тут свідомо, а не «випасти» з інваріанта.
-    assert maskable == {"eventlog", "form", "query", "search_code"}
+    assert maskable == {"eventlog", "form", "objects", "query", "search_code"}
 
 
 def test_bare_ten_digit_zero_prefix_is_accepted_overmasking():
@@ -488,3 +488,11 @@ def test_short_markers_rejected():
         pii.split_marker_list("БонусныйСчет, а")
     with pytest.raises(ValueError, match="закороткий"):
         pii.configure_pii(extra_column_markers=["ab"])
+
+
+def test_alias_of_sensitive_field_is_masked():
+    q = "ВЫБРАТЬ Т.ИНН КАК X, Т.Паспорт КАК Y, Т.Код КАК Z ИЗ Справочник.Контрагенты КАК Т"
+    out = mask_pii_result(_r(["X", "Y", "Z"], [["1234567890", "AB123456", "00042"]]), q)["rows"][0]
+    assert out[0].startswith("PII:") and out[1].startswith("PII:") and out[2] == "00042"
+    # без текста запроса поведение прежнее
+    assert mask_pii_result(_r(["X"], [["1234567890"]]))["rows"][0][0] == "1234567890"

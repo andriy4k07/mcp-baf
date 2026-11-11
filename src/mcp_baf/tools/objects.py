@@ -10,6 +10,7 @@ from uuid import UUID
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from mcp_baf.pii import mask_pii_text
 from mcp_baf.tools.common import escape_pipe, traced_text
 
 Scope = Literal["catalogs", "documents", "information_registers", "accumulation_registers", "accounting_registers", "calculation_registers", "all"]
@@ -67,7 +68,7 @@ def _required_str(data: dict, key: str, tool: str) -> str:
     return value
 
 
-def format_references(result: dict) -> str:
+def format_references(result: dict, mask_pii: bool = False) -> str:
     lines = ["## Ссылки на объект", "", "В пределах прав и RLS HTTP-пользователя.", ""]
     groups: dict[str, list] = {}
     for hit in result.get("hits", []):
@@ -76,7 +77,11 @@ def format_references(result: dict) -> str:
     for meta, hits in groups.items():
         lines += [f"### {escape_pipe(meta)} ({len(hits)})", "", "| Объект / ключ | Поле | Вид |", "|---|---|---|"]
         for h in hits:
-            lines.append("| " + " | ".join(escape_pipe(str(h.get(k, ""))).replace("\n", " ") for k in ("found_in_object", "path", "match_kind")) + " |")
+            # found_in_object — представление объекта, может содержать ПДн (ФИО, телефон).
+            cells = [str(h.get(k, "")) for k in ("found_in_object", "path", "match_kind")]
+            if mask_pii:
+                cells[0] = mask_pii_text(cells[0])
+            lines.append("| " + " | ".join(escape_pipe(c).replace("\n", " ") for c in cells) + " |")
     if not groups:
         lines.append("Совпадений в проверенных областях не найдено.")
     if result.get("timeout_exceeded") or result.get("truncated") or result.get("skipped_names"):
@@ -86,7 +91,7 @@ def format_references(result: dict) -> str:
     return "\n".join(lines)
 
 
-def register(mcp, client, audit):
+def register(mcp, client, audit, mask_pii: bool = False):
     @mcp.tool(description="Найти ссылки на объект по GUID и полному имени типа. Области: catalogs, documents, information_registers, accumulation_registers, accounting_registers, calculation_registers, all. Поиск в пределах прав/RLS. Бюджет проверяется между запросами, текущий запрос не прерывается.", annotations=ToolAnnotations(read_only_hint=True))
     async def find_object_references(
         ref: str, ref_kind: str, scope: list[Scope] | None = None,
@@ -100,7 +105,7 @@ def register(mcp, client, audit):
             if not areas:
                 raise ValueError("scope не может быть пустым; используйте catalogs, documents, information_registers, accumulation_registers, accounting_registers, calculation_registers, all")
             body = dict(ref=validate_ref(ref), ref_kind=ref_kind, scope=areas, limit_hits=limit_hits, limit_per_meta=limit_per_meta, timeout_budget_sec=timeout_budget_sec)
-            return format_references(await client.post("/refs", body))
+            return format_references(await client.post("/refs", body), mask_pii)
         return await traced_text(audit, "find_object_references", run, args=dict(ref=ref, ref_kind=ref_kind, scope=scope, limit_hits=limit_hits, limit_per_meta=limit_per_meta, timeout_budget_sec=timeout_budget_sec))
 
     @mcp.tool(description="Навигация: mode=make формирует внутреннюю ссылку по ref (GUID) и kind (Тип.Имя); mode=resolve принимает link e1cib/data/... или URL публикации с таким фрагментом. URL другого сервера не загружается. Внутренняя ссылка открывается в клиенте текущей базы.", annotations=ToolAnnotations(read_only_hint=True))
@@ -111,7 +116,8 @@ def register(mcp, client, audit):
             r = await client.post("/object-link", dict(mode=mode, ref=target_ref, kind=target_kind))
             if not r.get("found"):
                 return "Объект не найден или недоступен в пределах прав пользователя."
-            label = str(r.get("presentation", target_ref)).replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]").replace("\n", " ")
+            presentation = str(r.get("presentation", target_ref))
+            label = (mask_pii_text(presentation) if mask_pii else presentation).replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]").replace("\n", " ")
             # Ссылка формируется платформой; запрещаем произвольные схемы в Markdown.
             output_link = r.get("link", "")
             if not output_link.startswith("e1cib/data/") or any(c in output_link for c in "\r\n<>"):

@@ -34,14 +34,14 @@ from mcp_baf.tools import (
 logger = logging.getLogger(__name__)
 
 # Версия расширения 1С, с которой совместим этот сервер.
-EXPECTED_EXTENSION_VERSION = "0.6.0"
+EXPECTED_EXTENSION_VERSION = "0.6.1"
 
 _INSTRUCTIONS = (
     "MCP-сервер для ЧТЕНИЯ базы 1С:Предприятие (BAF) через HTTP-сервис: "
     "метаданные, запросы, полнотекстовый поиск по коду, журнал регистрации, "
     "справка платформы и локальный анализ BSL. Записи в базу нет. "
     "HTTP-инструменты доступны только в пределах прав пользователя; "
-    "для проверки прав требуется расширение 0.6.0 с /capabilities.\n"
+    "для проверки прав требуется расширение 0.6.1 с /capabilities.\n"
     "Порядок работы с незнакомой базой: get_configuration_info (что за "
     "конфигурация) -> get_metadata_tree (какие объекты есть) -> "
     "get_object_structure (точные имена реквизитов/табличных частей) -> "
@@ -147,7 +147,7 @@ def create_server(config: Config) -> MCPServer:
     eventlog.register(mcp, client, audit, config.mask_pii)
     configuration_info.register(mcp, client, audit)
     bsl_help.register(mcp, audit)
-    objects.register(mcp, client, audit)
+    objects.register(mcp, client, audit, config.mask_pii)
     if help_index is not None:
         platform_help.register(mcp, help_index, audit)
     bsl_analysis.register(mcp, audit)

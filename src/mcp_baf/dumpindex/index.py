@@ -28,6 +28,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
+import regex  # PyPI: поддерживает timeout= прямо внутри поиска (защита от ReDoS)
+
 from mcp_baf.dumpindex.cache import index_db_path
 from mcp_baf.dumpindex.extroots import discover_extension_roots
 from mcp_baf.dumpindex.modulenames import (
@@ -599,14 +601,14 @@ class DumpIndex:
             pattern = _compile_user_regex(params.query)
             return self._search_line_by_line(
                 params,
-                lambda line: pattern.search(line) is not None,
+                lambda line, timeout: pattern.search(line, timeout=timeout) is not None,
                 deadline=time.monotonic() + REGEX_TIME_BUDGET,
                 line_limit=MAX_REGEX_LINE,
             )
         if params.mode == "exact":
             needle = params.query.lower()
             return self._search_line_by_line(
-                params, lambda line: needle in line.lower()
+                params, lambda line, timeout: needle in line.lower()
             )
         raise ValueError(f"unknown search mode: {params.mode!r}")
 
@@ -683,7 +685,7 @@ class DumpIndex:
     def _search_line_by_line(
         self,
         params: SearchParams,
-        match: "callable[[str], bool]",
+        match: "callable[[str, float | None], bool]",
         deadline: float | None = None,
         line_limit: int | None = None,
     ) -> tuple[list[Match], int]:
@@ -720,7 +722,17 @@ class DumpIndex:
                 for i, line in enumerate(lines):
                     if line_limit is not None and len(line) > line_limit:
                         line = line[:line_limit]
-                    if match(line):
+                    # Остаток бюджета как timeout: regex прерывается внутри одной строки.
+                    remaining = None if deadline is None else deadline - time.monotonic()
+                    try:
+                        if remaining is not None and remaining <= 0:
+                            raise TimeoutError
+                        hit = match(line, remaining)
+                    except TimeoutError:
+                        raise ValueError(
+                            f"regex search exceeded {REGEX_TIME_BUDGET:.0f}s time budget"
+                        ) from None
+                    if hit:
                         total += 1
                         if len(matches) < params.limit:
                             matches.append(
@@ -734,12 +746,12 @@ class DumpIndex:
         return matches, total
 
 
-def _compile_user_regex(pattern: str) -> re.Pattern[str]:
+def _compile_user_regex(pattern: str) -> regex.Pattern[str]:
     """Компилирует пользовательский regex с ограничениями против ReDoS.
 
     Отклоняет слишком длинные шаблоны и вложенные кванторы (`(a+)+`,
     `(\\w*)*`), на которых backtracking растёт экспоненциально. Остаточный
-    риск закрывают дедлайн и ограничение длины строки в _search_line_by_line.
+    риск закрывают timeout поиска (модуль regex) и ограничение длины строки в _search_line_by_line.
     """
     if len(pattern) > MAX_REGEX_LENGTH:
         raise ValueError(
@@ -750,8 +762,8 @@ def _compile_user_regex(pattern: str) -> re.Pattern[str]:
             "regex rejected: nested quantifier can cause catastrophic backtracking"
         )
     try:
-        return re.compile(pattern)
-    except re.error as exc:
+        return regex.compile(pattern)
+    except regex.error as exc:
         raise ValueError(f"invalid regex {pattern!r}: {exc}") from exc
 
 

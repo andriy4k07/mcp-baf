@@ -46,6 +46,10 @@ PII_COLUMN_MARKERS = tuple(m.lower() for m in (
     "Password", "Login", "Token",
     "СНИЛС", "НомерКарты", "ЛицевойСчет", "Серия", "Номер", "КемВыдан",
 ))
+# shortcut: алиасы колонок ищутся лёгким regex по тексту запроса `<выражение> КАК <алиас>`;
+# вычисляемые выражения, скрывающие имя поля, и вложенные подзапросы — best effort,
+# заменить на настоящий разбор запроса при необходимости
+_ALIAS_RE = re.compile(r"([^,]*?)\s+(?:КАК|AS)\s+(\w+)", re.IGNORECASE)
 # Украинские телефоны (+380XXXXXXXXX, 0XXXXXXXXX с пробелами/дефисами/
 # скобками) и email.
 _EMAIL_RE = r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"
@@ -309,18 +313,32 @@ def mask_pii_text(value: Any) -> str:
     return scrub_pii_text(str(value), pii_token)
 
 
-def mask_pii_result(r: dict[str, Any]) -> dict[str, Any]:
-    """Маскирует ПДн в строках результата: по имени колонки и по regex.
+def _is_pii_name(name: str) -> bool:
+    return any(m in name.lower() for m in PII_COLUMN_MARKERS + _extra_markers)
+
+
+def _pii_aliases(query: str) -> set[str]:
+    """Алиасы `КАК X`, чьё выражение содержит чувствительное поле (в нижнем регистре)."""
+    return {
+        m.group(2).lower() for m in _ALIAS_RE.finditer(query)
+        if any(_is_pii_name(part) for part in re.findall(r"\w+", m.group(1)))
+    }
+
+
+def mask_pii_result(r: dict[str, Any], query: str | None = None) -> dict[str, Any]:
+    """Маскирует ПДн в строках результата: по имени колонки, алиасу из query и по regex.
 
     Базовые маркеры `PII_COLUMN_MARKERS` дополняются пользовательскими из
     `mcp_baf_PII_COLUMN_MARKERS` / `--pii-column-markers` (issue #53, п.1).
-    Если хотя бы одна колонка замаскирована по имени, в ответ добавляется
-    `masked_columns` — агенту видно, каким столбцам не доверять (п.4).
+    Алиас из `query` маскируется, если его выражение содержит чувствительное
+    поле (#62). Если хотя бы одна колонка замаскирована по имени, в ответ
+    добавляется `masked_columns` — агенту видно, каким столбцам не доверять (п.4).
     """
     columns = r.get("columns") or []
-    markers = PII_COLUMN_MARKERS + _extra_markers
+    aliases = _pii_aliases(query) if query else set()
     sensitive = [
-        any(m in str(c).rsplit(".", 1)[-1].lower() for m in markers)
+        _is_pii_name(str(c).rsplit(".", 1)[-1])
+        or str(c).rsplit(".", 1)[-1].lower() in aliases
         for c in columns
     ]
 

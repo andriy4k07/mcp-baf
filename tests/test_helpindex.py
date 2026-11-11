@@ -5,6 +5,7 @@ import json
 import struct
 import sqlite3
 import zipfile
+import zlib
 from pathlib import Path
 
 import pytest
@@ -169,6 +170,30 @@ def test_broken_file_does_not_disable_help_and_partial_names_match(tmp_path):
         # Часть CamelCase-имени, начало имени и фраза с лишним словом.
         for query in ('Найти', 'Str', 'стрнай', 'как работает СтрНайти'):
             assert 'СтрНайти (StrFind)' in [p['title'] for p in index.search(query)], query
+    finally:
+        index.close()
+
+
+@pytest.mark.parametrize('error', [
+    zlib.error('invalid stored block'), EOFError('truncated'),
+    NotImplementedError('compression method'), RuntimeError('File is encrypted'),
+])
+def test_read_error_of_one_file_is_skipped(tmp_path, monkeypatch, error):
+    root = tmp_path / 'help'
+    root.mkdir()
+    (root / 'a_good.hbk').write_bytes(FIXTURE.read_bytes())
+    (root / 'b_damaged.hbk').write_bytes(FIXTURE.read_bytes())
+    import mcp_baf.helpindex as implementation
+    original = implementation.read_pages
+    def flaky(path):
+        if path.name == 'b_damaged.hbk':
+            raise error
+        yield from original(path)
+    monkeypatch.setattr(implementation, 'read_pages', flaky)
+    index = HelpIndex(str(root), str(tmp_path / 'cache'))
+    try:
+        assert index.wait_ready(5) and index.error is None
+        assert index.search('СтрНайти')
     finally:
         index.close()
 

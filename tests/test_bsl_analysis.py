@@ -357,3 +357,15 @@ def test_format_indents_statement_continuations():
     assert format_source(src) == (
         'Процедура А()\n    Если Б И\n        В Тогда\n        Вызов(Г,\n            Д);\n    КонецЕсли;\nКонецПроцедуры'
     )
+
+
+def test_lexer_hash_not_at_line_start_is_linear():
+    """#65: `#`/`&` не в начале строки не должны давать квадратичный разбор."""
+    import time
+
+    from mcp_baf.bsl_native.lexer import lex
+
+    start = time.monotonic()
+    tokens, _ = lex("x" + "#" * 200_000)
+    assert time.monotonic() - start < 2
+    assert len(tokens) == 200_002

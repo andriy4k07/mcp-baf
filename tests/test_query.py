@@ -11,6 +11,7 @@ from mcp_baf_audit import AuditLog
 from mcp_baf.client import OneCClient
 from mcp_baf.config import Config
 from mcp_baf.tools import query
+from mcp_baf.tools.common import MAX_CELL_CHARS, MAX_TOOL_OUTPUT_CHARS, format_cell
 
 
 def setup(tmp_path, result=None, mask_pii=False):
@@ -115,3 +116,21 @@ def test_mask_pii_tool_level_reports_contract_error(tmp_path):
     tools, client, _ = setup(tmp_path, {"columns": ["A"], "rows": [1, 2]}, mask_pii=True)
     with pytest.raises(ToolError, match="rows"):
         call(tools, client, query="ВЫБРАТЬ 1")
+
+
+def test_format_cell_newlines_replaced():
+    from mcp_baf.tools.common import format_cell
+    assert format_cell("a\r\nb\rc\nd|e") == "a b c d\\|e"
+
+
+def test_long_cell_is_capped_with_marker():
+    assert format_cell("б" * MAX_CELL_CHARS) == "б" * MAX_CELL_CHARS
+    assert format_cell("б" * (MAX_CELL_CHARS + 500)) == "б" * MAX_CELL_CHARS + "…"
+
+
+def test_query_output_is_limited_by_total_size(tmp_path):
+    rows = [["я" * 3000] for _ in range(1000)]
+    tools, client, _ = setup(tmp_path, {"columns": ["Текст"], "rows": rows})
+    text = call(tools, client, query="ВЫБРАТЬ 1", limit=1000)
+    assert len(text) <= MAX_TOOL_OUTPUT_CHARS + 400
+    assert "усечён" in text

@@ -1,5 +1,14 @@
 """Тесты маскирования ПДн в журнале регистрации (get_event_log)."""
 
+import asyncio
+
+import httpx
+
+from mcp_baf_audit import AuditLog
+from mcp_baf.client import OneCClient
+from mcp_baf.config import Config
+from mcp_baf.tools import eventlog
+from mcp_baf.tools.common import MAX_TOOL_OUTPUT_CHARS
 from mcp_baf.tools.eventlog import format_event_log
 
 EVENTS = {
@@ -39,3 +48,50 @@ def test_event_log_masks_phone_and_email():
 def test_event_log_masking_empty_result():
     out = format_event_log({"events": [], "total": 0}, mask_pii=True)
     assert "Записей не найдено." in out
+
+
+def test_event_log_tool_output_is_limited(tmp_path):
+    events = [{"date": "2026-03-01", "level": "Ошибка", "event": "E",
+               "user": "U", "comment": "с" * 3000} for _ in range(300)]
+    audit = AuditLog(str(tmp_path))
+    client = OneCClient(
+        Config(base_url="http://test"),
+        httpx.MockTransport(lambda r: httpx.Response(200, json={"events": events, "found": 300})),
+        audit=audit,
+    )
+    tools = {}
+
+    class FakeMCP:
+        def tool(self, **kwargs):
+            return lambda f: tools.setdefault(f.__name__, f)
+
+    eventlog.register(FakeMCP(), client, audit)
+
+    async def scenario():
+        try:
+            return await tools["get_event_log"](limit=300)
+        finally:
+            await client.aclose()
+
+    text = asyncio.run(scenario())
+    assert len(text) <= MAX_TOOL_OUTPUT_CHARS + 400
+    assert "усечён" in text
+
+
+def test_event_log_400_from_extension_becomes_tool_error(tmp_path):
+    import asyncio
+    import httpx
+    import pytest
+    from mcp.server.mcpserver import MCPServer
+    from mcp.server.mcpserver.exceptions import ToolError
+    from mcp_baf_audit import AuditLog
+    from mcp_baf.client import OneCClient
+    from mcp_baf.config import Config
+    from mcp_baf.tools import eventlog
+
+    client = OneCClient(Config(base_url="http://test"), httpx.MockTransport(
+        lambda r: httpx.Response(400, json={"error": "start_date: expected ISO 8601 date"})))
+    server = MCPServer("test")
+    eventlog.register(server, client, AuditLog(str(tmp_path)))
+    with pytest.raises(ToolError, match="start_date"):
+        asyncio.run(server.call_tool("get_event_log", {"start_date": "01.03.2026"}))

@@ -126,3 +126,15 @@ def test_rights_admin_refusal_no_false_table(tmp_path):
     with pytest.raises(Exception, match='административных'):
         call(server, 'get_metadata_rights', metadata_object='Документ.Продажа', user_name='Other')
     asyncio.run(client.aclose())
+
+
+def test_mask_pii_in_references_and_link(tmp_path):
+    hit = dict(found_in_meta='Документ.Продажа', found_in_object='Иванов +380501234567', path='П', match_kind='k')
+    assert '+380501234567' in objects.format_references(dict(hits=[hit]))
+    text = objects.format_references(dict(hits=[hit]), mask_pii=True)
+    assert '380501234567' not in text and 'PII:' in text
+    server, client, _ = setup_tools(tmp_path, dict(found=True, kind=KIND, ref=GUID, presentation='Иванов a@ex.com', link=LINK))
+    objects.register(server := MCPServer('t'), client, AuditLog(str(tmp_path)), True)
+    out = call(server, 'get_object_link', mode='make', ref=GUID, kind=KIND)
+    assert 'a@ex.com' not in out and 'PII:' in out
+    asyncio.run(client.aclose())

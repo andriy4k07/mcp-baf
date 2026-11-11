@@ -12,7 +12,9 @@ from pydantic import Field
 from mcp_baf_audit import AuditWriter
 from mcp_baf.client import OneCClient
 from mcp_baf.pii import MASKING_NOTE, mask_pii_result
-from mcp_baf.tools.common import clamp_limit, escape_pipe, format_cell, traced_text
+from mcp_baf.tools.common import (
+    clamp_limit, escape_pipe, format_cell, traced_text, truncate_output,
+)
 
 DEFAULT_QUERY_LIMIT = 100
 MAX_QUERY_LIMIT = 1000
@@ -90,9 +92,9 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter,
                 body["parameters"] = parameters
 
             result = await client.post("/query", body)
-            return format_query_result(
-                mask_pii_result(result) if mask_pii else result, offset
-            )
+            return truncate_output(format_query_result(
+                mask_pii_result(result, query) if mask_pii else result, offset
+            ))
 
         return await traced_text(
             audit, "execute_query", run,
