@@ -107,6 +107,24 @@ def test_regex_time_budget_enforced(index, monkeypatch):
         index.search(SearchParams(query="Процедура|Функция", mode="regex"))
 
 
+def test_regex_timeout_interrupts_single_line(tmp_path, monkeypatch):
+    """#61: `(\\w\\w|\\w)+!` не ловится эвристикой вложенных кванторов, но
+    должен прерываться по timeout внутри одной длинной строки."""
+    import time
+
+    from mcp_baf.dumpindex import index as index_module
+
+    mk_bsl(tmp_path, "CommonModules/М/Ext/Module.bsl", "Х = " + "a" * 60 + " !\n")
+    idx = DumpIndex(str(tmp_path), use_cache=False)
+    assert idx.wait_ready(BUILD_TIMEOUT)
+    monkeypatch.setattr(index_module, "REGEX_TIME_BUDGET", 0.3)
+    start = time.monotonic()
+    with pytest.raises(ValueError, match="time budget"):
+        idx.search(SearchParams(query=r"(\w\w|\w)+!", mode="regex"))
+    assert time.monotonic() - start < 3
+    idx.close()
+
+
 def test_line_search_streams_rows(index):
     """Режимы regex/exact не тянут весь код модулей через fetchall()."""
 
