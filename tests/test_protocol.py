@@ -30,17 +30,17 @@ def _join_background_threads():
     который не завершился за общий дедлайн, — это настоящий leak: он
     обязан уронить тест, а не пройти молча.
     """
-    before = {threading.get_ident() for t in threading.enumerate()}
+    before = set(threading.enumerate())
     yield
     deadline = time.monotonic() + 15  # общий дедлайн на все потоки теста
     for t in threading.enumerate():
-        if threading.get_ident() in before or t is threading.current_thread():
+        if t in before or t is threading.current_thread():
             continue
         t.join(timeout=max(deadline - time.monotonic(), 0.1))
     wedged = sorted(
         t.name
         for t in threading.enumerate()
-        if threading.get_ident() not in before
+        if t not in before
         and t is not threading.current_thread()
         and t.is_alive()
     )
