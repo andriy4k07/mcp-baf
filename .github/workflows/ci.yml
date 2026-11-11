@@ -27,6 +27,11 @@ jobs:
       # и наоборот — фоновые потоки из остальных файлов не должны влиять
       # на teardown stdio/asyncio-сессий в test_protocol.py.
       - name: Run test suite (кроме test_protocol.py)
+        env:
+          # Див. protocol-tests: флатовий краш інтерпретатора (issue #56)
+          # мусить залишити faulthandler-дамп у логу й у головному джобі,
+          # якщо тест туди мігрує.
+          PYTHONFAULTHANDLER: "1"
         run: python -m pytest tests/ -q --ignore=tests/test_protocol.py
 
   protocol-tests:
@@ -55,8 +60,12 @@ jobs:
         run: |
           rc=1
           for attempt in 1 2 3; do
-            python -m pytest tests/test_protocol.py -q -p no:cacheprovider 2>&1 | tee protocol-pytest.log
-            rc=${PIPESTATUS[0]}
+            # Групу { ...; rc=${PIPESTATUS[0]}; } || true: під будь-яким
+            # `set -e` (зокрема майбутнім `shell: bash` = bash -eo pipefail)
+            # pipeline, що падає, не перериває крок до захоплення rc —
+            # інакше ретраї мовчки вимкнулися б. `|| true` просто після
+            # pipes НЕ підходить: він перезатирає PIPESTATUS.
+            { python -m pytest tests/test_protocol.py -q -p no:cacheprovider 2>&1 | tee protocol-pytest.log; rc="${PIPESTATUS[0]}"; } || true
             if [ "$rc" -eq 0 ]; then break; fi
             # 132=SIGILL 134=SIGABRT 135=SIGBUS 139=SIGSEGV: process die without
             # any test report. Test failures (rc=1), collection errors (rc=2) and
