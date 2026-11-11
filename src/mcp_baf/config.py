@@ -105,6 +105,12 @@ class Config:
     # Маскирование ПДн (ФИО, ИНН, телефоны, email...) в ответах инструментов:
     # execute_query, журнал регистрации, структура формы, найденный код.
     mask_pii: bool = False
+    # Дополнительные маркеры имён колонок ПДн через запятую
+    # (mcp_baf_PII_COLUMN_MARKERS / --pii-column-markers), поверх встроенных.
+    pii_column_markers: str = ""
+    # Выпустить новый ключ токенов pii.key при старте (одноразовая процедура
+    # обслуживания: после ротации флаг нужно снять).
+    rotate_pii_key: bool = False
 
 
 class ConfigError(Exception):
@@ -330,6 +336,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
              "form structure and found code (env mcp_baf_MASK_PII=1).",
     )
     parser.add_argument(
+        "--pii-column-markers", default="", metavar="MARKERS",
+        help="Comma-separated extra column-name substrings masked together with "
+             "the built-in PII markers, e.g. 'БонусныйСчет,ШтрихКод' "
+             "(env mcp_baf_PII_COLUMN_MARKERS).",
+    )
+    parser.add_argument(
+        "--rotate-pii-key", action="store_true",
+        help="Issue a new PII token key (overwrite <cache-dir>/pii.key) at "
+             "startup, invalidating all previously issued PII tokens. "
+             "Maintenance run: drop the flag afterwards.",
+    )
+    parser.add_argument(
         "--allow-insecure-http", action="store_true",
         help="Permit --transport http without TLS (env mcp_baf_ALLOW_INSECURE_HTTP=1).",
     )
@@ -405,6 +423,7 @@ def load_config(args: argparse.Namespace) -> Config:
         transport=os.environ.get("mcp_baf_TRANSPORT", "") or "stdio",
         allow_insecure_http=_env_bool("mcp_baf_ALLOW_INSECURE_HTTP"),
         mask_pii=_env_bool("mcp_baf_MASK_PII"),
+        pii_column_markers=os.environ.get("mcp_baf_PII_COLUMN_MARKERS", ""),
         http_host=os.environ.get("mcp_baf_HTTP_HOST", "") or DEFAULT_HTTP_HOST,
         http_port=_env_int("mcp_baf_HTTP_PORT", DEFAULT_HTTP_PORT),
         http_allowed_hosts=os.environ.get("mcp_baf_HTTP_ALLOWED_HOSTS", ""),
@@ -451,6 +470,8 @@ def load_config(args: argparse.Namespace) -> Config:
     cfg.transport = args.transport or cfg.transport
     cfg.allow_insecure_http = args.allow_insecure_http or cfg.allow_insecure_http
     cfg.mask_pii = args.mask_pii or cfg.mask_pii
+    cfg.pii_column_markers = args.pii_column_markers or cfg.pii_column_markers
+    cfg.rotate_pii_key = args.rotate_pii_key
     cfg.http_host = args.http_host or cfg.http_host
     if args.http_port > 0:
         cfg.http_port = args.http_port

@@ -11,7 +11,7 @@ from pydantic import Field
 
 from mcp_baf_audit import AuditWriter
 from mcp_baf.client import OneCClient
-from mcp_baf.pii import mask_pii_result
+from mcp_baf.pii import MASKING_NOTE, mask_pii_result
 from mcp_baf.tools.common import clamp_limit, escape_pipe, format_cell, traced_text
 
 DEFAULT_QUERY_LIMIT = 100
@@ -46,7 +46,7 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter,
             "Перечисления НЕ являются таблицами: используй ЗНАЧЕНИЕ(Перечисление.Имя.Значение) в WHERE/CASE. "
             "Виртуальные таблицы регистров: РегистрНакопления.X.Остатки(&Период), .Обороты(&НачалоПериода, &КонецПериода), "
             "РегистрСведений.X.СрезПоследних(&Период). "
-            "Имена полей бери из get_object_structure."
+            "Имена полей бери из get_object_structure. " + MASKING_NOTE
         ),
         annotations=ToolAnnotations(read_only_hint=True),
     )
@@ -128,6 +128,16 @@ def format_query_result(r: dict[str, Any], offset: int = 0) -> str:
             "> Результат усечён. Показаны записи начиная с offset "
             f"{offset}. Увеличьте `limit` или сдвиньте `offset` "
             f"(следующая страница: offset={offset + len(rows)})."
+        )
+
+    masked_columns = r.get("masked_columns")
+    if masked_columns:
+        # Агенту видно, каким столбцам не доверять: там стоят PII-токены,
+        # равные токены = равные исходные значения (сеанговые join возможны).
+        lines.append("")
+        lines.append(
+            "> --mask-pii: заменены токенами PII столбцы: "
+            + ", ".join(escape_pipe(str(c)) for c in masked_columns)
         )
 
     return "\n".join(lines) + "\n"
