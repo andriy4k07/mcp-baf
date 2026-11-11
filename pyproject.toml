@@ -8,10 +8,19 @@ authors = [{ name = "andriy4k07" }]
 requires-python = ">=3.11"
 dependencies = [
     "mcp>=2.3,<3",
-    "httpx>=0.27",
+    "httpx>=0.27,<1",
     # https-транспорт: самоподписанный CA (tls.py); приходит и через mcp,
     # но импортируется напрямую.
-    "cryptography>=42",
+    "cryptography>=42,<51",
+    # Импортируются напрямую (config/__main__/server/tools), но раньше
+    # приходили транзитивно через mcp — объявляем явно, чтобы pip ставил
+    # именно то, на что рассчитан код.
+    "pydantic>=2.12,<3",
+    "uvicorn>=0.31,<1",
+    "anyio>=4.9,<5",
+    # Корневой набор CA для httpx/ssl. Ниже 2026.10.23 — скомпрометированные
+    # промежуточные CA (GHSA-6q48-6c7w-9gw2).
+    "certifi>=2026.10.23",
     # Общий контракт аудита (schema v2: канонические события, one_c.http,
     # сквозной trace_id). В монорепо ставится из ../mcp-baf-audit
     # (pip install -e ../mcp-baf-audit); пин по тегу: mcp-baf-audit==0.2.1

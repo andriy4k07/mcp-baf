@@ -31,6 +31,11 @@ DEFAULT_MAX_RESPONSE_SIZE_MIB = 128
 # для передачи крупных ответов 1С.
 DEFAULT_REQUEST_TIMEOUT = 300
 
+# Дедлайн всего запроса к 1С, в секундах: охватывает все попытки и повторы
+# вместе. Read-таймаут выше — на чанк, поэтому «капающий» ответ (1С отдаёт
+# по байту) жил бы бесконечно. Дедлайн — потолок на весь вызов.
+DEFAULT_REQUEST_DEADLINE = 600
+
 # Таймауты httpx по фазам. connect короткий: недоступный хост/порт должен
 # падать за секунды, а не висеть 300 с. read совпадает с request_timeout.
 DEFAULT_CONNECT_TIMEOUT = 10
@@ -53,6 +58,8 @@ class Config:
     max_response_size_mib: int = DEFAULT_MAX_RESPONSE_SIZE_MIB
     # Таймаут чтения ответа 1С (фаза read у httpx), секунды.
     request_timeout: int = DEFAULT_REQUEST_TIMEOUT
+    # Дедлайн всего запроса к 1С (все попытки вместе), секунды.
+    request_deadline: int = DEFAULT_REQUEST_DEADLINE
     # Остальные фазы httpx: установка соединения, отправка тела, ожидание
     # свободного слота в пуле. connect намеренно короткий.
     connect_timeout: int = DEFAULT_CONNECT_TIMEOUT
@@ -265,6 +272,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
              f"Default: {DEFAULT_REQUEST_TIMEOUT}.",
     )
     parser.add_argument(
+        "--request-deadline", type=int, default=None, metavar="SECONDS",
+        help="Deadline for the whole 1C request including all retries, in "
+             "seconds (env mcp_baf_REQUEST_DEADLINE). A read timeout applies "
+             "per chunk, so a dripping response would otherwise never end. "
+             f"0 disables the deadline. Default: {DEFAULT_REQUEST_DEADLINE}.",
+    )
+    parser.add_argument(
         "--connect-timeout", type=int, default=0, metavar="SECONDS",
         help="Connect timeout to 1C (env mcp_baf_CONNECT_TIMEOUT). "
              f"Default: {DEFAULT_CONNECT_TIMEOUT}.",
@@ -375,6 +389,7 @@ def load_config(args: argparse.Namespace) -> Config:
             "mcp_baf_MAX_RESPONSE_SIZE", DEFAULT_MAX_RESPONSE_SIZE_MIB
         ),
         request_timeout=_env_int("mcp_baf_REQUEST_TIMEOUT", DEFAULT_REQUEST_TIMEOUT),
+        request_deadline=_env_int_nonneg("mcp_baf_REQUEST_DEADLINE", DEFAULT_REQUEST_DEADLINE),
         connect_timeout=_env_int("mcp_baf_CONNECT_TIMEOUT", DEFAULT_CONNECT_TIMEOUT),
         write_timeout=_env_int("mcp_baf_WRITE_TIMEOUT", DEFAULT_WRITE_TIMEOUT),
         pool_timeout=_env_int("mcp_baf_POOL_TIMEOUT", DEFAULT_POOL_TIMEOUT),
@@ -415,6 +430,8 @@ def load_config(args: argparse.Namespace) -> Config:
         cfg.max_response_size_mib = args.max_response_size
     if args.request_timeout > 0:
         cfg.request_timeout = args.request_timeout
+    if args.request_deadline is not None and args.request_deadline >= 0:
+        cfg.request_deadline = args.request_deadline
     if args.connect_timeout > 0:
         cfg.connect_timeout = args.connect_timeout
     if args.write_timeout > 0:
