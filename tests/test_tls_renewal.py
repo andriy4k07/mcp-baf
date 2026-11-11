@@ -259,3 +259,41 @@ def test_ca_near_expiry_rebuilds_whole_bundle(tmp_path):
     assert _load_cert(os.path.join(directory, CA_CERT_NAME)).not_valid_after_utc > (
         datetime.datetime.now(UTC) + datetime.timedelta(days=LEAF_RENEW_BEFORE_DAYS)
     )
+
+
+def test_new_host_not_in_san_renews_leaf_keeping_ca(tmp_path):
+    """hosts поменяли после первого старта: SAN старого листа их не покрывает.
+
+    Комплект валиден и свеж, поэтому раньше лист не трогали — клиент с новым
+    именем падал на верификации. Теперь SAN-раз mismatch перевыпускает лист
+    тем же CA.
+    """
+    directory = str(tmp_path)
+    ca, cert, _key = ensure_self_signed(directory, HOSTS)
+    ca_digest = _digest(ca)
+    old_digest = _digest(cert)
+
+    extra = self_signed_hosts("mcp-baf", "mcp-new.example.lan")
+    assert "mcp-new.example.lan" not in HOSTS
+    ensure_self_signed(directory, extra)
+
+    assert _digest(cert) != old_digest, "лист не перевыпущен при смене hosts"
+    assert _digest(ca) == ca_digest, "CA пересоздан, хотя должен был остаться"
+    _assert_bundle_consistent(directory)
+    assert _fresh_enough(cert)
+    san = _load_cert(cert).extensions.get_extension_for_class(x509.SubjectAlternativeName)
+    names = set(san.value.get_values_for_type(x509.DNSName))
+    assert "mcp-new.example.lan" in names
+    assert "mcp-baf" in names and "localhost" in names
+
+
+def test_san_covering_hosts_keeps_fresh_bundle(tmp_path):
+    """Обратный случай: SAN уже покрывает hosts — лист не трогаем."""
+    directory = str(tmp_path)
+    ca, cert, key = ensure_self_signed(directory, HOSTS)
+    ca_key = os.path.join(directory, CA_KEY_NAME)
+    before = {p: _digest(p) for p in (ca, cert, key, ca_key)}
+
+    ensure_self_signed(directory, HOSTS)
+
+    assert {p: _digest(p) for p in (ca, cert, key, ca_key)} == before
