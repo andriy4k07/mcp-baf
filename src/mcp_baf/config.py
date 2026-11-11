@@ -272,11 +272,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
              f"Default: {DEFAULT_REQUEST_TIMEOUT}.",
     )
     parser.add_argument(
-        "--request-deadline", type=int, default=0, metavar="SECONDS",
+        "--request-deadline", type=int, default=None, metavar="SECONDS",
         help="Deadline for the whole 1C request including all retries, in "
              "seconds (env mcp_baf_REQUEST_DEADLINE). A read timeout applies "
              "per chunk, so a dripping response would otherwise never end. "
-             f"Default: {DEFAULT_REQUEST_DEADLINE}.",
+             f"0 disables the deadline. Default: {DEFAULT_REQUEST_DEADLINE}.",
     )
     parser.add_argument(
         "--connect-timeout", type=int, default=0, metavar="SECONDS",
@@ -389,7 +389,7 @@ def load_config(args: argparse.Namespace) -> Config:
             "mcp_baf_MAX_RESPONSE_SIZE", DEFAULT_MAX_RESPONSE_SIZE_MIB
         ),
         request_timeout=_env_int("mcp_baf_REQUEST_TIMEOUT", DEFAULT_REQUEST_TIMEOUT),
-        request_deadline=_env_int("mcp_baf_REQUEST_DEADLINE", DEFAULT_REQUEST_DEADLINE),
+        request_deadline=_env_int_nonneg("mcp_baf_REQUEST_DEADLINE", DEFAULT_REQUEST_DEADLINE),
         connect_timeout=_env_int("mcp_baf_CONNECT_TIMEOUT", DEFAULT_CONNECT_TIMEOUT),
         write_timeout=_env_int("mcp_baf_WRITE_TIMEOUT", DEFAULT_WRITE_TIMEOUT),
         pool_timeout=_env_int("mcp_baf_POOL_TIMEOUT", DEFAULT_POOL_TIMEOUT),
@@ -430,7 +430,7 @@ def load_config(args: argparse.Namespace) -> Config:
         cfg.max_response_size_mib = args.max_response_size
     if args.request_timeout > 0:
         cfg.request_timeout = args.request_timeout
-    if args.request_deadline > 0:
+    if args.request_deadline is not None and args.request_deadline >= 0:
         cfg.request_deadline = args.request_deadline
     if args.connect_timeout > 0:
         cfg.connect_timeout = args.connect_timeout
