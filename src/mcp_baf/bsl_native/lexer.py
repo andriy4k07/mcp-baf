@@ -56,6 +56,9 @@ def lex(source: str) -> tuple[list[Token], list[Diagnostic]]:
     tokens = []
     diagnostics = []
     offset, line, column = 0, 1, 1
+    # До текущей позиции в физической строке только пробельные символы (#65):
+    # флаг вместо rfind+slice+strip на каждый символ (был квадратичный).
+    blank = True
     while offset < len(source):
         start, token_line, token_column = offset, line, column
         char = source[offset]
@@ -66,7 +69,7 @@ def lex(source: str) -> tuple[list[Token], list[Diagnostic]]:
             end = source.find('\n', offset)
             end = len(source) if end < 0 else end
             kind = 'comment'
-        elif char in '#&' and not source[source.rfind('\n', 0, offset) + 1:offset].strip(' \t\r\ufeff'):
+        elif char in '#&' and blank:
             end = source.find('\n', offset)
             end = len(source) if end < 0 else end
             kind = 'directive' if char == '#' else 'annotation'
@@ -129,9 +132,12 @@ def lex(source: str) -> tuple[list[Token], list[Diagnostic]]:
         newline_count = text.count('\n')
         if newline_count:
             line += newline_count
-            column = len(text.rsplit('\n', 1)[-1]) + 1
+            tail = text.rsplit('\n', 1)[-1]
+            column = len(tail) + 1
+            blank = not tail.strip(' \t\r\ufeff')
         else:
             column += len(text)
+            blank = blank and not text.strip(' \t\r\ufeff')
         offset = end
     tokens.append(Token('eof', '', len(source), len(source), line, column))
     return tokens, diagnostics
