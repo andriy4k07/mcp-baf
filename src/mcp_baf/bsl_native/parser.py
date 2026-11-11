@@ -18,6 +18,8 @@ class Node:
     children: list[Node] = field(default_factory=list)
     declarations: list[Token] = field(default_factory=list)
     reads: list[Token] = field(default_factory=list)
+    # Имя объявления для procedure/function; нужно диагностике имён.
+    name: Token | None = None
 
 
 class ParseFailure(Exception):
@@ -222,7 +224,7 @@ class Parser:
         kind = self.take().kind
         if kind not in {'procedure','function'}:
             raise ParseFailure(token, 'После Асинх ожидается процедура или функция')
-        self.take('identifier')
+        name = self.take('identifier')
         self.take('(')
         parameters = []
         if self.current.kind != ')':
@@ -238,10 +240,10 @@ class Parser:
             header_end = export
         self.open_indent(header_end)
         seen = set()
-        for name in parameters:
-            key = name.text.casefold()
+        for parameter_name in parameters:
+            key = parameter_name.text.casefold()
             if key in seen:
-                self.error(name, 'Повторное имя параметра', 'DuplicateParameter')
+                self.error(parameter_name, 'Повторное имя параметра', 'DuplicateParameter')
             seen.add(key)
         self.method = kind
         try:
@@ -249,7 +251,7 @@ class Parser:
         finally:
             self.method = ''
         self.close_indent(self.take('end'+kind))
-        return Node(kind, token, children, declarations=parameters)
+        return Node(kind, token, children, declarations=parameters, name=name)
 
     def expression(self, minimum=0):
         self.depth += 1
