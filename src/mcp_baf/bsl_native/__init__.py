@@ -114,18 +114,78 @@ def _directives(tokens):
     return diagnostics
 
 
+# Метод _semantic уже покладається на обчислений прапорець `conditional`
+# (див. придушення DuplicateVariable): код у гілкових директивах може не
+# компілюватися. Те саме правило застосовуємо до ReservedDeclarationName, але
+# точніше — за рядками: компілятор 1С гарантовано не компілює гілки з хибним
+# літеральним умовою, а непередбачувані умови (Сервер, Клиент...) можуть
+# виключити код із збірки. Тож оголошення в таких рядках не чіпаємо, тоді як
+# гілки з істинним літеральним умовою лишаються під перевіркою.
+PREPROCESSOR_TRUE_WORDS = frozenset({'истина', 'true'})
+PREPROCESSOR_FALSE_WORDS = frozenset({'ложь', 'false'})
+
+
+def _branch_state(condition_text):
+    condition = condition_text.strip().rstrip('.').casefold()
+    condition = re.sub(r'\s+(?:тогда|then)$', '', condition).strip()
+    if condition in PREPROCESSOR_TRUE_WORDS:
+        return 'active'
+    if condition in PREPROCESSOR_FALSE_WORDS:
+        return 'dead'
+    return 'unknown'
+
+
+def _preprocessor_dead_lines(tokens):
+    """Рядки, які компілятор не компілює достовірно або ймовірно (dead/unknown)."""
+    dead_lines, stack = set(), []
+    for token in tokens:
+        if token.kind == 'eof':
+            continue
+        if token.kind != 'directive':
+            if any(block['state'] != 'active' for block in stack):
+                dead_lines.add(token.line)
+            continue
+        match = re.match(r'#\s*(\w+)(.*)', token.text, re.I)
+        if not match:
+            continue
+        word = match[1].casefold()
+        if word in {'если', 'if'}:
+            state = _branch_state(match[2])
+            stack.append({'state': state, 'states': [state]})
+        elif word in {'иначеесли', 'elsif'} and stack:
+            # Перша достовірно істинна гілка робить наступні мертвими.
+            state = 'dead' if 'active' in stack[-1]['states'] else _branch_state(match[2])
+            stack[-1]['states'].append(state)
+            stack[-1]['state'] = state
+        elif word in {'иначе', 'else'} and stack:
+            if 'active' in stack[-1]['states']:
+                state = 'dead'
+            elif 'unknown' in stack[-1]['states']:
+                state = 'unknown'
+            else:
+                state = 'active'
+            stack[-1]['states'].append(state)
+            stack[-1]['state'] = state
+        elif word in {'конецесли', 'endif'} and stack:
+            stack.pop()
+    return dead_lines
+
+
 def _walk(nodes):
     for node in nodes:
         yield node
         yield from _walk(node.children)
 
 
-def _semantic(nodes, conditional, dynamic_eval):
+def _semantic(nodes, conditional, dynamic_eval, dead_lines):
     diagnostics = []
     for method in (node for node in nodes if node.kind in {'procedure', 'function'}):
         # Виклики на кшталт Массив.Найти() — вузли member/call, сюди не доходять:
         # перевіряється лише іменник оголошення, а не будь-який токен імені.
-        if method.name is not None and method.name.text.casefold() in RESERVED_DECLARATION_NAMES:
+        # Гілки препроцесора, які компілятор не компілює, придушаються за
+        # рядками (той самий підхід, що й `conditional` нижче).
+        if (method.name is not None and method.name.text.casefold() in RESERVED_DECLARATION_NAMES
+                and method.name.line not in dead_lines):
             diagnostics.append(Diagnostic(
                 'ReservedDeclarationName',
                 'Имя объявления зарезервировано встроенным методом платформы и будет отклонено компилятором',
@@ -175,7 +235,7 @@ def _inspect(source):
         else:
             conditional = any(t.kind == 'directive' and re.match(r'#\s*(если|if)\b', t.text, re.I) for t in tokens)
             dynamic_eval = any(t.kind == 'identifier' and t.text.casefold() in {'вычислить', 'eval'} for t in tokens)
-            diagnostics.extend(_semantic(nodes, conditional, dynamic_eval))
+            diagnostics.extend(_semantic(nodes, conditional, dynamic_eval, _preprocessor_dead_lines(tokens)))
         diagnostics.extend(parser.diagnostics)
     # Строковые литералы, включая продолжения, должны сохраняться побайтно.
     protected = set()
