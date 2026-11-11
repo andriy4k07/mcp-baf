@@ -76,3 +76,22 @@ def test_event_log_tool_output_is_limited(tmp_path):
     text = asyncio.run(scenario())
     assert len(text) <= MAX_TOOL_OUTPUT_CHARS + 400
     assert "усечён" in text
+
+
+def test_event_log_400_from_extension_becomes_tool_error(tmp_path):
+    import asyncio
+    import httpx
+    import pytest
+    from mcp.server.mcpserver import MCPServer
+    from mcp.server.mcpserver.exceptions import ToolError
+    from mcp_baf_audit import AuditLog
+    from mcp_baf.client import OneCClient
+    from mcp_baf.config import Config
+    from mcp_baf.tools import eventlog
+
+    client = OneCClient(Config(base_url="http://test"), httpx.MockTransport(
+        lambda r: httpx.Response(400, json={"error": "start_date: expected ISO 8601 date"})))
+    server = MCPServer("test")
+    eventlog.register(server, client, AuditLog(str(tmp_path)))
+    with pytest.raises(ToolError, match="start_date"):
+        asyncio.run(server.call_tool("get_event_log", {"start_date": "01.03.2026"}))
