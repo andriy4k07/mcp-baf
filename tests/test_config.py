@@ -149,8 +149,13 @@ def test_request_deadline_from_env_and_cli(clean_env):
     clean_env.setenv("mcp_baf_REQUEST_DEADLINE", "90")
     assert load_config(parse_args([])).request_deadline == 90
     assert load_config(parse_args(["--request-deadline", "45"])).request_deadline == 45
-    # некоректне/непозитивне значення ігнорується — лишається дефолт
+    # 0 вимикає дедлайн (env і CLI), від'ємне/некоректне — лишається дефолт
     clean_env.setenv("mcp_baf_REQUEST_DEADLINE", "0")
+    assert load_config(parse_args([])).request_deadline == 0
+    clean_env.setenv("mcp_baf_REQUEST_DEADLINE", "-5")
+    assert load_config(parse_args([])).request_deadline == 600
+    assert load_config(parse_args(["--request-deadline", "0"])).request_deadline == 0
+    clean_env.delenv("mcp_baf_REQUEST_DEADLINE")
     assert load_config(parse_args([])).request_deadline == 600
 
 

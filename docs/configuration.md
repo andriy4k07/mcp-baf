@@ -61,7 +61,7 @@
 | `--pass` / `--password` | `mcp_baf_PASSWORD` | — | Пароль HTTP-сервісу 1С |
 | `--max-response-size` | `mcp_baf_MAX_RESPONSE_SIZE` | `128` | Максимальний розмір відповіді 1С у мебібайтах (MiB) |
 | `--request-timeout` | `mcp_baf_REQUEST_TIMEOUT` | `300` | Таймаут фази **read** (очікування відповіді 1С) у секундах | 
-| `--request-deadline` | `mcp_baf_REQUEST_DEADLINE` | `600` | Дедлайн **усього** запиту до 1С разом з усіма повторами, у секундах. Read-таймаут діє на чанк, тому без дедлайна повільний «капаючий» потік жив би нескінченно; перевищення дає `error_kind=timeout` в `audit.log` |
+| `--request-deadline` | `mcp_baf_REQUEST_DEADLINE` | `600` | Дедлайн **усього** запиту до 1С разом з усіма повторами, у секундах. Read-таймаут діє на чанк, тому без дедлайна повільний «капаючий» потік жив би нескінченно; перевищення дає `error_kind=timeout` в `audit.log`; `0` — без дедлайна |
 | `--connect-timeout` | `mcp_baf_CONNECT_TIMEOUT` | `10` | Таймаут фази **connect** (TCP + TLS-рукостискання). Короткий навмисно: недоступний хост падає за секунди, а не за 300 |
 | `--write-timeout` | `mcp_baf_WRITE_TIMEOUT` | `60` | Таймаут фази **write** (відправка тіла запиту) |
 | `--pool-timeout` | `mcp_baf_POOL_TIMEOUT` | `10` | Таймаут очікування вільного з'єднання в пулі httpx |
@@ -165,6 +165,7 @@ CA: `docker compose cp mcp-baf:/data/tls/ca.crt .`.
   разом з усіма повторами (`asyncio.timeout` навколо retry-циклу). Read-таймаут
   діє на чанк, тож 1С, що віддає відповідь по байту, жила б нескінченно;
   перевищення дедлайну дає `OneCError` і `error_kind=timeout` в `audit.log`.
+  `0` вимикає дедлайн (тоді стелі немає — лише read-таймаут на чанк).
 
 - **Таймаути по фазах.** `httpx.Timeout` розділений: **connect** —
   `--connect-timeout` (типово **10 с**), **read** — `--request-timeout`
