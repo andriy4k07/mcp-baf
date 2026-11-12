@@ -14,7 +14,11 @@ from pydantic import Field
 from mcp_baf_audit import AuditWriter
 from mcp_baf import bsl
 from mcp_baf.pii import audit_text
-from mcp_baf.tools.common import traced_text
+from mcp_baf.tools.common import traced_text, truncate_output
+
+# Слишком короткий запрос («с») совпал бы почти со всем справочником.
+MIN_QUERY_CHARS = 2
+MAX_FUNCTIONS = 10
 
 
 def register(mcp: MCPServer, audit: AuditWriter) -> None:
@@ -39,10 +43,22 @@ def register(mcp: MCPServer, audit: AuditWriter) -> None:
         ))],
     ) -> str:
         async def run() -> str:
-            results = bsl.search(query)
+            q = query.strip()
+            if len(q) < MIN_QUERY_CHARS:
+                raise ValueError(
+                    f"query: нужно минимум {MIN_QUERY_CHARS} символа — название функции "
+                    "или его часть, например СтрНайти"
+                )
+            results = bsl.search(q)
             if not results:
-                return f'Функция "{query}" не найдена в справочнике BSL.'
-            return format_functions(results)
+                return f'Функция "{q}" не найдена в справочнике BSL.'
+            text = format_functions(results[:MAX_FUNCTIONS])
+            if len(results) > MAX_FUNCTIONS:
+                text += (
+                    f"\n\n> Показано {MAX_FUNCTIONS} из {len(results)} совпавших функций "
+                    f"(ещё {len(results) - MAX_FUNCTIONS}) — уточните название."
+                )
+            return truncate_output(text)
 
         return await traced_text(
             audit, "bsl_syntax_help", run, args={"query": audit_text(query)}
