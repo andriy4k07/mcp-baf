@@ -46,10 +46,15 @@ PII_COLUMN_MARKERS = tuple(m.lower() for m in (
     "Password", "Login", "Token",
     "СНИЛС", "НомерКарты", "ЛицевойСчет", "Серия", "Номер", "КемВыдан",
 ))
-# shortcut: алиасы колонок ищутся лёгким regex по тексту запроса `<выражение> КАК <алиас>`;
-# вычисляемые выражения, скрывающие имя поля, и вложенные подзапросы — best effort,
-# заменить на настоящий разбор запроса при необходимости
-_ALIAS_RE = re.compile(r"([^,]*?)\s+(?:КАК|AS)\s+(\w+)", re.IGNORECASE)
+# Токены для поиска алиасов: строковый литерал ("" — экранирование) и
+# комментарий пропускаются, чтобы запятые/скобки внутри не резали выражение.
+# shortcut: алиас маскируется, только если в его выражении есть имя поля с
+# маркером ПДн; ПДн под «нейтральным» именем (Наименование, поле вложенного
+# запроса без алиаса, ВЫБРАТЬ *) ловит лишь regex значений — заменить на
+# разбор запроса с метаданными, если такие колонки начнут утекать
+_ALIAS_TOKEN_RE = re.compile(r'"(?:[^"]|"")*"?|//[^\n]*|\w+|[(),]')
+_ALIAS_WORDS = frozenset({"как", "as"})
+_CAST_WORDS = frozenset({"выразить", "cast"})  # КАК внутри них — тип, не алиас
 # Украинские телефоны (+380XXXXXXXXX, 0XXXXXXXXX с пробелами/дефисами/
 # скобками) и email.
 _EMAIL_RE = r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"
@@ -318,11 +323,46 @@ def _is_pii_name(name: str) -> bool:
 
 
 def _pii_aliases(query: str) -> set[str]:
-    """Алиасы `КАК X`, чьё выражение содержит чувствительное поле (в нижнем регистре)."""
-    return {
-        m.group(2).lower() for m in _ALIAS_RE.finditer(query)
-        if any(_is_pii_name(part) for part in re.findall(r"\w+", m.group(1)))
-    }
+    """Алиасы `КАК X`, чьё выражение содержит чувствительное поле (в нижнем регистре).
+
+    Выражение алиаса — всё от предыдущей запятой (или предыдущего алиаса)
+    того же уровня скобок: `ЕСТЬNULL(Ф.ИНН, "") КАК Код` видит ИНН, хотя
+    внутри есть запятая. Слова из скобок поднимаются в выражение уровнем
+    выше; `КАК` внутри ВЫРАЗИТЬ/CAST задаёт тип и алиасом не считается.
+    """
+    aliases: set[str] = set()
+    # Кадр на уровень скобок: [слова с последней запятой/алиаса, все слова, cast].
+    stack: list[list[Any]] = [[[], [], False]]
+    prev = ""
+    expect_alias = False
+    for m in _ALIAS_TOKEN_RE.finditer(query):
+        tok = m.group()
+        if tok[0] in '"/':
+            continue
+        local, every, cast = stack[-1]
+        if tok == "(":
+            stack.append([[], [], prev in _CAST_WORDS])
+        elif tok == ")":
+            if len(stack) > 1:
+                inner = stack.pop()[1]
+                stack[-1][0].extend(inner)
+                stack[-1][1].extend(inner)
+        elif tok == ",":
+            local.clear()
+        elif expect_alias:
+            if any(_is_pii_name(w) for w in local):
+                aliases.add(tok.lower())
+            local.clear()
+        elif tok.lower() in _ALIAS_WORDS and not cast:
+            expect_alias = True
+            prev = tok.lower()
+            continue
+        else:
+            local.append(tok)
+            every.append(tok)
+        expect_alias = False
+        prev = tok.lower()
+    return aliases
 
 
 def mask_pii_result(r: dict[str, Any], query: str | None = None) -> dict[str, Any]:
