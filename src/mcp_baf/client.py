@@ -255,9 +255,15 @@ class OneCClient:
                 state["status"] = resp.status_code
                 if resp.status_code != 200:
                     # Тело ошибки 1С не утекает к агенту: маскируем ПДн и режем.
+                    # Читаем не больше 4 КиБ: aread() буферизовал бы страницу
+                    # ошибки прокси любого размера (и gzip-бомбу) мимо лимита.
+                    head = bytearray()
+                    async for chunk in resp.aiter_bytes():
+                        head.extend(chunk)
+                        if len(head) >= 4096:
+                            break
                     detail = self._safe_error_detail(
-                        (await resp.aread())[:4096].decode("utf-8", "replace"),
-                        endpoint=endpoint,
+                        head[:4096].decode("utf-8", "replace"), endpoint=endpoint,
                     )
                     state["error_kind"] = f"http_{resp.status_code}"
                     message = f"1C returned status {resp.status_code}: {detail}"
