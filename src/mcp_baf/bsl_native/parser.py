@@ -186,8 +186,6 @@ class Parser:
         if kind in {'return','raise','break','continue','goto','execute','addhandler','removehandler'}:
             self.take()
             reads = []
-            if kind == 'return' and not self.method:
-                self.error(token, 'Возврат допустим только внутри метода')
             if kind in {'break','continue'} and not self.loops:
                 self.error(token, 'Оператор допустим только внутри цикла')
             if kind == 'goto':

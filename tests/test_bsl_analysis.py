@@ -386,3 +386,17 @@ def test_bare_raise_before_except_and_end_of_method():
     for src in ('Попытка\nВызватьИсключение\nИсключение\nКонецПопытки;', 'Try\nRaise\nExcept\nСообщить(1);\nEndTry;',
                 'Процедура П()\nВызватьИсключение\nКонецПроцедуры', 'Function F()\nRaise\nEndFunction'):
         assert 'ParseError' not in codes(src), src
+
+
+@pytest.mark.parametrize('src', [
+    'Перем А;\nЕсли А Тогда\n Возврат;\nКонецЕсли;',
+    'Var A;\nIf A Then\n Return;\nEndIf;',
+    'Процедура П()\nКонецПроцедуры\nВозврат;',
+])
+def test_module_level_return_without_value_is_accepted(src):
+    assert not {'ParseError', 'UnreachableCode'} & set(codes(src))
+    assert format_source(format_source(src)) == format_source(src)
+
+
+def test_module_level_return_with_value_is_still_an_error():
+    assert 'ParseError' in codes('Возврат 1;')
