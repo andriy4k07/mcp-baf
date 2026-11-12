@@ -173,7 +173,7 @@ def register(mcp: MCPServer) -> None:
    - Как он используется в бизнес-процессах предприятия"""
 
     @mcp.prompt(
-        name="1c_query_syntax",
+        name="baf_query_syntax",
         description=(
             "Синтаксис запросов 1С: таблицы, виртуальные таблицы, перечисления, "
             "типичные ошибки"
@@ -250,7 +250,7 @@ def register(mcp: MCPServer) -> None:
 3. Вызови execute_query для выполнения проверенного запроса"""
 
     @mcp.prompt(
-        name="1c_metadata_navigation",
+        name="baf_metadata_navigation",
         description=(
             "Навигация по метаданным конфигурации 1С: порядок исследования, "
             "маппинг категорий"
@@ -296,7 +296,7 @@ def register(mcp: MCPServer) -> None:
 - get_metadata_tree / get_object_structure: для структуры данных (какие поля, типы, связи между объектами)"""
 
     @mcp.prompt(
-        name="1c_development_workflow",
+        name="baf_development_workflow",
         description="Рабочий процесс разработки на 1С: пошаговый workflow и чеклист",
     )
     def development_workflow(
