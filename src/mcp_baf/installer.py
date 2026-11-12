@@ -187,7 +187,7 @@ def _designer_log_is_fatal(log: str) -> bool:
     return bool(_DESIGNER_FATAL_LOG_RE.search(log))
 
 
-def resolve_db_password(cli_password: str = "") -> str:
+def resolve_db_password(cli_password: str = "", warn: bool = True) -> str:
     """Пароль базы для DESIGNER: CLI > mcp_baf_DB_PASSWORD > _FILE.
 
     DESIGNER принимает пароль только аргументом /P, поэтому он неизбежно
@@ -201,12 +201,13 @@ def resolve_db_password(cli_password: str = "") -> str:
     путь, но никогда не содержимое.
     """
     if cli_password:
-        print(
-            "Внимание: --db-password попадает в ps и в историю команд. "
-            f"Надёжнее {_DB_PASSWORD_FILE_ENV}=/path/to/secret "
-            f"(или {_DB_PASSWORD_ENV}).",
-            file=sys.stderr,
-        )
+        if warn:  # warn=False: пароль уже разрешён вызывающим (__main__)
+            print(
+                "Внимание: --db-password попадает в ps и в историю команд. "
+                f"Надёжнее {_DB_PASSWORD_FILE_ENV}=/path/to/secret "
+                f"(или {_DB_PASSWORD_ENV}).",
+                file=sys.stderr,
+            )
         return cli_password
 
     value = os.environ.get(_DB_PASSWORD_ENV, "")
@@ -218,7 +219,8 @@ def resolve_db_password(cli_password: str = "") -> str:
             f"задайте лише одне з {_DB_PASSWORD_ENV} / {_DB_PASSWORD_FILE_ENV}"
         )
     try:
-        with open(path, encoding="utf-8") as f:
+        # utf-8-sig: BOM из Блокнота Windows иначе станет частью пароля.
+        with open(path, encoding="utf-8-sig") as f:
             return f.read().rstrip("\r\n")
     except (OSError, UnicodeDecodeError) as exc:
         # str(exc) у UnicodeDecodeError содержит байты файла — берём тип.
@@ -268,7 +270,7 @@ def install(
             f"unsupported --lang value: {lang!r} "
             f"(supported: {', '.join(SUPPORTED_LANGS)})"
         )
-    db_password = resolve_db_password(db_password)
+    db_password = resolve_db_password(db_password, warn=False)
     if not platform_exe:
         platform_exe = find_platform()
     print(f"Platform: {platform_exe}")
@@ -331,7 +333,7 @@ def dump(
     db_password: пусто — берётся из mcp_baf_DB_PASSWORD или
     mcp_baf_DB_PASSWORD_FILE (см. resolve_db_password).
     """
-    db_password = resolve_db_password(db_password)
+    db_password = resolve_db_password(db_password, warn=False)
     # Имена расширений в 1С регистронезависимы — дубль означал бы повторную выгрузку.
     names = list({_safe_extension_name(n).casefold(): _safe_extension_name(n)
                   for n in (extensions or [])}.values()) \
@@ -393,6 +395,8 @@ def dump(
 
     for name in names:
         ext_dir = os.path.join(out_dir, name)
+        # Остатки прошлой выгрузки (удалённые объекты) попали бы в индекс.
+        shutil.rmtree(ext_dir, ignore_errors=True)
         print(f"Exporting extension: {name} -> {ext_dir}")
         result["extensions"][name] = run(
             "/DumpConfigToFiles", ext_dir, "-Extension", name)
@@ -425,7 +429,7 @@ def _install_from(
     localize_extension(ext_dir, lang)
 
     # Версия формата XML подгоняется под целевую платформу.
-    patch_format_version(ext_dir, format_version_for_platform(platform_exe))
+    patch_format_version(ext_dir, format_version_for_platform(platform_exe, platform_version))
 
     cfg_path = os.path.join(ext_dir, "Configuration.xml")
     major, minor = parse_platform_version(platform_exe, platform_version)
@@ -458,6 +462,7 @@ def _install_from(
     # «Уже существует».
     print("Loading extension into database...")
     error = load()
+    first_error = error
 
     if error is not None and _error_contains(error, "Уже существует", "Вже існує"):
         delete_error = _run_designer(
@@ -470,6 +475,14 @@ def _install_from(
             )
         print("Removed old extension:", EXTENSION_NAME)
         error = load()
+        if error is not None:
+            # Старое расширение уже удалено, а новое не встало — база без него.
+            raise InstallError(
+                f"ВНИМАНИЕ: старое расширение {EXTENSION_NAME} УЖЕ УДАЛЕНО из базы, "
+                "а новое загрузить не удалось; расширение нужно установить заново "
+                f"после исправления ошибки.\nПервая ошибка: {first_error}\n"
+                f"Ошибка повторной загрузки: {error}"
+            )
 
     if error is not None:
         # Платформы старше 8.3.15 не знают KeepMapping/InternalInfo/ClassId
@@ -523,9 +536,10 @@ def _install_from(
                 role_note_needed = True
 
         if error is not None:
-            raise classify_designer_error(
-                f"loading extension config: {error}"
-            )
+            msg = f"loading extension config: {error}"
+            if first_error is not None and first_error != error:
+                msg += f"\n(первая ошибка, до повторов: {first_error})"
+            raise classify_designer_error(msg)
 
     # Применение расширения к базе — отдельный обязательный вызов.
     print("Updating database...")
@@ -737,10 +751,12 @@ def extract_platform_minor(source: str) -> tuple[int, int]:
 
     Для "8.3.27.1859" возвращает (3, 27); (0, 0) — версия не распознана.
     """
-    m = _PLATFORM_VERSION_RE.search(source)
-    if m is None:
+    # Последнее вхождение: в путях вроде /opt/8.3.1x-backup/8.3.27.1859/bin
+    # версия платформы идёт в самом глубоком компоненте.
+    matches = _PLATFORM_VERSION_RE.findall(source)
+    if not matches:
         return 0, 0
-    return int(m.group(1)), int(m.group(2))
+    return int(matches[-1][0]), int(matches[-1][1])
 
 
 def parse_platform_version(platform_exe: str, override_version: str) -> tuple[int, int]:
@@ -748,12 +764,12 @@ def parse_platform_version(platform_exe: str, override_version: str) -> tuple[in
     return extract_platform_minor(override_version or platform_exe)
 
 
-def format_version_for_platform(platform_exe: str) -> str:
+def format_version_for_platform(platform_exe: str, override_version: str = "") -> str:
     """Лучшая версия формата XML-выгрузки для данной платформы."""
-    major, minor = extract_platform_minor(platform_exe)
+    major, minor = parse_platform_version(platform_exe, override_version)
     if major == 0:
         return DEFAULT_FORMAT_VERSION
-    if major >= 5:
+    if major > 3:
         return PLATFORM_85_FORMAT_VERSION
     if major == 3:
         for min_minor, version in PLATFORM_FORMAT_VERSIONS:
@@ -832,7 +848,8 @@ def localize_extension(ext_dir: str, lang: str) -> None:
 
 def _replace_or_insert_xml_tag(content: str, tag: str, value: str) -> str:
     """Заменяет значение тега или вставляет новый тег перед </Properties>."""
-    pattern = re.compile(rf"<{tag}>[^<]+</{tag}>")
+    # Пустой <Tag></Tag> и самозакрытый <Tag/> тоже заменяются, иначе вставка дала бы дубль.
+    pattern = re.compile(rf"<{tag}>[^<]*</{tag}>|<{tag}\s*/>")
     replacement = f"<{tag}>{value}</{tag}>"
     if pattern.search(content):
         return pattern.sub(replacement, content)

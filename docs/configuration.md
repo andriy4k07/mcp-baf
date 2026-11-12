@@ -66,6 +66,7 @@
 | `--connect-timeout` | `mcp_baf_CONNECT_TIMEOUT` | `10` | Таймаут фази **connect** (TCP + TLS-рукостискання). Короткий навмисно: недоступний хост падає за секунди, а не за 300 |
 | `--write-timeout` | `mcp_baf_WRITE_TIMEOUT` | `60` | Таймаут фази **write** (відправка тіла запиту) |
 | `--pool-timeout` | `mcp_baf_POOL_TIMEOUT` | `10` | Таймаут очікування вільного з'єднання в пулі httpx |
+| `--max-connections` | `mcp_baf_MAX_CONNECTIONS` | `8` | Максимум одночасних з'єднань до 1С. З `Connection: close` кожне з'єднання — окремий сеанс 1С; запити понад ліміт чекають слот до `--pool-timeout` |
 | `--retry-attempts` | `mcp_baf_RETRY_ATTEMPTS` | `2` | Повтори **після** першої спроби для ідемпотентних запитів на транспортні помилки та 5xx (`0` — вимкнено) |
 | `--retry-backoff` | `mcp_baf_RETRY_BACKOFF` | `0.5` | База експоненційної паузи між повторами, с (0.5, 1, 2, …) |
 | `--retry-non-idempotent` | `mcp_baf_RETRY_NON_IDEMPOTENT` | вимкнено | Дозволити повтори й для неідемпотентних (пишучих) запитів |
@@ -79,6 +80,9 @@
 | `--audit-max-size` | `mcp_baf_AUDIT_MAX_SIZE` | `50` | Ротація `audit.log` при перевищенні розміру (MiB) |
 | `--audit-archives` | `mcp_baf_AUDIT_ARCHIVES` | `20` | Кількість архівів `audit-*.log`, що зберігаються |
 | `--mask-pii` | `mcp_baf_MASK_PII` | вимкнено | Маскувати персональні дані в результатах `execute_query`, `get_event_log`, `get_form_structure`, `search_code` і в текстах помилок 1С: ПІБ/ІПН/телефон/email/паспорт/адреса тощо замінюються токеном `PII:xxxxxxxx`. Env приймає `1`, `true`, `yes`, `on` |
+| `--pii-column-markers` | `mcp_baf_PII_COLUMN_MARKERS` | — | Додаткові маркери імен колонок ПДн через кому (напр. `БонусныйСчет,ШтрихКод`, кожен щонайменше 3 символи); доповнюють вбудований список. Значення CLI замінює значення env, а не зливається з ним |
+| — | `mcp_baf_PII_KEY` | — | Ключ токенів `PII:xxxxxxxx` (64 hex-символи). Якщо не задано, використовується `<cache-dir>/pii.key`, що створюється при старті з `--mask-pii`. Несумісний з `--rotate-pii-key` |
+| `--rotate-pii-key` | — | вимкнено | Випустити новий ключ токенів при старті (перезапис `<cache-dir>/pii.key`, режим 0600): усі раніше видані токени `PII:` стають несумісними з новими. Одноразова процедура обслуговування, після неї прапорець слід зняти |
 | `--version` | — | — | Вивести версію `mcp-baf` (`mcp-baf <version>`) і вийти |
 | `--transport` | `mcp_baf_TRANSPORT` | `stdio` (в Docker-образі `https`) | Транспорт MCP: `stdio` (підпроцес), `https` (streamable-http за TLS, шлях `/mcp`) або `http` (без TLS, лише з `--allow-insecure-http`) |
 | `--allow-insecure-http` | `mcp_baf_ALLOW_INSECURE_HTTP` | вимкнено | Явний дозвіл на `--transport http`; без нього сервер не стартує |
@@ -347,7 +351,7 @@ CA: `docker compose cp mcp-baf:/data/tls/ca.crt .`.
       "command": "C:\\шлях\\до\\.venv\\Scripts\\mcp-baf.exe",
       "args": [
         "--base", "http://host/INTEGRA/uk_UA/hs/mcp-baf",
-        "--dump", "D:\\1c\\dump",
+        "--dump", "D:\\baf\\dump",
         "--max-response-size", "256",
         "--request-timeout", "600"
       ],

@@ -123,6 +123,24 @@ def test_format_cell_newlines_replaced():
     assert format_cell("a\r\nb\rc\nd|e") == "a b c d\\|e"
 
 
+def test_format_cell_floats():
+    assert format_cell(float("nan")) == "nan"
+    assert format_cell(float("inf")) == "inf"
+    assert format_cell(float("-inf")) == "-inf"
+    assert format_cell(5.0) == "5"
+    assert format_cell(1.5) == "1.5"
+    assert format_cell(1e-7) == "0.0000001"
+    assert format_cell(0.0000001234567) == "0.0000001234567"
+    assert format_cell(-0.1234567891) == "-0.1234567891"
+
+
+def test_escape_pipe_escapes_backslash_first():
+    from mcp_baf.tools.common import escape_pipe
+    assert escape_pipe("a\\|b") == "a\\\\\\|b"
+    assert escape_pipe("a\\b") == "a\\\\b"
+    assert format_cell("x\\|y") == "x\\\\\\|y"
+
+
 def test_long_cell_is_capped_with_marker():
     assert format_cell("б" * MAX_CELL_CHARS) == "б" * MAX_CELL_CHARS
     assert format_cell("б" * (MAX_CELL_CHARS + 500)) == "б" * MAX_CELL_CHARS + "…"

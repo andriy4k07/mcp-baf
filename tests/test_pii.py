@@ -24,7 +24,7 @@ def _isolate_pii_state(monkeypatch):
     """Глобальное состояние pii (ключ, маркеры) не течёт между тестами."""
     monkeypatch.delenv(pii.PII_KEY_ENV, raising=False)
     yield
-    pii.configure_pii(cache_dir="", extra_column_markers=())
+    pii.configure_pii(cache_dir="", extra_column_markers=(), enabled=False)
 
 
 def _r(columns, rows):
@@ -407,7 +407,8 @@ def test_registry_invariant_all_maskable_tools_pass_mask_pii():
             if name.startswith("format_") and callable(obj)
         ) or any(
             # execute_query маскується не formatter'ом, а mask_pii_result.
-            getattr(obj, "__module__", "") == "mcp_baf.pii"
+            # audit_text маскує лише аудит і бере прапорець із configure_pii.
+            getattr(obj, "__module__", "") == "mcp_baf.pii" and obj is not pii.audit_text
             for name, obj in vars(module).items()
         )
         if not mask_aware_formatter:
@@ -447,6 +448,18 @@ def test_key_file_race_loser_adopts_existing_key(tmp_path):
     assert not list(tmp_path.glob("*.tmp"))
     pii.configure_pii(cache_dir=str(tmp_path))
     assert pii.pii_token("x") == winner
+
+
+def test_leftover_pid_temp_file_does_not_block_startup(tmp_path):
+    """#78: залишок старого pii.key.<pid>.tmp (kill між open і unlink; у
+    Docker PID завжди 1) не заважає створити ключ."""
+    leftover = tmp_path / f"{pii.PII_KEY_FILENAME}.{os.getpid()}.tmp"
+    leftover.write_text("stale", "ascii")
+    pii.configure_pii(cache_dir=str(tmp_path))
+    kf = tmp_path / pii.PII_KEY_FILENAME
+    assert len(bytes.fromhex(kf.read_text("ascii"))) == pii.PII_KEY_BYTES
+    assert kf.stat().st_mode & 0o777 == 0o600
+    assert sorted(tmp_path.glob("*.tmp")) == [leftover]  # свій temp прибрано
 
 
 @pytest.mark.parametrize("content", ["", "not-hex", "ab" * 5])
@@ -496,3 +509,18 @@ def test_alias_of_sensitive_field_is_masked():
     assert out[0].startswith("PII:") and out[1].startswith("PII:") and out[2] == "00042"
     # без текста запроса поведение прежнее
     assert mask_pii_result(_r(["X"], [["1234567890"]]))["rows"][0][0] == "1234567890"
+
+
+@pytest.mark.parametrize("query, expected", [
+    # #78: кома/КАК усередині функції не обривають вираз аліасу
+    ('ВЫБРАТЬ ЕСТЬNULL(Ф.ИНН, "") КАК Код ИЗ Т КАК Ф', {"код"}),
+    ("ВЫБРАТЬ ПОДСТРОКА(Ф.Телефон, 1, 20) КАК Т ИЗ Т КАК Ф", {"т"}),
+    ("ВЫБРАТЬ ВЫРАЗИТЬ(Ф.ФИО КАК СТРОКА(100)) КАК Имя ИЗ Т КАК Ф", {"имя"}),
+    # прежнее поведение: несколько полей, AS без учёта регистра
+    ("ВЫБРАТЬ Т.ИНН КАК X, Т.Код КАК Z ИЗ Справочник.Контрагенты КАК Т", {"x"}),
+    ("select t.Email as Mail, t.Code as C from Catalog.X as t", {"mail"}),
+    # кома/дужка в рядку та коментарі не ріже вираз
+    ('ВЫБРАТЬ Ф.ИНН + ",(" // , )\n КАК А, Ф.Код КАК Б ИЗ Т КАК Ф', {"а"}),
+])
+def test_pii_aliases_whole_expression(query, expected):
+    assert pii._pii_aliases(query) == expected

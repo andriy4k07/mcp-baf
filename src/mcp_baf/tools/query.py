@@ -11,7 +11,7 @@ from pydantic import Field
 
 from mcp_baf_audit import AuditWriter
 from mcp_baf.client import OneCClient
-from mcp_baf.pii import MASKING_NOTE, mask_pii_result
+from mcp_baf.pii import MASKING_NOTE, audit_text, mask_pii_result
 from mcp_baf.tools.common import (
     clamp_limit, escape_pipe, format_cell, traced_text, truncate_output,
 )
@@ -99,7 +99,7 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter,
         return await traced_text(
             audit, "execute_query", run,
             args={
-                "query": query,
+                "query": audit_text(query),
                 "limit": effective_limit,
                 "offset": offset,
                 "parameters": sorted(parameters) if parameters else [],

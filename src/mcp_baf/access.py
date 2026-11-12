@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import copy
 import time
 
@@ -68,7 +69,32 @@ class AccessMCP(MCPServer):
         self._expires = 0.0
         self._access_lock = asyncio.Lock()
         self._access_error = ""
+        # Набор прав, по которому клиенту последний раз отдан tools/list.
+        self._listed: set[str] | None = None
+        self._recheck: asyncio.Task | None = None
         super().__init__(*args, **kwargs)
+
+    async def _notify_if_changed(self, context: Context | None) -> None:
+        """Шлёт tools/list_changed, если права разошлись с отданным списком.
+
+        Клиент кэширует tools/list: после сбоя /capabilities он иначе не
+        увидит HTTP-инструменты до переподключения. Сессия доступна только из
+        контекста запроса, поэтому уведомление уходит из call_tool.
+        """
+        relevant = self._allowed & set(TOOL_METHODS.values())
+        if context is None or self._listed is None or self._listed == relevant:
+            return
+        self._listed = relevant
+        # Уведомление — best effort: его сбой не должен ломать сам вызов.
+        with contextlib.suppress(Exception):
+            await context.notify_tools_changed()  # subscriptions/listen (2026-07-28+)
+        with contextlib.suppress(Exception):
+            # Старые протоколы; на новом SDK сам отбрасывает такую копию.
+            await context.session.send_tool_list_changed()
+
+    async def _recheck_access(self, context: Context | None) -> None:
+        await self._capabilities()
+        await self._notify_if_changed(context)
 
     async def _capabilities(self) -> tuple[set[str], str]:
         # Кэш общий для list и call: право на метод всё равно проверяет сам
@@ -112,7 +138,8 @@ class AccessMCP(MCPServer):
     async def list_tools(self):
         tools = await super().list_tools()
         allowed, _ = await self._capabilities()
-        visible = [t for t in tools if t.name not in TOOL_METHODS or TOOL_METHODS[t.name] in allowed]
+        self._listed = allowed & set(TOOL_METHODS.values())
+        visible =[t for t in tools if t.name not in TOOL_METHODS or TOOL_METHODS[t.name] in allowed]
         # Схемы чистим здесь, а не через приватный _tool_manager: list_tools —
         # публичный метод SDK и единственный источник payload tools/list.
         # Снимаем deepcopy, потому что вложенные dict'ы MCPTool делят объекты
@@ -125,15 +152,32 @@ class AccessMCP(MCPServer):
         return visible
 
     async def call_tool(self, name: str, arguments: dict, context: Context | None = None):
+        # Каждый вызов — отдельная операция: contextvar переживает вызов в
+        # сессии, и без сброса все вызовы делили бы один trace_id.
+        previous = get_trace_id()
+        set_trace_id(new_trace_id())
+        try:
+            return await self._call_tool(name, arguments, context)
+        finally:
+            set_trace_id(previous)
+
+    async def _call_tool(self, name: str, arguments: dict, context: Context | None):
         if name in TOOL_METHODS:
             # HTTP-проверка наследует trace инструмента; успешную проверку
             # не выдаём за второй tool.call, отказ пишем без аргументов/данных.
-            set_trace_id(get_trace_id() or new_trace_id())
             allowed, error = await self._capabilities()
+            await self._notify_if_changed(context)
             if TOOL_METHODS[name] not in allowed:
                 async def denied():
                     raise ToolError(error or "Нет права использования HTTP-метода инструмента.")
                 return await traced_text(self.access_audit, name, denied, args={"access_denied": True})
+        elif (
+            self._access_error and time.monotonic() >= self._expires
+            and (self._recheck is None or self._recheck.done())
+        ):
+            # После сбоя клиент видит только локальные инструменты и HTTP не
+            # зовёт; права перепроверяем в фоне, не задерживая локальный вызов.
+            self._recheck = asyncio.create_task(self._recheck_access(context))
         try:
             return await super().call_tool(name, arguments, context)
         except UnexpectedToolError as exc:

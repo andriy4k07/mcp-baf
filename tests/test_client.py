@@ -148,6 +148,15 @@ def test_timeouts_are_split_by_phase(tmp_path):
     asyncio.run(client.aclose())
 
 
+def test_max_connections_applied_to_pool(tmp_path):
+    """#79: потолок соединений (= сеансов 1С) доходит до пула httpx."""
+    cfg = Config(base_url="http://test/hs/mcp-baf", cache_dir=str(tmp_path),
+                 max_connections=3)
+    client = OneCClient(cfg)
+    assert client._http._transport._pool._max_connections == 3
+    asyncio.run(client.aclose())
+
+
 def test_connect_timeout_defaults_are_short():
     cfg = Config()
     assert cfg.connect_timeout == 10
@@ -181,6 +190,33 @@ def test_retry_on_transport_error_then_success(tmp_path):
     assert len(http) == 1  # одно событие на логический вызов
     assert http[0]["ok"] is True
     assert http[0]["payload"]["attempts"] == 2
+    asyncio.run(client.aclose())
+
+
+def test_large_error_body_read_stops_early(tmp_path):
+    """#79: тіло не-200 читається лише до 4 КиБ, а не повністю."""
+    sent = []
+
+    async def body():
+        for _ in range(1000):  # ~1 МиБ, якщо вичитувати до кінця
+            sent.append(1)
+            yield b"x" * 1024
+
+    client = _client(tmp_path, lambda request: httpx.Response(500, content=body()))
+    with pytest.raises(OneCError, match="status 500"):
+        asyncio.run(client.get("/query"))
+    assert len(sent) <= 5
+    asyncio.run(client.aclose())
+
+
+def test_transport_error_not_hidden_by_mask_pii(tmp_path):
+    """#78: при --mask-pii фраза-заглушка лише для тіла відповіді 1С;
+    причину мережевої помилки агент бачить (через scrub_error_detail)."""
+    handler = _flaky_handler([httpx.ConnectError("Name or service not known")], [])
+    client = _client(tmp_path, handler, mask_pii=True, retry_attempts=0)
+    with pytest.raises(OneCError, match="Name or service not known"):
+        asyncio.run(client.get("/version"))
+    assert not [e for e in _events(tmp_path) if e["event"] == "pii.error_text"]
     asyncio.run(client.aclose())
 
 

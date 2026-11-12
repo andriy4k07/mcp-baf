@@ -36,7 +36,7 @@ stderr.log
 Thumbs.db
 
 # claude
-.claude/settings.json
+.claude/
 
 # graphify (graph.json, GRAPH_REPORT.md, manifest.json are committed)
 graphify-out/cost.json

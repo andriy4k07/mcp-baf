@@ -66,7 +66,7 @@ class OneCClient:
     тело не логируется.
 
     Таймауты httpx разделены по фазам: connect короткий (недоступный хост
-    падает за секунды), read — длинный (крупные ответы /extensions).
+    падает за секунды), read — длинный (тяжёлые запросы /query, /eventlog).
     Идемпотентные запросы повторяются на транспортные ошибки и 5xx с
     экспоненциальным backoff; неидемпотентные — только с явным флагом.
     Поверх всех попыток стоит дедлайн `request_deadline`: read-таймаут
@@ -107,6 +107,9 @@ class OneCClient:
                 write=config.write_timeout,
                 pool=config.pool_timeout,
             ),
+            # Каждое соединение — сеанс 1С: без потолка (httpx — 100) параллельные
+            # вызовы агента выбирали бы лицензии; сверх лимита ждём pool_timeout.
+            limits=httpx.Limits(max_connections=config.max_connections),
             # Закрываем соединение после каждого запроса,
             # чтобы не упираться в лимит сеансов 1С.
             headers={"Connection": "close"},
@@ -122,6 +125,9 @@ class OneCClient:
         ошибки 1С остались бы в ответе. Полный текст (однострочный)
         пишется в audit.log событием `pii.error_text` — это серверный
         след для администратора, аналог события MCP.Обезличивание у kharin.
+        Только для тел ответов 1С: текст транспортных ошибок httpx данных
+        базы не содержит и идёт через scrub_error_detail, чтобы агент видел
+        причину (connection refused, DNS).
         """
         if not self._mask_pii:
             return scrub_error_detail(raw)
@@ -252,9 +258,15 @@ class OneCClient:
                 state["status"] = resp.status_code
                 if resp.status_code != 200:
                     # Тело ошибки 1С не утекает к агенту: маскируем ПДн и режем.
+                    # Читаем не больше 4 КиБ: aread() буферизовал бы страницу
+                    # ошибки прокси любого размера (и gzip-бомбу) мимо лимита.
+                    head = bytearray()
+                    async for chunk in resp.aiter_bytes():
+                        head.extend(chunk)
+                        if len(head) >= 4096:
+                            break
                     detail = self._safe_error_detail(
-                        (await resp.aread())[:4096].decode("utf-8", "replace"),
-                        endpoint=endpoint,
+                        head[:4096].decode("utf-8", "replace"), endpoint=endpoint,
                     )
                     state["error_kind"] = f"http_{resp.status_code}"
                     message = f"1C returned status {resp.status_code}: {detail}"
@@ -277,7 +289,7 @@ class OneCClient:
             # Повтора нет: запрос уже дошёл до базы.
             state["error_kind"] = "timeout"
             raise OneCError(
-                f"executing request to 1C: {self._safe_error_detail(str(exc), endpoint=endpoint)}"
+                f"executing request to 1C: {scrub_error_detail(str(exc))}"
             ) from exc
         except httpx.WriteTimeout as exc:
             # Тело запроса не ушло за write-таймаут — тот же класс, что и
@@ -285,19 +297,19 @@ class OneCClient:
             # запроса могла уже дойти до 1С.
             state["error_kind"] = "timeout"
             raise OneCError(
-                f"executing request to 1C: {self._safe_error_detail(str(exc), endpoint=endpoint)}"
+                f"executing request to 1C: {scrub_error_detail(str(exc))}"
             ) from exc
         except _RETRYABLE_TRANSPORT as exc:
             # Не удалось соединиться/получить слот в пуле — запрос не ушёл.
             state["error_kind"] = "transport_error"
             raise _RetryableOneCError(
-                f"executing request to 1C: {self._safe_error_detail(str(exc), endpoint=endpoint)}"
+                f"executing request to 1C: {scrub_error_detail(str(exc))}"
             ) from exc
         except httpx.HTTPError as exc:
             # Некорректный URL/протокол и т.п. — повтор не поможет.
             state["error_kind"] = "transport_error"
             raise OneCError(
-                f"executing request to 1C: {self._safe_error_detail(str(exc), endpoint=endpoint)}"
+                f"executing request to 1C: {scrub_error_detail(str(exc))}"
             ) from exc
 
         try:

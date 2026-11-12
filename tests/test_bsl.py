@@ -1,6 +1,13 @@
 """Тесты справочника встроенных функций BSL и инструмента bsl_syntax_help."""
 
+import asyncio
+
+import pytest
+from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
+
 from mcp_baf import bsl
+from mcp_baf.tools import bsl_help
 from mcp_baf.tools.bsl_help import format_functions
 
 
@@ -45,3 +52,28 @@ def test_format_functions():
 def test_format_multiple_separated():
     text = format_functions(bsl.search("Стр")[:2])
     assert "\n---\n" in text
+
+
+def _call_help(query):
+    mcp = MCPServer("t")
+    bsl_help.register(mcp, _Audit())
+    return asyncio.run(mcp.call_tool("bsl_syntax_help", {"query": query})).content[0].text
+
+
+class _Audit:
+    def write(self, *a, **k):
+        pass
+
+
+def test_syntax_help_rejects_short_query():
+    for q in ("", " ", "с"):
+        with pytest.raises(ToolError, match="минимум"):
+            _call_help(q)
+
+
+def test_syntax_help_caps_results():
+    total = len(bsl.search("Стр"))
+    assert total > bsl_help.MAX_FUNCTIONS
+    text = _call_help("Стр")
+    assert text.count("**Синтаксис:**") == bsl_help.MAX_FUNCTIONS
+    assert f"из {total}" in text

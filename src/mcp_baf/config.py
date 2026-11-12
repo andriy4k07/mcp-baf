@@ -41,6 +41,9 @@ DEFAULT_REQUEST_DEADLINE = 600
 DEFAULT_CONNECT_TIMEOUT = 10
 DEFAULT_WRITE_TIMEOUT = 60
 DEFAULT_POOL_TIMEOUT = 10
+# Потолок одновременных соединений к 1С: с Connection: close каждое — отдельный
+# сеанс 1С; сверх лимита запросы ждут слот до pool_timeout.
+DEFAULT_MAX_CONNECTIONS = 8
 
 # Повторы идемпотентных запросов: ошибки соединения/пула и 502/503/504
 # (ReadTimeout и 500 не повторяются).
@@ -65,6 +68,7 @@ class Config:
     connect_timeout: int = DEFAULT_CONNECT_TIMEOUT
     write_timeout: int = DEFAULT_WRITE_TIMEOUT
     pool_timeout: int = DEFAULT_POOL_TIMEOUT
+    max_connections: int = DEFAULT_MAX_CONNECTIONS
     # Повторы идемпотентных запросов: число повторов после первой попытки
     # (0 — выключено) и база экспоненциального backoff в секундах.
     retry_attempts: int = DEFAULT_RETRY_ATTEMPTS
@@ -176,7 +180,7 @@ def _env_secret(name: str) -> str:
     if value:
         raise ConfigError(f"задайте лише одне з {name} / {name}_FILE")
     try:
-        with open(path, encoding="utf-8") as f:
+        with open(path, encoding="utf-8-sig") as f:  # BOM не входить у секрет
             return f.read().rstrip("\r\n")
     except (OSError, UnicodeDecodeError) as exc:
         # str(exc) у UnicodeDecodeError містить байти файлу — беремо лише тип.
@@ -300,6 +304,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
              f"Default: {DEFAULT_POOL_TIMEOUT}.",
     )
     parser.add_argument(
+        "--max-connections", type=int, default=0, metavar="N",
+        help="Max concurrent connections (1C sessions) to 1C (env mcp_baf_MAX_CONNECTIONS). "
+             f"Default: {DEFAULT_MAX_CONNECTIONS}.",
+    )
+    parser.add_argument(
         "--retry-attempts", type=int, default=None, metavar="N",
         help="Retries after the first attempt for idempotent requests on "
              "connect/pool errors and 502/503/504, not read timeouts or 500 (env mcp_baf_RETRY_ATTEMPTS; 0 disables). "
@@ -412,6 +421,7 @@ def load_config(args: argparse.Namespace) -> Config:
         connect_timeout=_env_int("mcp_baf_CONNECT_TIMEOUT", DEFAULT_CONNECT_TIMEOUT),
         write_timeout=_env_int("mcp_baf_WRITE_TIMEOUT", DEFAULT_WRITE_TIMEOUT),
         pool_timeout=_env_int("mcp_baf_POOL_TIMEOUT", DEFAULT_POOL_TIMEOUT),
+        max_connections=_env_int("mcp_baf_MAX_CONNECTIONS", DEFAULT_MAX_CONNECTIONS),
         retry_attempts=_env_int_nonneg("mcp_baf_RETRY_ATTEMPTS", DEFAULT_RETRY_ATTEMPTS),
         retry_backoff=_env_float("mcp_baf_RETRY_BACKOFF", DEFAULT_RETRY_BACKOFF),
         retry_non_idempotent=_env_bool("mcp_baf_RETRY_NON_IDEMPOTENT"),
@@ -458,6 +468,8 @@ def load_config(args: argparse.Namespace) -> Config:
         cfg.write_timeout = args.write_timeout
     if args.pool_timeout > 0:
         cfg.pool_timeout = args.pool_timeout
+    if args.max_connections > 0:
+        cfg.max_connections = args.max_connections
     if args.retry_attempts is not None:
         cfg.retry_attempts = max(0, args.retry_attempts)
     if args.retry_backoff is not None:

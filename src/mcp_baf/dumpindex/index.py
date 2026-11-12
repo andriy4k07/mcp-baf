@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 
 import regex  # PyPI: поддерживает timeout= прямо внутри поиска (защита от ReDoS)
 
-from mcp_baf.dumpindex.cache import index_db_path
+from mcp_baf.dumpindex.cache import index_db_path, remove_stale
 from mcp_baf.dumpindex.extroots import discover_extension_roots
 from mcp_baf.dumpindex.modulenames import (
     nfc,
@@ -38,7 +38,7 @@ from mcp_baf.dumpindex.modulenames import (
     resolve_module_name,
 )
 from mcp_baf.dumpindex.synonyms import build_synonym_map
-from mcp_baf.filelock import file_lock
+from mcp_baf.filelock import LockTimeout, file_lock
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,9 @@ logger = logging.getLogger(__name__)
 # v3: вложенные корни расширений (<обёртка>/<extension>/Configuration.xml)
 # получают ext.<имя>-пространство (порт фикса feenlace/mcp-1c issue 46).
 # Без подъёма версии тёплый кэш продолжал бы отдавать старые path-ключи.
-SCHEMA_VERSION = 3
+# v4: категория модулей расширений (ext.<имя>.<Категория>...) берётся из
+# части после префикса, иначе фильтр category их не находил.
+SCHEMA_VERSION = 4
 
 # Сколько секунд close() ждёт завершения потока-строителя индекса перед
 # закрытием соединения. close() обязана закрыть SQLite-соединение, только
@@ -83,6 +85,23 @@ _NESTED_QUANTIFIER_RE = re.compile(
 
 # Лок-файл рядом с index.db: межпроцессная сериализация open/build.
 INDEX_LOCK_TIMEOUT = 180.0
+
+# Сколько ждать снятия блокировки SQLite, прежде чем сообщить «database is locked».
+SQLITE_TIMEOUT = 60.0
+# Сколько раз повторять открытие кэша при «database is locked» (это не порча кэша).
+LOCKED_RETRIES = 3
+# Временные файлы сборки старше этого возраста — сироты после SIGKILL/OOM.
+STALE_BUILD_AGE = 600.0
+# Сколько модулей читается и вставляется за один проход полной сборки.
+BUILD_BATCH = 500
+# Сколько модулей regex/exact-скан забирает из SQLite за одно взятие _db_lock.
+SCAN_BATCH = 100
+
+
+class Matches(list):
+    """Список совпадений; `truncated` — скан прерван по бюджету времени."""
+
+    truncated: bool = False
 
 
 @dataclass
@@ -170,25 +189,53 @@ class DumpIndex:
                 return
 
             os.makedirs(os.path.dirname(self._db_path), exist_ok=True)
-            # Лок на весь цикл open/build: два процесса (сервер + дашборд)
-            # не открывают и не перестраивают один index.db одновременно.
-            # Без него один процесс мог удалить базу, пока другой её читал.
-            with file_lock(self._db_path + ".lock", timeout=INDEX_LOCK_TIMEOUT):
-                # Повторная проверка под локом: пока ждали, кэш мог быть
-                # уже собран/обновлён другим процессом.
-                if not self._reindex and os.path.exists(self._db_path):
-                    try:
-                        self._open_cache_and_diff()
-                        self._finish_build(from_cache=True)
-                        return
-                    except Exception as exc:  # noqa: BLE001 — кэш битый, перестраиваем
-                        logger.warning("Cache load failed, rebuilding: %s", exc)
-                        self._close_db()
-
-                self._full_build()
-                self._finish_build(from_cache=False)
+            locked_attempts = 0
+            while not self._closed:
+                try:
+                    self._build_under_lock()
+                    return
+                except LockTimeout:
+                    # Лок держит другой процесс (холодная сборка на большом дампе):
+                    # ждём дальше, а не превращаем таймаут в постоянную ошибку;
+                    # когда он закончит, мы просто откроем готовый кэш.
+                    logger.warning("Index lock is busy, still waiting")
+                except sqlite3.OperationalError as exc:
+                    # «database is locked» — не порча кэша: не удаляем и не
+                    # перестраиваем, а повторяем открытие.
+                    if "locked" not in str(exc) or locked_attempts >= LOCKED_RETRIES:
+                        raise
+                    locked_attempts += 1
+                    logger.warning("Cache is locked, retrying: %s", exc)
+                    self._close_db()
         except Exception as exc:  # noqa: BLE001 — ошибка отдаётся из search()
             self._build_error = exc
+
+    def _build_under_lock(self) -> None:
+        # Лок на весь цикл open/build: два процесса (сервер + дашборд)
+        # не открывают и не перестраивают один index.db одновременно.
+        # Без него один процесс мог удалить базу, пока другой её читал.
+        with file_lock(self._db_path + ".lock", timeout=INDEX_LOCK_TIMEOUT):
+            # Все сборки идут под этим локом, поэтому старые build-файлы
+            # (возраст — запас на часы с неточным mtime) — сироты после SIGKILL.
+            remove_stale(self._db_path + ".build-", STALE_BUILD_AGE)
+            # Повторная проверка под локом: пока ждали, кэш мог быть
+            # уже собран/обновлён другим процессом.
+            if not self._reindex and os.path.exists(self._db_path):
+                try:
+                    self._open_cache_and_diff()
+                    self._finish_build(from_cache=True)
+                    return
+                except sqlite3.OperationalError as exc:
+                    if "locked" in str(exc):
+                        raise  # не корупция — см. _build
+                    logger.warning("Cache load failed, rebuilding: %s", exc)
+                    self._close_db()
+                except Exception as exc:  # noqa: BLE001 — кэш битый, перестраиваем
+                    logger.warning("Cache load failed, rebuilding: %s", exc)
+                    self._close_db()
+
+            self._full_build()
+            self._finish_build(from_cache=False)
 
     def _finish_build(self, from_cache: bool) -> None:
         # Запрос идёт под _db_lock: close() закроет соединение только между
@@ -292,44 +339,52 @@ class DumpIndex:
         except OSError:
             return None  # нечитаемые файлы пропускаются
 
-    def _full_build(self) -> None:
+    def _populate(self, db: sqlite3.Connection) -> None:
+        """Создаёт схему и наполняет базу пачками по BUILD_BATCH модулей.
+
+        Содержимое держится в памяти только для текущей пачки, а не для
+        всего дампа; FTS-строки вставляются из уже записанных docs.
+        """
         files = self._walk_files()
         self._progress(f"Индексация: найдено {len(files)} модулей...")
+        self._create_schema(db)
+        names = {rel: resolve_module_name(rel, self._ext_roots) for rel in files}
+        order = sorted(files, key=names.__getitem__)
 
-        def read_one(item: tuple[str, _FileState]) -> tuple[str, str] | None:
-            rel, state = item
-            content = self._read_content(state.abs_path)
+        def read_one(rel: str) -> tuple[str, str] | None:
+            content = self._read_content(files[rel].abs_path)
             return None if content is None else (rel, content)
 
         workers = min(32, (os.cpu_count() or 4) * 4)
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            contents = dict(filter(None, pool.map(read_one, files.items())))
-
-        rows = []
-        sort_key = lambda rel: resolve_module_name(rel, self._ext_roots)  # noqa: E731
-        for rel in sorted(files, key=sort_key):
-            if rel not in contents:
-                continue
-            state = files[rel]
-            name = resolve_module_name(rel, self._ext_roots)
-            parts = parse_module_name(name)
-            rows.append((
-                rel, name, parts.category, parts.module,
-                state.mtime_ms, state.size, contents[rel],
-            ))
-
-        if not self._db_path:
-            db = sqlite3.connect(":memory:", check_same_thread=False)
-            self._create_schema(db)
-            with db:
+        with ThreadPoolExecutor(max_workers=workers) as pool, db:
+            for start in range(0, len(order), BUILD_BATCH):
+                chunk = filter(None, pool.map(read_one, order[start:start + BUILD_BATCH]))
+                first_id = (
+                    db.execute("SELECT coalesce(max(id), 0) FROM docs").fetchone()[0]
+                )
+                rows = []
+                for rel, content in chunk:
+                    parts = parse_module_name(names[rel])
+                    rows.append((
+                        rel, names[rel], parts.category, parts.module,
+                        files[rel].mtime_ms, files[rel].size, content,
+                    ))
                 db.executemany(
                     "INSERT INTO docs(rel_path, name, category, module, "
                     "mtime_ms, size, content) VALUES (?, ?, ?, ?, ?, ?, ?)",
                     rows,
                 )
+                del rows
                 db.execute(
-                    "INSERT INTO fts(rowid, content) SELECT id, content FROM docs"
+                    "INSERT INTO fts(rowid, content) "
+                    "SELECT id, content FROM docs WHERE id > ?",
+                    (first_id,),
                 )
+
+    def _full_build(self) -> None:
+        if not self._db_path:
+            db = sqlite3.connect(":memory:", check_same_thread=False)
+            self._populate(db)
             with self._db_lock:
                 if self._closed:
                     db.close()  # close() уже отработал — не оставляем живое соединение
@@ -340,20 +395,13 @@ class DumpIndex:
         # Собираем во временный файл и подменяем им index.db атомарно:
         # читатель всегда видит либо старую целую базу, либо новую целую,
         # но не полузаписанную и не отсутствующую.
+        # WAL намеренно не включён: -wal/-shm от старого index.db нельзя
+        # безопасно оставить рядом с файлом, подменённым через os.replace.
         tmp_path = f"{self._db_path}.build-{os.getpid()}-{threading.get_ident()}"
         try:
-            db = sqlite3.connect(tmp_path, check_same_thread=False)
+            db = sqlite3.connect(tmp_path, check_same_thread=False, timeout=SQLITE_TIMEOUT)
             try:
-                self._create_schema(db)
-                with db:
-                    db.executemany(
-                        "INSERT INTO docs(rel_path, name, category, module, "
-                        "mtime_ms, size, content) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        rows,
-                    )
-                    db.execute(
-                        "INSERT INTO fts(rowid, content) SELECT id, content FROM docs"
-                    )
+                self._populate(db)
             finally:
                 db.close()
             if self._closed:  # close() уже отработал — не подменяем index.db
@@ -371,7 +419,9 @@ class DumpIndex:
         with self._db_lock:
             if self._closed:
                 return
-            self._db = sqlite3.connect(self._db_path, check_same_thread=False)
+            self._db = sqlite3.connect(
+                self._db_path, check_same_thread=False, timeout=SQLITE_TIMEOUT
+            )
 
     def _replace_db(self, tmp_path: str) -> None:
         """Атомарно подменяет index.db собранным временным файлом.
@@ -423,7 +473,9 @@ class DumpIndex:
         # Соединение сразу сохраняется в self._db: при любой ошибке ниже
         # вызывающий код закроет его через _close_db перед удалением файла
         # (Windows не даёт удалить файл с открытым дескриптором).
-        db = self._db = sqlite3.connect(self._db_path, check_same_thread=False)
+        db = self._db = sqlite3.connect(
+            self._db_path, check_same_thread=False, timeout=SQLITE_TIMEOUT
+        )
         version = db.execute(
             "SELECT value FROM meta WHERE key = 'schema_version'"
         ).fetchone()
@@ -608,7 +660,9 @@ class DumpIndex:
         if params.mode == "exact":
             needle = params.query.lower()
             return self._search_line_by_line(
-                params, lambda line, timeout: needle in line.lower()
+                params,
+                lambda line, timeout: needle in line.lower(),
+                deadline=time.monotonic() + REGEX_TIME_BUDGET,
             )
         raise ValueError(f"unknown search mode: {params.mode!r}")
 
@@ -640,13 +694,13 @@ class DumpIndex:
         }
 
         with self._db_lock:
-            assert self._db is not None
-            total = self._db.execute(
+            db = self._require_db()
+            total = db.execute(
                 "SELECT count(*) FROM fts JOIN docs d ON d.id = fts.rowid "
                 f"WHERE fts MATCH :q AND {filters}",
                 args,
             ).fetchone()[0]
-            hits = self._db.execute(
+            hits = db.execute(
                 "SELECT d.name, d.content, -bm25(fts) AS score "
                 "FROM fts JOIN docs d ON d.id = fts.rowid "
                 f"WHERE fts MATCH :q AND {filters} "
@@ -688,12 +742,13 @@ class DumpIndex:
         match: "callable[[str, float | None], bool]",
         deadline: float | None = None,
         line_limit: int | None = None,
-    ) -> tuple[list[Match], int]:
+    ) -> tuple[Matches, int]:
         """Построчный поиск (режимы regex и exact).
 
-        Строки читаются потоково курсором, а не через fetchall(): весь код
-        модулей в RAM не поднимается. `deadline`/`line_limit` ограничивают
-        regex-поиск по времени и длине строки (защита от ReDoS).
+        Содержимое берётся пачками, весь код модулей в RAM не поднимается.
+        `deadline`/`line_limit` ограничивают поиск по времени и длине строки
+        (защита от ReDoS); по исчерпании бюджета возвращаются найденные
+        совпадения с `Matches.truncated = True`.
         """
         where = []
         args: list[str] = []
@@ -703,23 +758,37 @@ class DumpIndex:
         if params.module:
             where.append("module = ?")
             args.append(params.module)
-        sql = "SELECT name, content FROM docs"
+        sql = "SELECT id FROM docs"
         if where:
             sql += " WHERE " + " AND ".join(where)
         sql += " ORDER BY name"
 
-        matches: list[Match] = []
-        total = 0
+        # Под _db_lock берутся только id и затем пачки содержимого; сам скан
+        # (медленный regex) идёт вне замка и не блокирует другие поиски и
+        # close(). Индекс после готовности неизменяем, поэтому id стабильны.
         with self._db_lock:
-            assert self._db is not None
-            cursor = self._db.execute(sql, args)
-            for name, content in cursor:
-                if deadline is not None and time.monotonic() > deadline:
-                    raise ValueError(
-                        f"regex search exceeded {REGEX_TIME_BUDGET:.0f}s time budget"
+            ids = [row[0] for row in self._require_db().execute(sql, args)]
+
+        matches = Matches()
+        total = 0
+        for start in range(0, len(ids), SCAN_BATCH):
+            batch = ids[start:start + SCAN_BATCH]
+            with self._db_lock:
+                rows = {
+                    doc_id: (name, content)
+                    for doc_id, name, content in self._require_db().execute(
+                        "SELECT id, name, content FROM docs WHERE id IN (%s)"
+                        % ",".join("?" * len(batch)),
+                        batch,
                     )
+                }
+            for doc_id in batch:
+                name, content = rows[doc_id]
                 lines = content.split("\n")
                 for i, line in enumerate(lines):
+                    if deadline is not None and time.monotonic() > deadline:
+                        matches.truncated = True
+                        return matches, total
                     if line_limit is not None and len(line) > line_limit:
                         line = line[:line_limit]
                     # Остаток бюджета как timeout: regex прерывается внутри одной строки.
@@ -729,9 +798,8 @@ class DumpIndex:
                             raise TimeoutError
                         hit = match(line, remaining)
                     except TimeoutError:
-                        raise ValueError(
-                            f"regex search exceeded {REGEX_TIME_BUDGET:.0f}s time budget"
-                        ) from None
+                        matches.truncated = True
+                        return matches, total
                     if hit:
                         total += 1
                         if len(matches) < params.limit:
@@ -744,6 +812,12 @@ class DumpIndex:
                             )
 
         return matches, total
+
+    def _require_db(self) -> sqlite3.Connection:
+        # Предусловие: вызывающий держит _db_lock.
+        if self._db is None:
+            raise RuntimeError("index closed")
+        return self._db
 
 
 def _compile_user_regex(pattern: str) -> regex.Pattern[str]:

@@ -87,3 +87,34 @@ def test_traced_text_redacts_secret_args(tmp_path):
     event = last_event(tmp_path)
     assert event["args"]["query"] == "ВЫБРАТЬ 1"
     assert event["args"]["password"] == "***"
+
+
+@pytest.mark.parametrize("mask", [True, False])
+def test_query_text_in_audit_truncated_and_masked(tmp_path, mask):
+    """#78: текст запроса в audit.log обрезается всегда, при --mask-pii
+    литералы-ПДн маскируются."""
+    from mcp_baf import pii
+    from mcp_baf.tools import validate_query
+
+    tools = {}
+
+    class FakeMCP:
+        def tool(self, **kw):
+            return lambda f: tools.setdefault(kw["name"], f)
+
+    class FakeClient:
+        async def post(self, endpoint, body):
+            return {"valid": True}
+
+    validate_query.register(FakeMCP(), FakeClient(), AuditLog(str(tmp_path)))
+    query = 'ВЫБРАТЬ 1 ГДЕ Телефон = "+380671234567"' + " И Истина" * 200
+    pii.configure_pii(cache_dir="", enabled=mask)
+    try:
+        asyncio.run(tools["validate_query"](query=query))
+    finally:
+        pii.configure_pii(cache_dir="", enabled=False)
+
+    audited = last_event(tmp_path)["args"]["query"]
+    assert len(audited) <= pii.AUDIT_TEXT_LIMIT + 1 and audited.endswith("…")
+    assert ("+380671234567" in audited) is not mask
+    assert ("PII:" in audited) is mask
