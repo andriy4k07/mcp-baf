@@ -46,13 +46,19 @@ def parse_link(link: str) -> tuple[str, str]:
     candidate = unquote(parsed.fragment or link)
     if not candidate.startswith("e1cib/data/"):
         raise ValueError("Ожидается e1cib/data/Тип.Имя?ref=... или URL публикации с такой ссылкой")
-    path, separator, query = candidate.partition("?")
+    path, _, query = candidate.partition("?")
     kind = path.removeprefix("e1cib/data/")
     validate_kind(kind)
-    params = parse_qs(query, strict_parsing=True)
+    only_ref = "Ссылка должна содержать ровно один параметр ref"
+    if not query:
+        raise ValueError(only_ref)
+    try:
+        params = parse_qs(query, strict_parsing=True)
+    except ValueError as exc:
+        raise ValueError(only_ref) from exc
     values = params.get("ref", [])
-    if not separator or set(params) != {"ref"} or len(values) != 1:
-        raise ValueError("Ссылка должна содержать ровно один параметр ref")
+    if set(params) != {"ref"} or len(values) != 1:
+        raise ValueError(only_ref)
     value = values[0]
     if re.fullmatch(r"[a-fA-F0-9]{32}", value):
         # Формат платформы: группы UUID 4+5+3+2+1.
@@ -116,10 +122,10 @@ def register(mcp, client, audit, mask_pii: bool = False):
             r = await client.post("/object-link", dict(mode=mode, ref=target_ref, kind=target_kind))
             if not r.get("found"):
                 return "Объект не найден или недоступен в пределах прав пользователя."
-            presentation = str(r.get("presentation", target_ref))
+            presentation = str(r.get("presentation") or target_ref)
             label = (mask_pii_text(presentation) if mask_pii else presentation).replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]").replace("\n", " ")
             # Ссылка формируется платформой; запрещаем произвольные схемы в Markdown.
-            output_link = r.get("link", "")
+            output_link = r.get("link") or ""
             if not output_link.startswith("e1cib/data/") or any(c in output_link for c in "\r\n<>"):
                 raise ValueError("Платформа вернула неподдерживаемую навигационную ссылку")
             output_link = output_link.replace("(", "%28").replace(")", "%29")
