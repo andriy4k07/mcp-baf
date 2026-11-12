@@ -79,8 +79,8 @@ def make_dump(root: Path) -> None:
 
 
 async def main(base: str) -> None:
-    dump_dir = Path(tempfile.mkdtemp(prefix="mcp1c-dump-"))
-    cache_dir = Path(tempfile.mkdtemp(prefix="mcp1c-cache-"))
+    dump_dir = Path(tempfile.mkdtemp(prefix="mcp-baf-dump-"))
+    cache_dir = Path(tempfile.mkdtemp(prefix="mcp-baf-cache-"))
     make_dump(dump_dir)
 
     params = StdioServerParameters(

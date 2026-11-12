@@ -351,7 +351,7 @@ CA: `docker compose cp mcp-baf:/data/tls/ca.crt .`.
       "command": "C:\\шлях\\до\\.venv\\Scripts\\mcp-baf.exe",
       "args": [
         "--base", "http://host/INTEGRA/uk_UA/hs/mcp-baf",
-        "--dump", "D:\\1c\\dump",
+        "--dump", "D:\\baf\\dump",
         "--max-response-size", "256",
         "--request-timeout", "600"
       ],
