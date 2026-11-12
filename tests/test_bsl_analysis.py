@@ -402,6 +402,27 @@ def test_module_level_return_with_value_is_still_an_error():
     assert 'ParseError' in codes('Возврат 1;')
 
 
+@pytest.mark.parametrize('src', [
+    '#Если Сервер Тогда\nПроцедура П(А)\n#Иначе\nПроцедура П(А, Б)\n#КонецЕсли\nСообщить(А);\nКонецПроцедуры',
+    '#If Server Then\nFunction F(A) Export\n#ElsIf Client Then\nFunction F(A, B) Export\n#Else\nAsync Function F()\n#EndIf\nReturn A;\nEndFunction',
+])
+def test_method_headers_duplicated_across_preprocessor_branches(src):
+    assert 'ParseError' not in codes(src)
+    formatted = format_source(src)
+    assert format_source(formatted) == formatted
+    assert [(t.kind, t.text) for t in lex(src)[0]] == [(t.kind, t.text) for t in lex(formatted)[0]]
+
+
+def test_nested_method_without_directive_is_still_an_error():
+    assert 'ParseError' in codes('Процедура А()\nПроцедура Б()\nКонецПроцедуры\nКонецПроцедуры')
+
+
+def test_alternative_header_keeps_reserved_name_suppression_and_parameter_check():
+    src = '#Если Сервер Тогда\nПроцедура Найти()\n#Иначе\nПроцедура Другая(А, а)\n#КонецЕсли\nКонецПроцедуры'
+    assert 'ReservedDeclarationName' not in codes(src)
+    assert 'DuplicateParameter' in codes(src)
+
+
 def test_nbsp_and_form_feed_are_whitespace_and_preserved():
     src = 'Процедура П()\n\xa0\xa0Сообщить(1);\xa0\n\fСообщить(2);\n\xa0#Если Истина Тогда\nА = 1;\n#КонецЕсли\nКонецПроцедуры'
     assert 'ParseError' not in codes(src)

@@ -51,6 +51,7 @@ class Parser:
         self.offset = 0
         self.depth = 0
         self.method = ''
+        self.header_end = -1
         self.loops = 0
         self.diagnostics = []
         # Изменения отступа на границах конструкций для безопасного форматера.
@@ -112,7 +113,7 @@ class Parser:
                 elif node.kind in {'return', 'raise', 'break', 'continue', 'goto'}:
                     terminated = True
                 nodes.append(node)
-                if not self.accept(';') and node.kind not in {'procedure', 'function', 'label'} and self.current.kind not in stop:
+                if not self.accept(';') and node.kind not in {'procedure', 'function', 'label', 'header'} and self.current.kind not in stop:
                     raise ParseFailure(self.current, 'Между операторами ожидается ;')
             return nodes
         finally:
@@ -122,6 +123,12 @@ class Parser:
         token = self.current
         kind = token.kind
         if kind in {'async', 'procedure', 'function'}:
+            # Альтернативный заголовок в #Иначе/#ИначеЕсли: заголовки идут подряд
+            # с общим телом, директивы из потока токенов уже убраны.
+            if self.method and self.offset == self.header_end and token.start in self.after_directive:
+                self.parse_header()
+                self.header_end = self.offset
+                return Node('header', token)
             if not top:
                 raise ParseFailure(token, 'Объявление метода внутри блока не поддерживается')
             return self.parse_method()
@@ -221,7 +228,7 @@ class Parser:
             raise ParseFailure(token, 'Ожидается присваивание или вызов метода')
         return Node('call', token, reads=expression.reads)
 
-    def parse_method(self):
+    def parse_header(self):
         token = self.current
         self.accept('async')
         kind = self.take().kind
@@ -241,13 +248,19 @@ class Parser:
         header_end = self.take(')')
         if export := self.accept('export'):
             header_end = export
-        self.open_indent(header_end)
         seen = set()
         for parameter_name in parameters:
             key = parameter_name.text.casefold()
             if key in seen:
                 self.error(parameter_name, 'Повторное имя параметра', 'DuplicateParameter')
             seen.add(key)
+        return kind, name, parameters, header_end
+
+    def parse_method(self):
+        token = self.current
+        kind, name, parameters, header_end = self.parse_header()
+        self.open_indent(header_end)
+        self.header_end = self.offset
         self.method = kind
         try:
             children = self.body({'end'+kind})
