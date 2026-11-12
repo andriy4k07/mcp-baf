@@ -239,3 +239,72 @@ def test_reindex_replaces_db_atomically(tmp_path):
     reader.close()
     reindexed.close()
     _assert_db_intact(dump, cache, 4)
+
+
+def test_lock_timeout_is_retried_not_permanent_error(tmp_path, monkeypatch):
+    """LockTimeout (другой процесс строит кэш) не становится build_error."""
+    from mcp_baf.dumpindex import index as idxmod
+    from mcp_baf.filelock import LockTimeout
+
+    dump, cache = tmp_path / "dump", tmp_path / "cache"
+    mk_bsl(dump, "Catalogs/Тест/Ext/ObjectModule.bsl", "Процедура А()\nКонецПроцедуры\n")
+    real = idxmod.file_lock
+    calls = []
+
+    def flaky(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise LockTimeout("busy")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(idxmod, "file_lock", flaky)
+    idx = build(dump, cache)
+    assert len(calls) == 2 and idx.module_count() == 1
+    idx.close()
+
+
+def test_database_locked_does_not_rebuild_cache(tmp_path, monkeypatch):
+    """«database is locked» — не порча кэша: файл index.db не пересоздаётся."""
+    from mcp_baf.dumpindex import index as idxmod
+
+    dump, cache = tmp_path / "dump", tmp_path / "cache"
+    mk_bsl(dump, "Catalogs/Тест/Ext/ObjectModule.bsl", "Процедура А()\nКонецПроцедуры\n")
+    build(dump, cache).close()
+    db_path = index_db_path(str(dump), str(cache))
+    inode = os.stat(db_path).st_ino
+
+    real = DumpIndex._open_cache_and_diff
+    calls = []
+
+    def locked_once(self):
+        calls.append(1)
+        if len(calls) == 1:
+            raise sqlite3.OperationalError("database is locked")
+        return real(self)
+
+    monkeypatch.setattr(DumpIndex, "_open_cache_and_diff", locked_once)
+    idx = build(dump, cache)
+    assert len(calls) == 2 and os.stat(db_path).st_ino == inode
+    idx.close()
+
+
+def test_stale_build_files_removed_fresh_kept(tmp_path):
+    dump, cache = tmp_path / "dump", tmp_path / "cache"
+    mk_bsl(dump, "Catalogs/Тест/Ext/ObjectModule.bsl", "Процедура А()\nКонецПроцедуры\n")
+    build(dump, cache).close()
+    db_path = index_db_path(str(dump), str(cache))
+    stale, fresh = db_path + ".build-1-1", db_path + ".build-2-2"
+    for p in (stale, fresh):
+        open(p, "w").close()
+    old = time.time() - 3600
+    os.utime(stale, (old, old))
+    build(dump, cache).close()
+    assert not os.path.exists(stale) and os.path.exists(fresh)
+
+
+def test_cache_path_same_for_nfc_and_nfd(tmp_path):
+    import unicodedata
+
+    nfc_dir = str(tmp_path / "Дамп")
+    nfd_dir = unicodedata.normalize("NFD", nfc_dir)
+    assert cache_path(nfc_dir) == cache_path(nfd_dir)

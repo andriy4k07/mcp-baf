@@ -169,6 +169,9 @@ def parse_module_name(full_name: str) -> ModuleNameParts:
     считается последний сегмент.
     """
     parts = full_name.split(".")
+    # Модули расширений: ext.<имя>.<Категория>... — категория после префикса.
+    if len(parts) > 3 and parts[0] == "ext":
+        return parse_module_name(".".join(parts[2:]))
     if len(parts) >= 3:
         return ModuleNameParts(parts[0], parts[1], parts[-1])
     if len(parts) == 2:
