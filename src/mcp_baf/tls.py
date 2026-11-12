@@ -148,18 +148,24 @@ def _san_covers(cert_path: str, hosts: list[str]) -> bool:
     (например, хост поменяли после первого старта): клиент с новым именем
     получит ошибку верификации. Тогда лист перевыпускается тем же CA.
     """
+    wanted = {_san_name(h) for h in hosts if _san_name(h)}
+    have = _leaf_san(cert_path)
+    return have is not None and wanted <= set(have)
+
+
+def _leaf_san(cert_path: str) -> list[str] | None:
+    """Имена из SAN листа (DNS и IP); None — нет SAN или битый файл."""
     from cryptography import x509
 
-    wanted = {_san_name(h) for h in hosts if _san_name(h)}
     try:
         with open(cert_path, "rb") as fh:
             cert = x509.load_pem_x509_certificate(fh.read())
         san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
     except Exception:  # noqa: BLE001 — нет SAN/битый файл = перевыпуск
-        return False
-    have = {str(v) for v in san.get_values_for_type(x509.DNSName)}
-    have |= {str(v) for v in san.get_values_for_type(x509.IPAddress)}
-    return wanted <= have
+        return None
+    return [str(v) for v in san.get_values_for_type(x509.DNSName)] + [
+        str(v) for v in san.get_values_for_type(x509.IPAddress)
+    ]
 
 
 def _expires_within(path: str, days: int) -> bool:
@@ -214,7 +220,8 @@ def ensure_self_signed(directory: str, hosts: list[str]) -> tuple[str, str, str]
     помічають. Якщо `ca.key` немає (комплект від версії без перевипуску) або
     CA сам прострочений/істекає — будується новий комплект, і клієнтам треба
     оновити `ca.crt`. Зміна hosts: якщо SAN валідного листа не покриває
-    поточний набір імен, лист теж перевипускається наявним CA. Примусово —
+    поточний набір імен, лист теж перевипускається наявним CA; SAN нового
+    листа — об'єднання потрібних і вже наявних імен. Примусово —
     видаліть каталог.
     """
     ca_path = os.path.join(directory, CA_CERT_NAME)
@@ -273,6 +280,9 @@ def _renew_leaf(
         if ca_key.public_key().public_bytes(der, spki) != ca.public_key().public_bytes(der, spki):
             return False  # ca.key от другого CA — подпись не сойдётся
         ca_ski = x509.SubjectKeyIdentifier.from_public_key(ca.public_key())
+        # Каталог могут делить процессы с разными --http-host: без объединения
+        # они по очереди перевыпускали бы лист без имён друг друга.
+        hosts = list(dict.fromkeys(hosts + (_leaf_san(cert_path) or [])))
         now = datetime.datetime.now(datetime.timezone.utc)
         key, cert = _build_leaf(now, ca_key, ca.subject, ca_ski, hosts)
     except Exception:  # noqa: BLE001
