@@ -77,3 +77,12 @@ def test_bsl_path_to_module_name_normalizes_nfd():
     nfd_object = "\u0418\u0306огурт"  # "Йогурт" в NFD
     got = bsl_path_to_module_name(f"Catalogs/{nfd_object}/Ext/ObjectModule.bsl")
     assert got == "Справочник.Йогурт.МодульОбъекта"
+
+
+def test_parse_module_name_extension_category():
+    from mcp_baf.dumpindex.modulenames import parse_module_name
+
+    p = parse_module_name("ext.Доп.Документ.Заказ.МодульОбъекта")
+    assert (p.category, p.name, p.module) == ("Документ", "Заказ", "МодульОбъекта")
+    p = parse_module_name("ext.Доп.Документ.Заказ.Форма.ФормаДок.МодульФормы")
+    assert (p.category, p.module) == ("Документ", "МодульФормы")

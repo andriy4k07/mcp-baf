@@ -103,8 +103,10 @@ def test_regex_time_budget_enforced(index, monkeypatch):
     from mcp_baf.dumpindex import index as index_module
 
     monkeypatch.setattr(index_module, "REGEX_TIME_BUDGET", -1.0)
-    with pytest.raises(ValueError, match="time budget"):
-        index.search(SearchParams(query="Процедура|Функция", mode="regex"))
+    # Бюджет исчерпан: не ошибка, а (частичный) результат с пометкой.
+    for mode, query in (("regex", "Процедура|Функция"), ("exact", "Процедура")):
+        matches, _ = index.search(SearchParams(query=query, mode=mode))
+        assert matches.truncated
 
 
 def test_regex_timeout_interrupts_single_line(tmp_path, monkeypatch):
@@ -119,8 +121,8 @@ def test_regex_timeout_interrupts_single_line(tmp_path, monkeypatch):
     assert idx.wait_ready(BUILD_TIMEOUT)
     monkeypatch.setattr(index_module, "REGEX_TIME_BUDGET", 0.3)
     start = time.monotonic()
-    with pytest.raises(ValueError, match="time budget"):
-        idx.search(SearchParams(query=r"(\w\w|\w)+!", mode="regex"))
+    matches, _ = idx.search(SearchParams(query=r"(\w\w|\w)+!", mode="regex"))
+    assert matches.truncated
     assert time.monotonic() - start < 3
     idx.close()
 
@@ -323,3 +325,69 @@ def test_warm_cache_rebuilds_when_ext_roots_change(tmp_path):
         assert matches[0].module == "ext.Расш.ОбщийМодуль.М.Модуль"
     finally:
         idx.close()
+
+
+def test_partial_results_kept_on_budget_exhaustion(tmp_path, monkeypatch):
+    """Найденное до исчерпания бюджета не выбрасывается, а помечается усечённым."""
+    from mcp_baf.dumpindex import index as index_module
+    from mcp_baf.tools.search_code import format_search_result
+
+    mk_bsl(tmp_path, "CommonModules/А/Ext/Module.bsl", "Найдено = 1;\n")
+    idx = DumpIndex(str(tmp_path), use_cache=False)
+    assert idx.wait_ready(BUILD_TIMEOUT)
+    ticks = iter([0.0, 0.0, 0.0, 0.0] + [100.0] * 100)
+    monkeypatch.setattr(index_module.time, "monotonic", lambda: next(ticks))
+    matches, total = idx.search(SearchParams(query="Найдено", mode="exact"))
+    monkeypatch.undo()
+    assert matches.truncated and total == 1 and len(matches) == 1
+    text = format_search_result(matches, total, "Найдено", "exact", truncated=True)
+    assert "бюджету времени" in text
+    idx.close()
+
+
+def test_scan_does_not_hold_db_lock(index, monkeypatch):
+    """Во время скана замок свободен: другой поиск и close() не блокируются."""
+    seen = []
+
+    def match(line, timeout):
+        seen.append(index._db_lock.locked())
+        return False
+
+    index._search_line_by_line(SearchParams(query="x", mode="exact", limit=5), match)
+    assert seen and not any(seen)
+
+
+def test_search_after_close_reports_index_closed(tmp_path):
+    mk_bsl(tmp_path, "CommonModules/А/Ext/Module.bsl", "Х = 1;\n")
+    idx = DumpIndex(str(tmp_path), use_cache=False)
+    assert idx.wait_ready(BUILD_TIMEOUT)
+    idx.close()
+    for mode in ("smart", "exact"):
+        with pytest.raises(RuntimeError, match="index closed"):
+            idx.search(SearchParams(query="Х", mode=mode))
+
+
+def test_full_build_inserts_in_batches(tmp_path, monkeypatch):
+    from mcp_baf.dumpindex import index as index_module
+
+    monkeypatch.setattr(index_module, "BUILD_BATCH", 3)
+    for i in range(10):
+        mk_bsl(tmp_path, f"CommonModules/М{i}/Ext/Module.bsl", f"Метка{i} = 1;\n")
+    idx = DumpIndex(str(tmp_path), use_cache=False)
+    assert idx.wait_ready(BUILD_TIMEOUT)
+    assert idx.module_count() == 10
+    for i in range(10):
+        _, total = idx.search(SearchParams(query=f"Метка{i}"))
+        assert total == 1
+    idx.close()
+
+
+def test_extension_module_found_by_category(tmp_path):
+    mk_bsl(tmp_path, "Расширения/Доп/Documents/Заказ/Ext/ObjectModule.bsl", "Расш = 1;\n")
+    idx = DumpIndex(str(tmp_path), use_cache=False)
+    assert idx.wait_ready(BUILD_TIMEOUT)
+    matches, total = idx.search(
+        SearchParams(query="Расш", mode="exact", category="Документ")
+    )
+    assert total == 1 and matches[0].module.startswith("ext.Доп.")
+    idx.close()
