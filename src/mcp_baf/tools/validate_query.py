@@ -29,10 +29,9 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
             description="Текст запроса на языке запросов 1С для проверки"
         )],
     ) -> str:
-        if not query:
-            raise ValueError("query is required")
-
         async def run() -> str:
+            if not query:
+                raise ValueError("query is required")
             result = await client.post("/validate-query", {"query": query})
             return format_validate_result(result)
 

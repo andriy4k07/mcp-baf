@@ -69,6 +69,16 @@ def test_object_structure_rejects_bad_url_segments(tmp_path, arguments):
     asyncio.run(client.aclose())
 
 
+def test_object_structure_empty_args_are_audited(tmp_path):
+    server, client, requests = setup(tmp_path, object_structure, {"name": "Валюты"})
+    with pytest.raises(ToolError, match="required"):
+        call(server, "get_object_structure", object_type="", object_name="")
+    assert requests == []
+    events = [json.loads(x) for x in (tmp_path / "audit.log").read_text("utf-8").splitlines()]
+    assert events[-1]["event"] == "tool.error" and events[-1]["tool"] == "get_object_structure"
+    asyncio.run(client.aclose())
+
+
 def test_object_type_error_lists_allowed_values(tmp_path):
     server, client, _ = setup(tmp_path, object_structure, {})
     with pytest.raises(ToolError) as excinfo:
