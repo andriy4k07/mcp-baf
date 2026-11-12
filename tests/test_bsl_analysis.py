@@ -400,3 +400,12 @@ def test_module_level_return_without_value_is_accepted(src):
 
 def test_module_level_return_with_value_is_still_an_error():
     assert 'ParseError' in codes('Возврат 1;')
+
+
+def test_nbsp_and_form_feed_are_whitespace_and_preserved():
+    src = 'Процедура П()\n\xa0\xa0Сообщить(1);\xa0\n\fСообщить(2);\n\xa0#Если Истина Тогда\nА = 1;\n#КонецЕсли\nКонецПроцедуры'
+    assert 'ParseError' not in codes(src)
+    formatted = format_source(src)
+    assert formatted.count('\xa0') == src.count('\xa0') and formatted.count('\f') == 1
+    assert format_source(formatted) == formatted
+    assert 'ParseError' in codes('А = 1 ​;')

@@ -26,6 +26,8 @@ for english, russian in (
     KEYWORDS[english] = english
     KEYWORDS[russian] = english
 
+# Пробельные символы вне строк и комментариев: NBSP и form feed тоже пробелы.
+WHITESPACE = ' \t\r\n﻿\xa0\f'
 IDENTIFIER = re.compile(r'[^\W\d]\w*', re.UNICODE)
 NUMBER = re.compile(r'\d+(?:\.\d+)?')
 
@@ -62,7 +64,7 @@ def lex(source: str) -> tuple[list[Token], list[Diagnostic]]:
     while offset < len(source):
         start, token_line, token_column = offset, line, column
         char = source[offset]
-        if char in ' \t\r\n\ufeff':
+        if char in WHITESPACE:
             end = offset + 1
             kind = None
         elif source.startswith('//', offset):
@@ -134,10 +136,10 @@ def lex(source: str) -> tuple[list[Token], list[Diagnostic]]:
             line += newline_count
             tail = text.rsplit('\n', 1)[-1]
             column = len(tail) + 1
-            blank = not tail.strip(' \t\r\ufeff')
+            blank = not tail.strip(WHITESPACE)
         else:
             column += len(text)
-            blank = blank and not text.strip(' \t\r\ufeff')
+            blank = blank and not text.strip(WHITESPACE)
         offset = end
     tokens.append(Token('eof', '', len(source), len(source), line, column))
     return tokens, diagnostics
