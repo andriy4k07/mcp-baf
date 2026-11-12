@@ -174,6 +174,15 @@ def test_phase_timeouts_cli_overrides_env(clean_env):
     assert (cfg.connect_timeout, cfg.write_timeout, cfg.pool_timeout) == (12, 30, 8)
 
 
+def test_max_connections_default_env_cli(clean_env):
+    assert load_config(parse_args([])).max_connections == 8
+    clean_env.setenv("mcp_baf_MAX_CONNECTIONS", "3")
+    assert load_config(parse_args([])).max_connections == 3
+    assert load_config(parse_args(["--max-connections", "5"])).max_connections == 5
+    clean_env.setenv("mcp_baf_MAX_CONNECTIONS", "0")  # неположительное — дефолт
+    assert load_config(parse_args([])).max_connections == 8
+
+
 def test_retry_defaults(clean_env):
     cfg = load_config(parse_args([]))
     assert cfg.retry_attempts == 2

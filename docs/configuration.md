@@ -66,6 +66,7 @@
 | `--connect-timeout` | `mcp_baf_CONNECT_TIMEOUT` | `10` | Таймаут фази **connect** (TCP + TLS-рукостискання). Короткий навмисно: недоступний хост падає за секунди, а не за 300 |
 | `--write-timeout` | `mcp_baf_WRITE_TIMEOUT` | `60` | Таймаут фази **write** (відправка тіла запиту) |
 | `--pool-timeout` | `mcp_baf_POOL_TIMEOUT` | `10` | Таймаут очікування вільного з'єднання в пулі httpx |
+| `--max-connections` | `mcp_baf_MAX_CONNECTIONS` | `8` | Максимум одночасних з'єднань до 1С. З `Connection: close` кожне з'єднання — окремий сеанс 1С; запити понад ліміт чекають слот до `--pool-timeout` |
 | `--retry-attempts` | `mcp_baf_RETRY_ATTEMPTS` | `2` | Повтори **після** першої спроби для ідемпотентних запитів на транспортні помилки та 5xx (`0` — вимкнено) |
 | `--retry-backoff` | `mcp_baf_RETRY_BACKOFF` | `0.5` | База експоненційної паузи між повторами, с (0.5, 1, 2, …) |
 | `--retry-non-idempotent` | `mcp_baf_RETRY_NON_IDEMPOTENT` | вимкнено | Дозволити повтори й для неідемпотентних (пишучих) запитів |

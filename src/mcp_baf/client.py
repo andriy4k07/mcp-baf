@@ -107,6 +107,9 @@ class OneCClient:
                 write=config.write_timeout,
                 pool=config.pool_timeout,
             ),
+            # Каждое соединение — сеанс 1С: без потолка (httpx — 100) параллельные
+            # вызовы агента выбирали бы лицензии; сверх лимита ждём pool_timeout.
+            limits=httpx.Limits(max_connections=config.max_connections),
             # Закрываем соединение после каждого запроса,
             # чтобы не упираться в лимит сеансов 1С.
             headers={"Connection": "close"},
