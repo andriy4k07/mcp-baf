@@ -148,6 +148,15 @@ def test_timeouts_are_split_by_phase(tmp_path):
     asyncio.run(client.aclose())
 
 
+def test_max_connections_applied_to_pool(tmp_path):
+    """#79: потолок соединений (= сеансов 1С) доходит до пула httpx."""
+    cfg = Config(base_url="http://test/hs/mcp-baf", cache_dir=str(tmp_path),
+                 max_connections=3)
+    client = OneCClient(cfg)
+    assert client._http._transport._pool._max_connections == 3
+    asyncio.run(client.aclose())
+
+
 def test_connect_timeout_defaults_are_short():
     cfg = Config()
     assert cfg.connect_timeout == 10
