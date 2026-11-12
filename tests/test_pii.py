@@ -24,7 +24,7 @@ def _isolate_pii_state(monkeypatch):
     """Глобальное состояние pii (ключ, маркеры) не течёт между тестами."""
     monkeypatch.delenv(pii.PII_KEY_ENV, raising=False)
     yield
-    pii.configure_pii(cache_dir="", extra_column_markers=())
+    pii.configure_pii(cache_dir="", extra_column_markers=(), enabled=False)
 
 
 def _r(columns, rows):
@@ -407,7 +407,8 @@ def test_registry_invariant_all_maskable_tools_pass_mask_pii():
             if name.startswith("format_") and callable(obj)
         ) or any(
             # execute_query маскується не formatter'ом, а mask_pii_result.
-            getattr(obj, "__module__", "") == "mcp_baf.pii"
+            # audit_text маскує лише аудит і бере прапорець із configure_pii.
+            getattr(obj, "__module__", "") == "mcp_baf.pii" and obj is not pii.audit_text
             for name, obj in vars(module).items()
         )
         if not mask_aware_formatter:

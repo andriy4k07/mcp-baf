@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from mcp_baf.pii import audit_text
 from mcp_baf.tools.common import traced_text
 
 
@@ -20,7 +21,7 @@ def register(mcp, index, audit):
         async def run():
             pages = await asyncio.to_thread(index.search, query, limit, section)
             return "\n\n---\n\n".join(card(p) for p in pages) or "В локальной справке ничего не найдено."
-        return await traced_text(audit, "search_platform_help", run, args={"query": query, "limit": limit, "section": section})
+        return await traced_text(audit, "search_platform_help", run, args={"query": audit_text(query), "limit": limit, "section": section})
 
     @mcp.tool(description="Точная карточка элемента платформы по имени из search_platform_help, включая сигнатуры и примеры из HBK. Неоднозначное имя возвращает список кандидатов; неизвестное — ближайшие результаты поиска.", annotations=ToolAnnotations(read_only_hint=True))
     async def get_platform_element(name: str, source: str = "") -> str:
