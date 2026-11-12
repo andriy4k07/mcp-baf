@@ -80,6 +80,9 @@
 | `--audit-max-size` | `mcp_baf_AUDIT_MAX_SIZE` | `50` | Ротація `audit.log` при перевищенні розміру (MiB) |
 | `--audit-archives` | `mcp_baf_AUDIT_ARCHIVES` | `20` | Кількість архівів `audit-*.log`, що зберігаються |
 | `--mask-pii` | `mcp_baf_MASK_PII` | вимкнено | Маскувати персональні дані в результатах `execute_query`, `get_event_log`, `get_form_structure`, `search_code` і в текстах помилок 1С: ПІБ/ІПН/телефон/email/паспорт/адреса тощо замінюються токеном `PII:xxxxxxxx`. Env приймає `1`, `true`, `yes`, `on` |
+| `--pii-column-markers` | `mcp_baf_PII_COLUMN_MARKERS` | — | Додаткові маркери імен колонок ПДн через кому (напр. `БонусныйСчет,ШтрихКод`, кожен щонайменше 3 символи); доповнюють вбудований список. Значення CLI замінює значення env, а не зливається з ним |
+| — | `mcp_baf_PII_KEY` | — | Ключ токенів `PII:xxxxxxxx` (64 hex-символи). Якщо не задано, використовується `<cache-dir>/pii.key`, що створюється при старті з `--mask-pii`. Несумісний з `--rotate-pii-key` |
+| `--rotate-pii-key` | — | вимкнено | Випустити новий ключ токенів при старті (перезапис `<cache-dir>/pii.key`, режим 0600): усі раніше видані токени `PII:` стають несумісними з новими. Одноразова процедура обслуговування, після неї прапорець слід зняти |
 | `--version` | — | — | Вивести версію `mcp-baf` (`mcp-baf <version>`) і вийти |
 | `--transport` | `mcp_baf_TRANSPORT` | `stdio` (в Docker-образі `https`) | Транспорт MCP: `stdio` (підпроцес), `https` (streamable-http за TLS, шлях `/mcp`) або `http` (без TLS, лише з `--allow-insecure-http`) |
 | `--allow-insecure-http` | `mcp_baf_ALLOW_INSECURE_HTTP` | вимкнено | Явний дозвіл на `--transport http`; без нього сервер не стартує |
