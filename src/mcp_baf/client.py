@@ -122,6 +122,9 @@ class OneCClient:
         ошибки 1С остались бы в ответе. Полный текст (однострочный)
         пишется в audit.log событием `pii.error_text` — это серверный
         след для администратора, аналог события MCP.Обезличивание у kharin.
+        Только для тел ответов 1С: текст транспортных ошибок httpx данных
+        базы не содержит и идёт через scrub_error_detail, чтобы агент видел
+        причину (connection refused, DNS).
         """
         if not self._mask_pii:
             return scrub_error_detail(raw)
@@ -277,7 +280,7 @@ class OneCClient:
             # Повтора нет: запрос уже дошёл до базы.
             state["error_kind"] = "timeout"
             raise OneCError(
-                f"executing request to 1C: {self._safe_error_detail(str(exc), endpoint=endpoint)}"
+                f"executing request to 1C: {scrub_error_detail(str(exc))}"
             ) from exc
         except httpx.WriteTimeout as exc:
             # Тело запроса не ушло за write-таймаут — тот же класс, что и
@@ -285,19 +288,19 @@ class OneCClient:
             # запроса могла уже дойти до 1С.
             state["error_kind"] = "timeout"
             raise OneCError(
-                f"executing request to 1C: {self._safe_error_detail(str(exc), endpoint=endpoint)}"
+                f"executing request to 1C: {scrub_error_detail(str(exc))}"
             ) from exc
         except _RETRYABLE_TRANSPORT as exc:
             # Не удалось соединиться/получить слот в пуле — запрос не ушёл.
             state["error_kind"] = "transport_error"
             raise _RetryableOneCError(
-                f"executing request to 1C: {self._safe_error_detail(str(exc), endpoint=endpoint)}"
+                f"executing request to 1C: {scrub_error_detail(str(exc))}"
             ) from exc
         except httpx.HTTPError as exc:
             # Некорректный URL/протокол и т.п. — повтор не поможет.
             state["error_kind"] = "transport_error"
             raise OneCError(
-                f"executing request to 1C: {self._safe_error_detail(str(exc), endpoint=endpoint)}"
+                f"executing request to 1C: {scrub_error_detail(str(exc))}"
             ) from exc
 
         try:

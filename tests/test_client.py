@@ -184,6 +184,17 @@ def test_retry_on_transport_error_then_success(tmp_path):
     asyncio.run(client.aclose())
 
 
+def test_transport_error_not_hidden_by_mask_pii(tmp_path):
+    """#78: при --mask-pii фраза-заглушка лише для тіла відповіді 1С;
+    причину мережевої помилки агент бачить (через scrub_error_detail)."""
+    handler = _flaky_handler([httpx.ConnectError("Name or service not known")], [])
+    client = _client(tmp_path, handler, mask_pii=True, retry_attempts=0)
+    with pytest.raises(OneCError, match="Name or service not known"):
+        asyncio.run(client.get("/version"))
+    assert not [e for e in _events(tmp_path) if e["event"] == "pii.error_text"]
+    asyncio.run(client.aclose())
+
+
 @pytest.mark.parametrize("status", [502, 503, 504])
 def test_retry_on_transient_5xx(tmp_path, status):
     seen = []
