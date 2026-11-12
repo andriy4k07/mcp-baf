@@ -99,6 +99,19 @@ def test_bogus_link_rejected(link):
         objects.parse_link(link)
 
 
+@pytest.mark.parametrize('link', ['e1cib/data/' + KIND, 'e1cib/data/' + KIND + '?', 'e1cib/data/' + KIND + '?ref'])
+def test_link_without_ref_gives_friendly_error(link):
+    with pytest.raises(ValueError, match='ровно один параметр ref'):
+        objects.parse_link(link)
+
+
+def test_object_link_tolerates_null_link(tmp_path):
+    server, client, _ = setup_tools(tmp_path, dict(found=True, kind=KIND, ref=GUID, presentation=None, link=None))
+    with pytest.raises(Exception, match='неподдерживаемую'):
+        call(server, 'get_object_link', mode='make', ref=GUID, kind=KIND)
+    asyncio.run(client.aclose())
+
+
 def test_missing_object_and_service_error(tmp_path):
     server, client, _ = setup_tools(tmp_path, dict(found=False))
     assert 'не найден' in call(server, 'get_object_link', mode='make', ref=GUID, kind=KIND)
