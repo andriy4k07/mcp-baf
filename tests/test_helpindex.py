@@ -218,3 +218,20 @@ def test_unpacked_size_is_measured_not_declared(tmp_path, monkeypatch):
     monkeypatch.setattr('mcp_baf.helpindex.hbk.MAX_HTML_BYTES', 50)
     with pytest.raises(ValueError, match='лимит'):
         list(read_pages(path))
+
+
+def test_stale_help_build_removed_and_close_has_timeout(tmp_path):
+    import os
+    import time
+
+    cache = tmp_path / 'cache'
+    cache.mkdir()
+    stale, fresh = cache / 'help-build-old.sqlite', cache / 'help-build-new.sqlite'
+    stale.write_bytes(b'')
+    fresh.write_bytes(b'')
+    old = time.time() - 86400
+    os.utime(stale, (old, old))
+    index, _ = create_index(tmp_path)
+    assert not stale.exists() and fresh.exists()
+    index.close()
+    index.close()  # повторный close не падает и не виснет

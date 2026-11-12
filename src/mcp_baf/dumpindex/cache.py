@@ -13,6 +13,9 @@ from __future__ import annotations
 import hashlib
 import os
 import sys
+import time
+
+from mcp_baf.dumpindex.modulenames import nfc
 
 INDEX_DB_NAME = "index.db"
 
@@ -31,7 +34,8 @@ def user_cache_dir() -> str:
 
 def cache_path(dump_dir: str, cache_dir: str = "") -> str:
     """Каталог кэша индекса для данной dump-выгрузки."""
-    abs_dir = os.path.abspath(dump_dir)
+    # NFC: один и тот же путь, набранный в NFD (macOS) и NFC, даёт один кэш.
+    abs_dir = nfc(os.path.abspath(dump_dir))
     digest = hashlib.sha256(abs_dir.encode("utf-8")).hexdigest()[:16]
     base = cache_dir or os.path.join(user_cache_dir(), "mcp-baf")
     return os.path.join(base, digest)
@@ -39,3 +43,22 @@ def cache_path(dump_dir: str, cache_dir: str = "") -> str:
 
 def index_db_path(dump_dir: str, cache_dir: str = "") -> str:
     return os.path.join(cache_path(dump_dir, cache_dir), INDEX_DB_NAME)
+
+
+def remove_stale(prefix: str, max_age: float) -> None:
+    """Удаляет временные файлы `<prefix>*` старше `max_age` секунд (сироты после SIGKILL/OOM)."""
+    directory, base = os.path.split(prefix)
+    now = time.time()
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        return
+    for name in names:
+        if not name.startswith(base):
+            continue
+        path = os.path.join(directory, name)
+        try:
+            if now - os.stat(path).st_mtime > max_age:
+                os.unlink(path)
+        except OSError:
+            pass
