@@ -333,3 +333,26 @@ def test_dns_rebinding_env_and_cli_switch(monkeypatch):
     monkeypatch.delenv("mcp_baf_HTTP_DISABLE_DNS_REBINDING")
     assert load_config(parse_args(["--disable-dns-rebinding"])).dns_rebinding_protection is False
 
+
+
+def test_install_mode_ignores_broken_server_env_and_pii(monkeypatch, tmp_path):
+    from mcp_baf import pii
+
+    def no_pii(**kw):
+        raise AssertionError("configure_pii не должен вызываться при --install")
+
+    monkeypatch.setattr(pii, "configure_pii", no_pii)
+    monkeypatch.setenv("mcp_baf_REQUEST_TIMEOUT", "garbage")
+    calls, code = _run_main(monkeypatch, tmp_path, "--install", "db")
+    assert code == 0 and [c[0] for c in calls] == ["install"]
+
+
+def test_install_dump_resolve_password_once(monkeypatch, tmp_path):
+    monkeypatch.delenv("mcp_baf_DB_PASSWORD", raising=False)
+    monkeypatch.setenv("mcp_baf_DB_PASSWORD_FILE", str(tmp_path / "missing"))
+    calls, code = _run_main(monkeypatch, tmp_path, "--install", "db", "--dump", "/out")
+    assert code == 1 and calls == []
+    monkeypatch.delenv("mcp_baf_DB_PASSWORD_FILE")
+    monkeypatch.setenv("mcp_baf_DB_PASSWORD", "pw")
+    calls, code = _run_main(monkeypatch, tmp_path, "--install", "db", "--dump", "/out")
+    assert [c[1]["db_password"] for c in calls] == ["pw", "pw"]
