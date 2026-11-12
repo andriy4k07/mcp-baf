@@ -369,3 +369,20 @@ def test_lexer_hash_not_at_line_start_is_linear():
     tokens, _ = lex("x" + "#" * 200_000)
     assert time.monotonic() - start < 2
     assert len(tokens) == 200_002
+
+
+@pytest.mark.parametrize('raise_word,if_,then,elsif,else_,endif', [
+    ('ВызватьИсключение', 'Если', 'Тогда', 'ИначеЕсли', 'Иначе', 'КонецЕсли'),
+    ('Raise', 'If', 'Then', 'ElsIf', 'Else', 'EndIf'),
+])
+def test_bare_raise_before_block_terminators(raise_word, if_, then, elsif, else_, endif):
+    for follower in (else_, f'{elsif} Б {then}\nВ();\n{else_}', ):
+        src = f'Процедура П()\n{if_} А {then}\n{raise_word}\n{follower}\nБ();\n{endif};\nКонецПроцедуры'
+        assert 'ParseError' not in codes(src), src
+        assert format_source(format_source(src)) == format_source(src)
+
+
+def test_bare_raise_before_except_and_end_of_method():
+    for src in ('Попытка\nВызватьИсключение\nИсключение\nКонецПопытки;', 'Try\nRaise\nExcept\nСообщить(1);\nEndTry;',
+                'Процедура П()\nВызватьИсключение\nКонецПроцедуры', 'Function F()\nRaise\nEndFunction'):
+        assert 'ParseError' not in codes(src), src

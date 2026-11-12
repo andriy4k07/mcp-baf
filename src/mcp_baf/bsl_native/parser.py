@@ -27,6 +27,11 @@ class ParseFailure(Exception):
         self.diagnostic = Diagnostic('ParseError', message, token.line, token.column, 'error')
 
 
+# Токены, после которых Возврат/ВызватьИсключение без аргумента завершают оператор.
+BARE_STOP = frozenset({';', 'endprocedure', 'endfunction', 'endif', 'elsif', 'else',
+                       'enddo', 'except', 'endtry', 'eof'})
+
+
 class Parser:
     PRECEDENCE = {'or': 1, 'and': 2, '=': 3, '<>': 3, '<': 3, '>': 3, '<=': 3, '>=': 3,
                   '+': 4, '-': 4, '*': 5, '/': 5, '%': 5}
@@ -195,11 +200,11 @@ class Parser:
             elif kind == 'execute':
                 reads = self.expression().reads
             elif kind == 'return':
-                if self.current.kind not in {';','endprocedure','endfunction','endif','elsif','else','enddo','except','endtry','eof'}:
+                if self.current.kind not in BARE_STOP:
                     reads = self.expression().reads
                     if self.method != 'function':
                         self.error(token, 'Процедура не может возвращать значение')
-            elif kind == 'raise' and self.current.kind not in {';','endprocedure','endfunction','endif','enddo','endtry','eof'}:
+            elif kind == 'raise' and self.current.kind not in BARE_STOP:
                 reads = self.expression().reads
             return Node(kind, token, reads=reads)
         if kind == '~':
