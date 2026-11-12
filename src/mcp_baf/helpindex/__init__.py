@@ -17,7 +17,7 @@ import zlib
 from html.parser import HTMLParser
 from pathlib import Path
 
-from mcp_baf.dumpindex.cache import user_cache_dir
+from mcp_baf.dumpindex.cache import remove_stale, user_cache_dir
 from mcp_baf.dumpindex.synonyms import build_synonym_map
 from mcp_baf.helpindex.hbk import read_pages
 
@@ -28,6 +28,11 @@ BLOCK_TAGS = {"p", "div", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6", "pre",
 NAME_PARTS = re.compile(r"[A-ZА-ЯЁІЇЄҐ]+(?![a-zа-яёіїєґ])|[A-ZА-ЯЁІЇЄҐ][a-zа-яёіїєґ\d]+")
 
 logger = logging.getLogger(__name__)
+
+# Сколько секунд close() ждёт поток-строитель справки.
+CLOSE_JOIN_TIMEOUT = 10.0
+# Временные файлы сборки старше часа — сироты после SIGKILL/OOM.
+STALE_BUILD_AGE = 3600.0
 
 
 class PageParser(HTMLParser):
@@ -136,6 +141,7 @@ class HelpIndex:
                     if connection is not None:
                         connection.close()
                         connection = None
+            remove_stale(str(self.database.parent / "help-build-"), STALE_BUILD_AGE)
             descriptor, temporary = tempfile.mkstemp(prefix="help-build-", suffix=".sqlite", dir=self.database.parent)
             os.close(descriptor)
             connection = sqlite3.connect(temporary)
@@ -220,7 +226,7 @@ class HelpIndex:
 
     def close(self):
         self._stop.set()
-        self._thread.join()
+        self._thread.join(timeout=CLOSE_JOIN_TIMEOUT)
         with self._lock:
             if self._connection is not None:
                 self._connection.close()

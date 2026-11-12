@@ -76,7 +76,7 @@ def _parse_dump_extensions(raw: str | None) -> "list[str] | str | None":
     return names
 
 
-def _run_dump(args, extensions: "list[str] | str | None") -> None:
+def _run_dump(args, extensions: "list[str] | str | None", db_password: str | None = None) -> None:
     """Экспорт конфигурации после установки (mcp-baf --install ... --dump DIR)."""
     from mcp_baf import installer
 
@@ -88,7 +88,7 @@ def _run_dump(args, extensions: "list[str] | str | None") -> None:
             server_mode=args.server,
             platform_exe=args.platform,
             db_user=args.db_user,
-            db_password=args.db_password,
+            db_password=args.db_password if db_password is None else db_password,
             platform_version=args.platform_version,
         )
     except installer.InstallError as exc:
@@ -102,8 +102,53 @@ def _run_dump(args, extensions: "list[str] | str | None") -> None:
     print(f"Configuration exported to {args.dump}")
 
 
+def _run_install(args) -> None:
+    """Режим --install: не зависит от серверной конфигурации и PII."""
+    from mcp_baf import installer
+
+    # При перенаправлении вывода Windows даёт stdout в cp1252: кириллица
+    # (имена расширений, пути, лог DESIGNER) иначе роняет уже после установки.
+    sys.stdout.reconfigure(errors="backslashreplace")
+    sys.stderr.reconfigure(errors="backslashreplace")
+    try:
+        dump_extensions = _parse_dump_extensions(args.dump_extensions)
+    except installer.InstallError as exc:
+        print(f"Dump error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    # Пароль разрешается один раз: install и dump получают готовое значение.
+    try:
+        db_password = installer.resolve_db_password(args.db_password)
+    except installer.InstallError as exc:
+        print(f"Installation error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    print("Installing MCP extension into 1C database...")
+    try:
+        installer.install(
+            db_path=args.install,
+            server_mode=args.server,
+            platform_exe=args.platform,
+            db_user=args.db_user,
+            db_password=db_password,
+            platform_version=args.platform_version,
+            lang=args.lang,
+        )
+    except installer.InstallError as exc:
+        print(f"Installation error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    print("Extension installed successfully.")
+    if args.dump:
+        _run_dump(args, dump_extensions, db_password)
+
+
 def main() -> None:
     args = parse_args()
+    if args.dump_extensions is not None and not (args.install and args.dump):
+        print("--dump-extensions requires --install and --dump", file=sys.stderr)
+        sys.exit(1)
+
+    if args.install:
+        _run_install(args)
+        return
     try:
         config = load_config(args)
     except ConfigError as exc:
@@ -131,42 +176,6 @@ def main() -> None:
         sys.exit(1)
     if config.rotate_pii_key:
         logging.getLogger(__name__).info("PII: ключ токенов заменён (--rotate-pii-key)")
-
-    if args.dump_extensions is not None and not (args.install and args.dump):
-        print("--dump-extensions requires --install and --dump", file=sys.stderr)
-        sys.exit(1)
-
-    # Режим установки расширения.
-    if args.install:
-        from mcp_baf import installer
-
-        # При перенаправлении вывода Windows даёт stdout в cp1252: кириллица
-        # (имена расширений, пути, лог DESIGNER) иначе роняет уже после установки.
-        sys.stdout.reconfigure(errors="backslashreplace")
-        sys.stderr.reconfigure(errors="backslashreplace")
-        try:
-            dump_extensions = _parse_dump_extensions(args.dump_extensions)
-        except installer.InstallError as exc:
-            print(f"Dump error: {exc}", file=sys.stderr)
-            sys.exit(1)
-        print("Installing MCP extension into 1C database...")
-        try:
-            installer.install(
-                db_path=args.install,
-                server_mode=args.server,
-                platform_exe=args.platform,
-                db_user=args.db_user,
-                db_password=args.db_password,
-                platform_version=args.platform_version,
-                lang=args.lang,
-            )
-        except installer.InstallError as exc:
-            print(f"Installation error: {exc}", file=sys.stderr)
-            sys.exit(1)
-        print("Extension installed successfully.")
-        if args.dump:
-            _run_dump(args, dump_extensions)
-        return
 
     # Установка расширения, --help и --version не зависят от API MCP SDK.
     from mcp_baf.server import create_server

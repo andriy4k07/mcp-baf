@@ -11,7 +11,7 @@ from pydantic import Field
 
 from mcp_baf_audit import AuditWriter
 from mcp_baf.dumpindex import DumpIndex, Match, SearchParams
-from mcp_baf.pii import MASKING_NOTE, mask_pii_text
+from mcp_baf.pii import MASKING_NOTE, audit_text, mask_pii_text
 from mcp_baf.tools.common import clamp_limit, traced_text
 
 DEFAULT_SEARCH_LIMIT = 50
@@ -84,12 +84,15 @@ def register(mcp: MCPServer, index: DumpIndex, audit: AuditWriter,
                     "Проверьте путь к выгрузке конфигурации."
                 )
 
-            return format_search_result(matches, total, query, mode, mask_pii=mask_pii)
+            return format_search_result(
+                matches, total, query, mode, mask_pii=mask_pii,
+                truncated=getattr(matches, "truncated", False),
+            )
 
         return await traced_text(
             audit, "search_code", run,
             args={
-                "query": query,
+                "query": audit_text(query),
                 "mode": mode,
                 "category": category,
                 "module": module,
@@ -100,7 +103,7 @@ def register(mcp: MCPServer, index: DumpIndex, audit: AuditWriter,
 
 def format_search_result(
     matches: list[Match], total: int, query: str, mode: str,
-    mask_pii: bool = False,
+    mask_pii: bool = False, truncated: bool = False,
 ) -> str:
     """Форматирует результаты поиска; при mask_pii код маскируется по regex.
 
@@ -112,8 +115,12 @@ def format_search_result(
 
     lines = [f'## Результаты поиска "{text(query)}" ({total} совпадений)', ""]
 
+    note = (
+        "> Поиск прерван по бюджету времени: результаты неполные, "
+        "уточните запрос (category/module) или шаблон."
+    )
     if not matches:
-        lines.append("Ничего не найдено.")
+        lines.append("Ничего не найдено." if not truncated else note)
         return "\n".join(lines) + "\n"
 
     for m in matches:
@@ -126,6 +133,8 @@ def format_search_result(
         lines.append("```")
         lines.append("")
 
+    if truncated:
+        lines.append(note)
     if total > len(matches):
         lines.append(
             f"> Показано {len(matches)} из {total} совпадений. "

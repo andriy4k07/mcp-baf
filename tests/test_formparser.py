@@ -253,3 +253,17 @@ def test_parse_form_xml_accepts_plain_declaration(tmp_path):
     )
     info = formparser.parse_form_xml(str(p))
     assert [e.name for e in info.elements] == ["Поле1"]
+
+
+def test_deeply_nested_form_reported_as_unsafe():
+    from mcp_baf.dumpindex.xmlguard import UnsafeXML
+
+    depth = 3000
+    xml = (
+        "<Form><ChildItems>"
+        + "<UsualGroup><ChildItems>" * depth
+        + "</ChildItems></UsualGroup>" * depth
+        + "</ChildItems></Form>"
+    )
+    with pytest.raises(UnsafeXML, match="вложена"):
+        formparser.parse_form_xml_data(xml)

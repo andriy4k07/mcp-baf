@@ -285,6 +285,17 @@ def test_analyzer_accepts_own_extension():
     assert not [d for d in analyze(path.read_text()) if d['level'] == 'error']
 
 
+def test_bsl_format_marks_truncation_outside_code_fence(tmp_path):
+    src = 'Процедура Тест()\n' + 'Сообщить(1);\n' * 6000 + 'КонецПроцедуры'
+    server = MCPServer('test')
+    bsl_analysis.register(server, AuditLog(str(tmp_path)))
+    text = asyncio.run(server.call_tool('bsl_format', dict(src=src))).content[0].text
+    code, _, note = text.rpartition('\n```')
+    assert 'Результат усечён' in note and 'Результат усечён' not in code
+    small = asyncio.run(server.call_tool('bsl_format', dict(src='Процедура Т()\nКонецПроцедуры'))).content[0].text
+    assert small.endswith('```') and 'усечён' not in small
+
+
 def test_tools_filters_limits_privacy_and_no_source_file_changes(tmp_path):
     src = 'Процедура PRIVATE_CODE()\nПерем А, Б;\nВозврат;\nСообщить(1);\nКонецПроцедуры'
     original = tmp_path / 'Module.bsl'
@@ -369,3 +380,64 @@ def test_lexer_hash_not_at_line_start_is_linear():
     tokens, _ = lex("x" + "#" * 200_000)
     assert time.monotonic() - start < 2
     assert len(tokens) == 200_002
+
+
+@pytest.mark.parametrize('raise_word,if_,then,elsif,else_,endif', [
+    ('ВызватьИсключение', 'Если', 'Тогда', 'ИначеЕсли', 'Иначе', 'КонецЕсли'),
+    ('Raise', 'If', 'Then', 'ElsIf', 'Else', 'EndIf'),
+])
+def test_bare_raise_before_block_terminators(raise_word, if_, then, elsif, else_, endif):
+    for follower in (else_, f'{elsif} Б {then}\nВ();\n{else_}', ):
+        src = f'Процедура П()\n{if_} А {then}\n{raise_word}\n{follower}\nБ();\n{endif};\nКонецПроцедуры'
+        assert 'ParseError' not in codes(src), src
+        assert format_source(format_source(src)) == format_source(src)
+
+
+def test_bare_raise_before_except_and_end_of_method():
+    for src in ('Попытка\nВызватьИсключение\nИсключение\nКонецПопытки;', 'Try\nRaise\nExcept\nСообщить(1);\nEndTry;',
+                'Процедура П()\nВызватьИсключение\nКонецПроцедуры', 'Function F()\nRaise\nEndFunction'):
+        assert 'ParseError' not in codes(src), src
+
+
+@pytest.mark.parametrize('src', [
+    'Перем А;\nЕсли А Тогда\n Возврат;\nКонецЕсли;',
+    'Var A;\nIf A Then\n Return;\nEndIf;',
+    'Процедура П()\nКонецПроцедуры\nВозврат;',
+])
+def test_module_level_return_without_value_is_accepted(src):
+    assert not {'ParseError', 'UnreachableCode'} & set(codes(src))
+    assert format_source(format_source(src)) == format_source(src)
+
+
+def test_module_level_return_with_value_is_still_an_error():
+    assert 'ParseError' in codes('Возврат 1;')
+
+
+@pytest.mark.parametrize('src', [
+    '#Если Сервер Тогда\nПроцедура П(А)\n#Иначе\nПроцедура П(А, Б)\n#КонецЕсли\nСообщить(А);\nКонецПроцедуры',
+    '#If Server Then\nFunction F(A) Export\n#ElsIf Client Then\nFunction F(A, B) Export\n#Else\nAsync Function F()\n#EndIf\nReturn A;\nEndFunction',
+])
+def test_method_headers_duplicated_across_preprocessor_branches(src):
+    assert 'ParseError' not in codes(src)
+    formatted = format_source(src)
+    assert format_source(formatted) == formatted
+    assert [(t.kind, t.text) for t in lex(src)[0]] == [(t.kind, t.text) for t in lex(formatted)[0]]
+
+
+def test_nested_method_without_directive_is_still_an_error():
+    assert 'ParseError' in codes('Процедура А()\nПроцедура Б()\nКонецПроцедуры\nКонецПроцедуры')
+
+
+def test_alternative_header_keeps_reserved_name_suppression_and_parameter_check():
+    src = '#Если Сервер Тогда\nПроцедура Найти()\n#Иначе\nПроцедура Другая(А, а)\n#КонецЕсли\nКонецПроцедуры'
+    assert 'ReservedDeclarationName' not in codes(src)
+    assert 'DuplicateParameter' in codes(src)
+
+
+def test_nbsp_and_form_feed_are_whitespace_and_preserved():
+    src = 'Процедура П()\n\xa0\xa0Сообщить(1);\xa0\n\fСообщить(2);\n\xa0#Если Истина Тогда\nА = 1;\n#КонецЕсли\nКонецПроцедуры'
+    assert 'ParseError' not in codes(src)
+    formatted = format_source(src)
+    assert formatted.count('\xa0') == src.count('\xa0') and formatted.count('\f') == 1
+    assert format_source(formatted) == formatted
+    assert 'ParseError' in codes('А = 1 ​;')

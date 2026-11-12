@@ -174,6 +174,15 @@ def test_phase_timeouts_cli_overrides_env(clean_env):
     assert (cfg.connect_timeout, cfg.write_timeout, cfg.pool_timeout) == (12, 30, 8)
 
 
+def test_max_connections_default_env_cli(clean_env):
+    assert load_config(parse_args([])).max_connections == 8
+    clean_env.setenv("mcp_baf_MAX_CONNECTIONS", "3")
+    assert load_config(parse_args([])).max_connections == 3
+    assert load_config(parse_args(["--max-connections", "5"])).max_connections == 5
+    clean_env.setenv("mcp_baf_MAX_CONNECTIONS", "0")  # неположительное — дефолт
+    assert load_config(parse_args([])).max_connections == 8
+
+
 def test_retry_defaults(clean_env):
     cfg = load_config(parse_args([]))
     assert cfg.retry_attempts == 2
@@ -202,3 +211,13 @@ def test_invalid_retry_env_falls_back_to_default(clean_env):
     assert cfg.retry_attempts == 2
     assert cfg.retry_backoff == 0.5
 
+
+
+def test_env_secret_file_bom_stripped(monkeypatch, tmp_path):
+    from mcp_baf.config import _env_secret
+
+    f = tmp_path / "pw"
+    f.write_bytes(b"\xef\xbb\xbfsecret\n")
+    monkeypatch.delenv("mcp_baf_PASSWORD", raising=False)
+    monkeypatch.setenv("mcp_baf_PASSWORD_FILE", str(f))
+    assert _env_secret("mcp_baf_PASSWORD") == "secret"

@@ -11,7 +11,7 @@ python -m venv .venv
 ```
 
 Python **3.11+**. Прямі залежності: `mcp>=2.3,<3`, `httpx>=0.27`,
-`mcp-baf-audit>=0.2.1`. З dev-екстри ставиться лише `pytest`.
+`mcp-baf-audit~=0.2.1`. З dev-екстри ставиться лише `pytest`.
 
 Використовується офіційний MCP SDK **2.x**: `MCPServer` і `Context` з
 `mcp.server.mcpserver`, клієнт `mcp.Client`. Python-поля мають snake_case:

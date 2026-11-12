@@ -620,3 +620,189 @@ def test_install_uses_password_file(monkeypatch, tmp_path):
     monkeypatch.setenv("mcp_baf_DB_PASSWORD_FILE", str(secret))
     installer.install("C:\\db", platform_exe="1cv8.exe")
     assert captured["db_password"] == "file-pass"
+
+
+# ── _install_from: цепочка повторов (DESIGNER замокан) ──
+
+COMPAT_ERR = "Указан режим совместимости, не найденный в конфигурации"
+INHERIT_ERR = "Ошибка: переопределение свойств заимствованных объектов запрещено"
+
+
+def _scripted_install(monkeypatch, tmp_path, responses, platform="C:\\1cv8\\8.3.27.1859\\bin\\1cv8.exe",
+                      version=""):
+    """Гоняет _install_from; ответы _run_designer берутся по очереди из responses."""
+    calls = []
+    queue = list(responses)
+
+    def fake(platform_exe, db_path, server_mode, db_user, db_password, *extra):
+        calls.append(extra)
+        return queue.pop(0)
+
+    monkeypatch.setattr(installer, "_run_designer", fake)
+    ext_dir = str(tmp_path / "ext")
+    try:
+        installer._install_from(ext_dir, platform, "C:\\db", False, "", "", version)
+    finally:
+        assert not queue, "не все ответы использованы"
+    return calls
+
+
+def test_install_delete_and_retry_success(monkeypatch, tmp_path):
+    calls = _scripted_install(monkeypatch, tmp_path, ["Уже существует", None, None, None])
+    assert [c[0] for c in calls] == [
+        "/LoadConfigFromFiles", "/ManageCfgExtensions", "/LoadConfigFromFiles", "/UpdateDBCfg"]
+
+
+def test_install_reload_failure_after_delete_warns_loudly(monkeypatch, tmp_path):
+    with pytest.raises(installer.InstallError) as exc:
+        _scripted_install(monkeypatch, tmp_path, ["Вже існує", None, "boom"])
+    text = str(exc.value)
+    assert "УЖЕ УДАЛЕНО" in text and "boom" in text and "Вже існує" in text
+
+
+def test_install_delete_failure_raises(monkeypatch, tmp_path):
+    with pytest.raises(installer.InstallError, match="deleting old extension"):
+        _scripted_install(monkeypatch, tmp_path, ["Уже существует", "no rights"])
+
+
+def test_install_strip_retry_on_old_platform(monkeypatch, tmp_path):
+    calls = _scripted_install(
+        monkeypatch, tmp_path,
+        ["KeepMappingToExtendedConfigurationObjectsByIDs не найден", None, None],
+        platform="8.3.14.1")
+    assert [c[0] for c in calls] == ["/LoadConfigFromFiles"] * 2 + ["/UpdateDBCfg"]
+
+
+def test_install_strip_not_applied_on_new_platform(monkeypatch, tmp_path):
+    with pytest.raises(installer.InstallError, match="InternalInfo"):
+        _scripted_install(monkeypatch, tmp_path, ["bad InternalInfo"])
+
+
+def test_install_compat_mode_chain_keeps_first_error(monkeypatch, tmp_path):
+    first = "режим совместимости 1"
+    with pytest.raises(installer.InstallError) as exc:
+        _scripted_install(monkeypatch, tmp_path, [first, "режим совместимости 2", "последняя"])
+    text = str(exc.value)
+    assert "последняя" in text and first in text
+
+
+def test_install_compat_mode_falls_back_to_dontuse(monkeypatch, tmp_path):
+    cfg = {}
+
+    def fake(platform_exe, db_path, server_mode, db_user, db_password, *extra):
+        if extra[0] == "/LoadConfigFromFiles":
+            xml = open(os.path.join(extra[1], "Configuration.xml"), encoding="utf-8-sig").read()
+            cfg.setdefault("loads", []).append(xml)
+            return "режим сумісності" if len(cfg["loads"]) < 3 else None
+        return None
+
+    monkeypatch.setattr(installer, "_run_designer", fake)
+    installer._install_from(str(tmp_path / "e"), "8.3.27.1", "db", False, "", "", "")
+    assert "Version8_3_10" in cfg["loads"][1] and "DontUse" in cfg["loads"][2]
+
+
+def test_install_default_run_mode_retry(monkeypatch, tmp_path):
+    calls = _scripted_install(monkeypatch, tmp_path, ["ОсновнийРежимЗапуску", None, None])
+    assert len(calls) == 3
+
+
+def test_install_update_db_cfg_failure(monkeypatch, tmp_path):
+    with pytest.raises(installer.InstallError, match="updating database config: oops"):
+        _scripted_install(monkeypatch, tmp_path, [None, "oops"])
+
+
+def test_install_update_db_cfg_inherited_props_retry(monkeypatch, tmp_path, capsys):
+    calls = _scripted_install(monkeypatch, tmp_path, [None, INHERIT_ERR, None, None])
+    assert [c[0] for c in calls] == [
+        "/LoadConfigFromFiles", "/UpdateDBCfg", "/LoadConfigFromFiles", "/UpdateDBCfg"]
+    assert installer.ROLE_NOTE in capsys.readouterr().out
+
+
+def test_install_unsupported_platform(tmp_path):
+    with pytest.raises(installer.InstallError, match="не поддерживается"):
+        installer._install_from(str(tmp_path / "e"), "8.3.9.1", "db", False, "", "", "")
+
+
+@pytest.mark.parametrize(
+    ("major", "minor", "target", "want"),
+    [(3, 9, 10, True), (3, 10, 10, False), (3, 13, 14, True), (3, 14, 14, False),
+     (3, 15, 14, False), (5, 0, 14, False), (2, 99, 14, True)],
+)
+def test_older_than_boundaries(major, minor, target, want):
+    assert installer._older_than(major, minor, 3, target) is want
+
+
+# ── _run_designer: декодирование лога, OSError ──
+
+def _fake_run_with_log(log_bytes, returncode=1):
+    from types import SimpleNamespace
+
+    def fake_run(argv, capture_output, timeout=None):
+        with open(argv[argv.index("/Out") + 1], "wb") as log:
+            log.write(log_bytes)
+        return SimpleNamespace(returncode=returncode)
+
+    return fake_run
+
+
+def test_run_designer_decodes_cp1251_log(monkeypatch):
+    monkeypatch.setattr(installer.subprocess, "run",
+                        _fake_run_with_log("Ошибка входа".encode("cp1251")))
+    error = installer._run_designer("1cv8", "db", False, "", "", "/X")
+    assert "Ошибка входа" in error
+
+
+def test_run_designer_strips_utf8_bom(monkeypatch):
+    monkeypatch.setattr(installer.subprocess, "run",
+                        _fake_run_with_log(b"\xef\xbb\xbf" + "Помилка".encode("utf-8")))
+    error = installer._run_designer("1cv8", "db", False, "", "", "/X")
+    assert error.endswith(":\nПомилка")
+
+
+def test_run_designer_oserror(monkeypatch):
+    def boom(*a, **kw):
+        raise OSError("no exec")
+
+    monkeypatch.setattr(installer.subprocess, "run", boom)
+    assert "failed to start" in installer._run_designer("nope", "db", False, "", "", "/X")
+
+
+# ── прочие правки ──
+
+def test_db_password_file_bom_stripped(monkeypatch, tmp_path):
+    f = tmp_path / "pw"
+    f.write_bytes(b"\xef\xbb\xbfsecret\r\n")
+    monkeypatch.delenv("mcp_baf_DB_PASSWORD", raising=False)
+    monkeypatch.setenv("mcp_baf_DB_PASSWORD_FILE", str(f))
+    assert installer.resolve_db_password() == "secret"
+
+
+def test_format_version_honours_override():
+    assert installer.format_version_for_platform("1cv8", "8.3.13") == "2.7"
+    assert installer.format_version_for_platform(r"C:\8.3.27.1859\bin\1cv8.exe", "8.3.18") == "2.11"
+
+
+def test_extract_platform_minor_takes_last_match():
+    assert installer.extract_platform_minor("/opt/8.3.10-old/8.3.27.1859/bin/1cv8") == (3, 27)
+
+
+def test_format_version_hypothetical_84():
+    assert installer.format_version_for_platform("8.4.1.1") == installer.PLATFORM_85_FORMAT_VERSION
+
+
+@pytest.mark.parametrize("body", ["<T></T>", "<T/>", "<T />", "<T>old</T>"])
+def test_replace_or_insert_xml_tag_matches_empty_forms(body):
+    src = f"<Properties>\n\t\t\t{body}\n\t\t</Properties>"
+    out = installer._replace_or_insert_xml_tag(src, "T", "v")
+    assert out.count("<T") == 1 and "<T>v</T>" in out
+
+
+def test_dump_named_extension_dir_cleaned(monkeypatch, tmp_path):
+    out = tmp_path / "out"
+    stale = out / "Ext1" / "old.txt"
+    stale.parent.mkdir(parents=True)
+    stale.write_text("x")
+    calls, fake = _recorder()
+    monkeypatch.setattr(installer, "_run_designer", fake)
+    installer.dump("db", str(out), extensions=["Ext1"], platform_exe="1cv8")
+    assert not stale.exists()

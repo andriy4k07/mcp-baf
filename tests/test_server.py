@@ -81,6 +81,21 @@ def test_lifespan_writes_server_start_stop(tmp_path):
     assert "password" not in start
 
 
+def test_skipped_version_check_is_logged_and_audited(tmp_path, caplog):
+    from mcp_baf_audit import AuditLog
+    from mcp_baf.server import _check_extension_version
+    audit = AuditLog(str(tmp_path))
+    client = OneCClient(Config(base_url="http://test"), httpx.MockTransport(lambda r: httpx.Response(404, json={})))
+    async def run():
+        await _check_extension_version(client, audit)
+        await client.aclose()
+    asyncio.run(run())
+    assert "version check skipped" in caplog.text
+    events = [json.loads(x) for x in (tmp_path / "audit.log").read_text("utf-8").splitlines()]
+    skipped = [e for e in events if e["event"] == "server.version_check_skipped"]
+    assert len(skipped) == 1 and skipped[0]["level"] == "warning" and skipped[0]["reason"]
+
+
 def test_every_tool_is_classified_as_http_or_local(tmp_path):
     # Инструмент вне TOOL_METHODS считается локальным и не проверяет права:
     # новый HTTP-инструмент обязан попасть в карту, а не сюда по умолчанию.

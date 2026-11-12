@@ -43,10 +43,9 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
             description="Имя объекта метаданных, например РеализацияТоваровУслуг"
         )],
     ) -> str:
-        if not object_type or not object_name:
-            raise ValueError("object_type and object_name are required")
-
         async def run() -> str:
+            if not object_type or not object_name:
+                raise ValueError("object_type and object_name are required")
             # Оба сегмента подставляются в URL: белый список типов + имя по регексу.
             url_type, url_name = object_path_segments(
                 object_type, object_name, OBJECT_TYPE_TO_DUMP_DIR
