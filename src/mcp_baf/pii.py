@@ -27,6 +27,7 @@ import hmac
 import os
 import re
 import secrets
+import tempfile
 from collections.abc import Callable, Iterable
 from typing import Any
 
@@ -212,8 +213,11 @@ def _write_key_file(key: bytes, *, replace: bool = False) -> bool:
     одновременно, не выпустят разные ключи. 0600 — ключ позволяет заново
     вычислять токены по audit.log.
     """
-    tmp = f"{_key_file}.{os.getpid()}.tmp"
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    # Уникальное имя (mkstemp, 0600): имя из PID после kill оставалось бы и
+    # блокировало старт — в Docker PID всегда 1.
+    fd, tmp = tempfile.mkstemp(
+        dir=os.path.dirname(_key_file), prefix=f"{PII_KEY_FILENAME}.", suffix=".tmp",
+    )
     try:
         try:
             os.write(fd, key.hex().encode("ascii"))

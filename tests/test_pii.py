@@ -450,6 +450,18 @@ def test_key_file_race_loser_adopts_existing_key(tmp_path):
     assert pii.pii_token("x") == winner
 
 
+def test_leftover_pid_temp_file_does_not_block_startup(tmp_path):
+    """#78: залишок старого pii.key.<pid>.tmp (kill між open і unlink; у
+    Docker PID завжди 1) не заважає створити ключ."""
+    leftover = tmp_path / f"{pii.PII_KEY_FILENAME}.{os.getpid()}.tmp"
+    leftover.write_text("stale", "ascii")
+    pii.configure_pii(cache_dir=str(tmp_path))
+    kf = tmp_path / pii.PII_KEY_FILENAME
+    assert len(bytes.fromhex(kf.read_text("ascii"))) == pii.PII_KEY_BYTES
+    assert kf.stat().st_mode & 0o777 == 0o600
+    assert sorted(tmp_path.glob("*.tmp")) == [leftover]  # свій temp прибрано
+
+
 @pytest.mark.parametrize("content", ["", "not-hex", "ab" * 5])
 def test_invalid_existing_key_file_fails_closed(tmp_path, content):
     kf = tmp_path / pii.PII_KEY_FILENAME
