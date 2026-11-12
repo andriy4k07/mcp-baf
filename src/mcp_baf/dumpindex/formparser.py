@@ -29,7 +29,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 
 from mcp_baf.dumpindex.modulenames import OBJECT_TYPE_TO_DUMP_DIR, nfc
-from mcp_baf.dumpindex.xmlguard import parse_bytes, parse_file
+from mcp_baf.dumpindex.xmlguard import UnsafeXML, parse_bytes, parse_file
 
 
 @dataclass
@@ -174,6 +174,14 @@ def _local(elem: ET.Element) -> str:
 
 
 def _parse_form_root(root: ET.Element) -> FormInfo:
+    try:
+        return _parse_form_root_unbounded(root)
+    except RecursionError:
+        # Патологически вложенная форма: рекурсивный разбор не безопасен.
+        raise UnsafeXML("форма слишком глубоко вложена, разбор не поддерживается") from None
+
+
+def _parse_form_root_unbounded(root: ET.Element) -> FormInfo:
     form = FormInfo()
     if _local(root) != "Form":
         # Корень не <Form> — ищем первый <Form> в документе.
