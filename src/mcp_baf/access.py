@@ -125,10 +125,19 @@ class AccessMCP(MCPServer):
         return visible
 
     async def call_tool(self, name: str, arguments: dict, context: Context | None = None):
+        # Каждый вызов — отдельная операция: contextvar переживает вызов в
+        # сессии, и без сброса все вызовы делили бы один trace_id.
+        previous = get_trace_id()
+        set_trace_id(new_trace_id())
+        try:
+            return await self._call_tool(name, arguments, context)
+        finally:
+            set_trace_id(previous)
+
+    async def _call_tool(self, name: str, arguments: dict, context: Context | None):
         if name in TOOL_METHODS:
             # HTTP-проверка наследует trace инструмента; успешную проверку
             # не выдаём за второй tool.call, отказ пишем без аргументов/данных.
-            set_trace_id(get_trace_id() or new_trace_id())
             allowed, error = await self._capabilities()
             if TOOL_METHODS[name] not in allowed:
                 async def denied():
