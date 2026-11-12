@@ -146,6 +146,8 @@ claude mcp add mcp-baf \
 
 ## Конфігурація
 
+Нижче наведено основні прапори; повний перелік (транспорт, TLS, таймаути) — у [docs/configuration.md](docs/configuration.md).
+
 | Прапор | Env var | За замовчуванням | Опис |
 |--------|---------|------------------|------|
 | `--base` | `mcp_baf_BASE_URL` | `http://localhost:8080/hs/mcp-baf` | URL HTTP-сервісу 1С |
