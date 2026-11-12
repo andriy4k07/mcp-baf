@@ -316,3 +316,23 @@ def test_hosts_with_port_do_not_reissue_leaf_on_every_start(tmp_path):
     san = _load_cert(cert).extensions.get_extension_for_class(x509.SubjectAlternativeName)
     names = set(san.value.get_values_for_type(x509.DNSName))
     assert names == {"mcp-baf", "localhost"}, names
+
+
+def test_two_processes_with_different_hosts_keep_each_others_san(tmp_path):
+    """Сервер и дашборд з різними --http-host ділять каталог: перевипуск листа
+    об'єднує наявні SAN з потрібними, а не перетирає їх, тож після обох
+    стартів лист покриває обидва набори і більше не перевипускається."""
+    directory = str(tmp_path)
+    _, cert, _ = ensure_self_signed(directory, ["mcp-a.lan", "localhost", "127.0.0.1"])
+    ensure_self_signed(directory, ["mcp-b.lan", "localhost"])
+    second = _digest(cert)
+    ensure_self_signed(directory, ["mcp-a.lan", "localhost", "127.0.0.1"])
+
+    assert _digest(cert) == second, "лист перевипущений, хоча SAN уже покриває обидва набори"
+    _assert_bundle_consistent(directory)
+    cert_obj = _load_cert(cert)
+    san = cert_obj.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+    assert set(san.get_values_for_type(x509.DNSName)) == {"mcp-a.lan", "mcp-b.lan", "localhost"}
+    assert [str(ip) for ip in san.get_values_for_type(x509.IPAddress)] == ["127.0.0.1"]
+    # CN — перший із потрібних імен процесу, що перевипустив лист.
+    assert cert_obj.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value == "mcp-b.lan"
