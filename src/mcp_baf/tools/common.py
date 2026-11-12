@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import math
 import re
 import time
 from collections.abc import Awaitable, Callable, Collection
+from decimal import Decimal
 from typing import Any
 from urllib.parse import quote
 
@@ -127,7 +129,8 @@ def truncate_output(text: str, limit: int = MAX_TOOL_OUTPUT_CHARS) -> str:
 
 def escape_pipe(s: str) -> str:
     """Экранирует вертикальную черту, чтобы не ломать markdown-таблицы."""
-    return s.replace("|", "\\|")
+    # Сначала обратный слэш: иначе «\|» из данных превратится в экранированный слэш + голую черту.
+    return s.replace("\\", "\\\\").replace("|", "\\|")
 
 
 def format_cell(v: Any) -> str:
@@ -137,7 +140,13 @@ def format_cell(v: Any) -> str:
     if isinstance(v, bool):
         s = "true" if v else "false"
     elif isinstance(v, float):
-        s = str(int(v)) if v == int(v) else f"{v:f}".rstrip("0").rstrip(".")
+        if not math.isfinite(v):
+            s = str(v)
+        elif v == int(v):
+            s = str(int(v))
+        else:
+            # repr даёт кратчайшую точную запись; Decimal убирает экспоненту (1e-07).
+            s = format(Decimal(repr(v)), "f")
     elif isinstance(v, str):
         s = v
     else:
