@@ -11,7 +11,7 @@ from pydantic import Field
 
 from mcp_baf_audit import AuditWriter
 from mcp_baf.dumpindex import DumpIndex, Match, SearchParams
-from mcp_baf.pii import MASKING_NOTE, mask_pii_text
+from mcp_baf.pii import MASKING_NOTE, audit_text, mask_pii_text
 from mcp_baf.tools.common import clamp_limit, traced_text
 
 DEFAULT_SEARCH_LIMIT = 50
@@ -89,7 +89,7 @@ def register(mcp: MCPServer, index: DumpIndex, audit: AuditWriter,
         return await traced_text(
             audit, "search_code", run,
             args={
-                "query": query,
+                "query": audit_text(query),
                 "mode": mode,
                 "category": category,
                 "module": module,

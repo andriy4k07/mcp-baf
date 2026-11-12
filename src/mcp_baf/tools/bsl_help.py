@@ -13,6 +13,7 @@ from pydantic import Field
 
 from mcp_baf_audit import AuditWriter
 from mcp_baf import bsl
+from mcp_baf.pii import audit_text
 from mcp_baf.tools.common import traced_text
 
 
@@ -44,7 +45,7 @@ def register(mcp: MCPServer, audit: AuditWriter) -> None:
             return format_functions(results)
 
         return await traced_text(
-            audit, "bsl_syntax_help", run, args={"query": query}
+            audit, "bsl_syntax_help", run, args={"query": audit_text(query)}
         )
 
 

@@ -10,6 +10,7 @@ from pydantic import Field
 
 from mcp_baf_audit import AuditWriter
 from mcp_baf.client import OneCClient
+from mcp_baf.pii import audit_text
 from mcp_baf.tools.common import traced_text
 
 
@@ -36,7 +37,7 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
             return format_validate_result(result)
 
         return await traced_text(
-            audit, "validate_query", run, args={"query": query}
+            audit, "validate_query", run, args={"query": audit_text(query)}
         )
 
 

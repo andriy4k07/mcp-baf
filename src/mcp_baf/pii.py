@@ -112,6 +112,13 @@ MASKING_NOTE = (
 _key: bytes | None = None
 _key_file: str = ""
 _extra_markers: tuple[str, ...] = ()
+# --mask-pii для audit.log: инструменты не получают флаг в register (validate_query),
+# поэтому audit_text берёт его из configure_pii.
+_audit_mask = False
+
+# Потолок свободного текста (запрос) в audit.log: полный текст с литералами
+# аудиту не нужен и раздувает лог.
+AUDIT_TEXT_LIMIT = 500
 
 
 MIN_MARKER_LEN = 3
@@ -156,8 +163,9 @@ def configure_pii(
     сразу: ошибки доступа/формата всплывают на старте (ValueError/OSError),
     а не посреди вызова инструмента.
     """
-    global _key, _key_file, _extra_markers
+    global _key, _key_file, _extra_markers, _audit_mask
     _extra_markers = _validate_markers(extra_column_markers)
+    _audit_mask = enabled
     _key_file = os.path.join(cache_dir, PII_KEY_FILENAME) if cache_dir else ""
     _key = None
     _check_env_key()
@@ -316,6 +324,14 @@ def mask_pii_text(value: Any) -> str:
     if value is None:
         return ""
     return scrub_pii_text(str(value), pii_token)
+
+
+def audit_text(text: str | None) -> str:
+    """Свободный текст (запрос) для args аудита: при --mask-pii маскируется,
+    всегда обрезается до AUDIT_TEXT_LIMIT. Маскируем до обрезки — иначе
+    разрезанный телефон не узнал бы regex."""
+    out = mask_pii_text(text) if _audit_mask else (text or "")
+    return out if len(out) <= AUDIT_TEXT_LIMIT else out[:AUDIT_TEXT_LIMIT] + "…"
 
 
 def _is_pii_name(name: str) -> bool:
