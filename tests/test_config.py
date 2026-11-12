@@ -211,3 +211,13 @@ def test_invalid_retry_env_falls_back_to_default(clean_env):
     assert cfg.retry_attempts == 2
     assert cfg.retry_backoff == 0.5
 
+
+
+def test_env_secret_file_bom_stripped(monkeypatch, tmp_path):
+    from mcp_baf.config import _env_secret
+
+    f = tmp_path / "pw"
+    f.write_bytes(b"\xef\xbb\xbfsecret\n")
+    monkeypatch.delenv("mcp_baf_PASSWORD", raising=False)
+    monkeypatch.setenv("mcp_baf_PASSWORD_FILE", str(f))
+    assert _env_secret("mcp_baf_PASSWORD") == "secret"

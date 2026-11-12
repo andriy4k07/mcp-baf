@@ -180,7 +180,7 @@ def _env_secret(name: str) -> str:
     if value:
         raise ConfigError(f"задайте лише одне з {name} / {name}_FILE")
     try:
-        with open(path, encoding="utf-8") as f:
+        with open(path, encoding="utf-8-sig") as f:  # BOM не входить у секрет
             return f.read().rstrip("\r\n")
     except (OSError, UnicodeDecodeError) as exc:
         # str(exc) у UnicodeDecodeError містить байти файлу — беремо лише тип.
