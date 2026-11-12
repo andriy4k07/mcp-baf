@@ -7,7 +7,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from mcp_baf.pii import audit_text
-from mcp_baf.tools.common import traced_text
+from mcp_baf.tools.common import traced_text, truncate_output
 
 
 def card(page, *, full=False):
@@ -30,7 +30,7 @@ def register(mcp, index, audit):
                 raise ValueError("name обязателен")
             pages = await asyncio.to_thread(index.get, name, source)
             if len(pages) == 1:
-                return card(pages[0], full=True)
+                return truncate_output(card(pages[0], full=True))
             if pages:
                 return "Имя неоднозначно; уточните полный заголовок и source из списка:\n\n" + "\n".join(f"- {p['title']} ({p['source']})" for p in pages)
             candidates = await asyncio.to_thread(index.search, name, 5)

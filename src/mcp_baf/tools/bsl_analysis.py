@@ -8,7 +8,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from mcp_baf.bsl_native import analyze, format_source
-from mcp_baf.tools.common import escape_pipe, traced_text
+from mcp_baf.tools.common import escape_pipe, traced_text, truncate_output
 
 
 def register(mcp, audit):
@@ -34,6 +34,10 @@ def register(mcp, audit):
     async def bsl_format(src: str) -> str:
         async def run():
             formatted = await asyncio.to_thread(format_source, src)
-            fence = "`" * max(3, max((len(x) for x in re.findall(r'`+', formatted)), default=0) + 1)
-            return f"{fence}bsl\n{formatted}\n{fence}"
+            shown = truncate_output(formatted)
+            # Усечённый код нельзя отдавать молча: пометка truncate_output идёт
+            # после закрывающего забора, чтобы не выглядеть частью кода.
+            shown, marker, note = shown.partition("\n\n> Результат усечён")
+            fence = "`" * max(3, max((len(x) for x in re.findall(r'`+', shown)), default=0) + 1)
+            return f"{fence}bsl\n{shown}\n{fence}{marker}{note}"
         return await traced_text(audit, "bsl_format", run, args={"src_chars": len(src)})

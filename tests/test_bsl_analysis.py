@@ -285,6 +285,17 @@ def test_analyzer_accepts_own_extension():
     assert not [d for d in analyze(path.read_text()) if d['level'] == 'error']
 
 
+def test_bsl_format_marks_truncation_outside_code_fence(tmp_path):
+    src = 'Процедура Тест()\n' + 'Сообщить(1);\n' * 6000 + 'КонецПроцедуры'
+    server = MCPServer('test')
+    bsl_analysis.register(server, AuditLog(str(tmp_path)))
+    text = asyncio.run(server.call_tool('bsl_format', dict(src=src))).content[0].text
+    code, _, note = text.rpartition('\n```')
+    assert 'Результат усечён' in note and 'Результат усечён' not in code
+    small = asyncio.run(server.call_tool('bsl_format', dict(src='Процедура Т()\nКонецПроцедуры'))).content[0].text
+    assert small.endswith('```') and 'усечён' not in small
+
+
 def test_tools_filters_limits_privacy_and_no_source_file_changes(tmp_path):
     src = 'Процедура PRIVATE_CODE()\nПерем А, Б;\nВозврат;\nСообщить(1);\nКонецПроцедуры'
     original = tmp_path / 'Module.bsl'
