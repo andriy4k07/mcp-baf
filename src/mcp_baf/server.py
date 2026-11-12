@@ -62,12 +62,18 @@ _INSTRUCTIONS = (
 async def _check_extension_version(client: OneCClient, audit: AuditLog) -> None:
     """Сверяет версию расширения 1С с ожидаемой.
 
-    Эндпоинт /version может отсутствовать в старых расширениях —
-    в этом случае проверка молча пропускается.
+    Если /version недоступен (нет связи, старое расширение), проверка
+    пропускается с предупреждением в лог и аудит.
     """
     try:
-        info = await asyncio.wait_for(client.get("/version"), timeout=3)
-    except Exception:  # noqa: BLE001 — любая ошибка означает «пропустить»
+        # Первый запрос после простоя поднимает сеанс 1С (~15 с).
+        info = await asyncio.wait_for(client.get("/version"), timeout=15)
+    except Exception as exc:  # noqa: BLE001 — любая ошибка означает «пропустить»
+        logger.warning("Extension version check skipped: %s: %s", type(exc).__name__, exc)
+        audit.write(
+            "server.version_check_skipped",
+            level="warning", reason=type(exc).__name__, error=str(exc)[:300],
+        )
         return
     version = info.get("version", "") if isinstance(info, dict) else ""
     if version != EXPECTED_EXTENSION_VERSION:
