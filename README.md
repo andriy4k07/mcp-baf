@@ -142,7 +142,7 @@ claude mcp add mcp-baf \
 
 Без опцій зареєстровано 13 інструментів; `--dump` додає один, `--help-dir` — два. Максимум — 16. HTTP-інструменти показуються лише за доступності відповідних методів. Потрібне розширення **0.6.1** з `/capabilities`; зі старим або недоступним розширенням працюють локальні інструменти. Прямий виклик прихованого HTTP-інструмента також відхиляється.
 
-Плюс 11 промптів: `review_module`, `write_posting`, `optimize_query`, `explain_config`, `analyze_error`, `find_duplicates`, `write_report`, `explain_object`, `1c_query_syntax`, `1c_metadata_navigation`, `1c_development_workflow`.
+Плюс 11 промптів: `review_module`, `write_posting`, `optimize_query`, `explain_config`, `analyze_error`, `find_duplicates`, `write_report`, `explain_object`, `baf_query_syntax`, `baf_metadata_navigation`, `baf_development_workflow`.
 
 ## Конфігурація
 
