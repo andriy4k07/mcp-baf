@@ -188,3 +188,33 @@ def test_expected_errors_reach_client_but_bugs_stay_hidden(tmp_path):
             assert result.is_error and 'секретная' not in result.content[0].text
         await client.aclose()
     asyncio.run(scenario())
+
+
+def test_each_call_gets_own_trace_id(tmp_path):
+    from mcp_baf.tools.common import traced_text
+    audit = AuditLog(str(tmp_path))
+    def handler(request):
+        if request.url.path == '/capabilities':
+            return httpx.Response(200, json={'methods': ['metadata.GET']})
+        return httpx.Response(200, json={})
+    client = OneCClient(Config(base_url='http://test'), httpx.MockTransport(handler), audit=audit)
+    server = AccessMCP('test', access_client=client, audit=audit)
+    @server.tool()
+    async def get_metadata_tree() -> str:
+        async def call():
+            await client.get('/metadata')
+            return 'ok'
+        return await traced_text(audit, 'get_metadata_tree', call)
+    async def scenario():
+        async with Client(server) as session:
+            for _ in range(2):
+                assert not (await session.call_tool('get_metadata_tree', {})).is_error
+        await client.aclose()
+    set_trace_id(None)
+    asyncio.run(scenario())
+    events = [json.loads(x) for x in (tmp_path / 'audit.log').read_text().splitlines()]
+    calls = [x['trace_id'] for x in events if x['event'] == 'tool.call']
+    assert len(calls) == 2 and calls[0] != calls[1]
+    # one_c.http несёт id своего вызова: первый — /capabilities и /metadata, второй — /metadata из кэша прав.
+    http = [x['trace_id'] for x in events if x['event'] == 'one_c.http']
+    assert http == [calls[0], calls[0], calls[1]]
