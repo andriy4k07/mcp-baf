@@ -496,3 +496,18 @@ def test_alias_of_sensitive_field_is_masked():
     assert out[0].startswith("PII:") and out[1].startswith("PII:") and out[2] == "00042"
     # без текста запроса поведение прежнее
     assert mask_pii_result(_r(["X"], [["1234567890"]]))["rows"][0][0] == "1234567890"
+
+
+@pytest.mark.parametrize("query, expected", [
+    # #78: кома/КАК усередині функції не обривають вираз аліасу
+    ('ВЫБРАТЬ ЕСТЬNULL(Ф.ИНН, "") КАК Код ИЗ Т КАК Ф', {"код"}),
+    ("ВЫБРАТЬ ПОДСТРОКА(Ф.Телефон, 1, 20) КАК Т ИЗ Т КАК Ф", {"т"}),
+    ("ВЫБРАТЬ ВЫРАЗИТЬ(Ф.ФИО КАК СТРОКА(100)) КАК Имя ИЗ Т КАК Ф", {"имя"}),
+    # прежнее поведение: несколько полей, AS без учёта регистра
+    ("ВЫБРАТЬ Т.ИНН КАК X, Т.Код КАК Z ИЗ Справочник.Контрагенты КАК Т", {"x"}),
+    ("select t.Email as Mail, t.Code as C from Catalog.X as t", {"mail"}),
+    # кома/дужка в рядку та коментарі не ріже вираз
+    ('ВЫБРАТЬ Ф.ИНН + ",(" // , )\n КАК А, Ф.Код КАК Б ИЗ Т КАК Ф', {"а"}),
+])
+def test_pii_aliases_whole_expression(query, expected):
+    assert pii._pii_aliases(query) == expected
