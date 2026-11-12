@@ -190,6 +190,55 @@ def test_expected_errors_reach_client_but_bugs_stay_hidden(tmp_path):
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize('mode', ['auto', 'legacy'])
+def test_tools_list_changed_after_capabilities_recovery(tmp_path, mode):
+    up = []
+    def handler(request):
+        if not up:
+            return httpx.Response(404, json={})
+        return httpx.Response(200, json={'methods': ['query.POST']})
+    client = OneCClient(Config(base_url='http://test'), httpx.MockTransport(handler))
+    server = AccessMCP('test', access_client=client, audit=AuditLog(str(tmp_path)))
+    @server.tool()
+    async def execute_query(query: str) -> str:
+        return 'ok'
+    @server.tool()
+    async def bsl_syntax_help() -> str:
+        return 'ok'
+    notified = []
+    async def on_message(message):
+        if getattr(message, 'method', '') == 'notifications/tools/list_changed':
+            notified.append(message)
+    async def scenario():
+        async with Client(server, mode=mode, message_handler=on_message) as session:
+            assert [t.name for t in (await session.list_tools()).tools] == ['bsl_syntax_help']
+            up.append(True)
+            server._expires = 0
+            async def recover():
+                # Локальный вызов запускает фоновую перепроверку прав.
+                assert not (await session.call_tool('bsl_syntax_help', {})).is_error
+                await server._recheck
+                for _ in range(100):
+                    if notified:
+                        break
+                    await asyncio.sleep(0.01)
+            if mode == 'legacy':
+                await recover()
+            else:
+                # Новый протокол доставляет уведомление только в subscriptions/listen.
+                async with session.listen(tools_list_changed=True):
+                    await recover()
+            assert len(notified) == 1
+            # Кэш клиента сброшен уведомлением: новый список без refresh.
+            assert {t.name for t in (await session.list_tools()).tools} == {'execute_query', 'bsl_syntax_help'}
+            # Вызов без изменения прав повторно не уведомляет.
+            assert not (await session.call_tool('execute_query', {'query': 'ВЫБРАТЬ 1'})).is_error
+            await asyncio.sleep(0.05)
+            assert len(notified) == 1
+        await client.aclose()
+    asyncio.run(scenario())
+
+
 def test_each_call_gets_own_trace_id(tmp_path):
     from mcp_baf.tools.common import traced_text
     audit = AuditLog(str(tmp_path))
