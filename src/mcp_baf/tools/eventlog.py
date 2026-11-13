@@ -99,7 +99,17 @@ def format_event_log(r: dict[str, Any], mask_pii: bool = False) -> str:
 
     events = r.get("events") or []
     if not events:
-        lines.append("Записей не найдено.")
+        found = r.get("found")
+        if r.get("filtered_empty"):
+            # Журнал непустой, но всё окно отфильтровано как системный шум —
+            # «записей не найдено» здесь было бы ложным выводом.
+            lines.append(
+                f"Записей не найдено: все {found if isinstance(found, int) else 'найденные'} "
+                "записи окна отфильтрованы как системный шум (exclude_system=true). "
+                "Укажите exclude_system=false или сузьте период/уровень."
+            )
+        else:
+            lines.append("Записей не найдено.")
         return "\n".join(lines) + "\n"
 
     for i, e in enumerate(events):
