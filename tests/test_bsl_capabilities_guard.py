@@ -68,3 +68,38 @@ def test_capabilities_denial_is_audited_without_secrets():
     denied = source[source.index('except Exception as exc:'):]
     assert denied.index('access.capabilities_unavailable') < denied.index('self._expires')
     assert 'password' not in denied[:denied.index('self._expires')]
+
+
+def test_metadata_rights_accepts_english_and_russian_type_names():
+    # /metadata-rights раньше требовал русское полное имя, а /object и /form —
+    # английский тип; один и тот же объект давал 400 «не найден». Теперь тип
+    # нормализуется общей картой, как у /object.
+    text = body('ПраваМетаданныхPOST')
+    assert 'КаноническийТипМетаданных(Части[0])' in text
+    assert 'НайтиМетаданныеПоТипуИИмени(ТипОбъекта, Части[1])' in text
+    assert 'НайтиПоПолномуИмени(П.metadata_object)' not in text
+    # Типовые права и примечания сравнивают каноническое английское имя.
+    assert 'ТипОбъекта = "Catalog" ИЛИ ТипОбъекта = "Document"' in text
+    assert 'ТипОбъекта = "Document"' in text
+    assert 'Части[0] = "Справочник"' not in text
+    aliases = re.search(r'Функция КаноническийТипМетаданных\(ТипОбъекта\)(.*?)КонецФункции', module_text(), re.S)
+    assert aliases
+    pairs = dict(re.findall(r'Вставить\("([^"]+)",\s+"([^"]+)"\)', aliases.group(1)))
+    assert len(pairs) >= 15
+    # Псевдонимы не расходятся с картой коллекций: русский префикс ведёт к её ключу.
+    shared = re.search(r'Функция НайтиМетаданныеПоТипуИИмени\(ТипОбъекта, ИмяОбъекта\)(.*?)КонецФункции', module_text(), re.S)
+    assert shared
+    collections = set(re.findall(r'Вставить\("(\w+)"', shared.group(1)))
+    assert set(pairs.values()) <= collections
+    assert {'Справочник', 'Документ', 'РегистрСведений'} <= set(pairs)
+
+
+def test_eventlog_requires_admin_right_explicitly():
+    # Роль даёт только Use на метод; права на данные у неё нет. Чтение журнала
+    # требует администрирования, поэтому гейт стоит до выгрузки и даёт 403.
+    text = body('ЖурналРегистрацииPOST')
+    gate = 'ПравоДоступа("Администрирование", Метаданные)'
+    assert gate in text
+    assert text.index(gate) < text.index('ВыгрузитьЖурналРегистрации(')
+    assert 'eventlog_access_denied' in text[text.index(gate):]
+    assert 'ОтветОшибка(403, "Чтение журнала регистрации требует административных прав"' in text

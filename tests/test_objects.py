@@ -141,6 +141,25 @@ def test_rights_admin_refusal_no_false_table(tmp_path):
     asyncio.run(client.aclose())
 
 
+@pytest.mark.parametrize('kind', ['Catalog', 'Справочник'])
+def test_rights_accept_english_and_russian_type_names(tmp_path, kind):
+    # /object и /form принимают английский тип, /metadata-rights раньше — только
+    # русский. Теперь оба семейства говорят на одном языке.
+    server, client, requests = setup_tools(tmp_path, dict(rights=[], notes=[]))
+    text = call(server, 'get_metadata_rights', metadata_object=f'{kind}.Номенклатура')
+    assert 'Права метаданных' in text
+    assert json.loads(requests[0].content)['metadata_object'] == f'{kind}.Номенклатура'
+    asyncio.run(client.aclose())
+
+
+def test_rights_reject_unknown_type_before_http(tmp_path):
+    server, client, requests = setup_tools(tmp_path, {})
+    with pytest.raises(Exception, match='неизвестный тип'):
+        call(server, 'get_metadata_rights', metadata_object='Constant.Номенклатура')
+    assert requests == []
+    asyncio.run(client.aclose())
+
+
 def test_mask_pii_in_references_and_link(tmp_path):
     hit = dict(found_in_meta='Документ.Продажа', found_in_object='Иванов +380501234567', path='П', match_kind='k')
     assert '+380501234567' in objects.format_references(dict(hits=[hit]))
