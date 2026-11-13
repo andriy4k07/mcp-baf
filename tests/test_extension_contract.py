@@ -150,6 +150,6 @@ def test_eventlog_invalid_filters_return_400():
     source = (EXTENSION/'HTTPServices/MCPService/Ext/Module.bsl').read_text(encoding='utf-8-sig').replace('\r\n', '\n')
     body = source[source.index('Функция ЖурналРегистрацииPOST'):]
     body = body[:body.index('КонецФункции')]
-    assert body.count('ОтветОшибка(400') == 3  # start_date, end_date, user
+    assert body.count('ОтветОшибка(400') == 4  # start_date, end_date, level, user
     assert 'Исключение\n        КонецПопытки' not in body
     assert '"T00:00:00"' in source
