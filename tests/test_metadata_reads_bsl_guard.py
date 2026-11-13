@@ -69,7 +69,8 @@ def test_query_pagination_is_honest():
     total = body.index('Результат.Вставить("total", СмещениеЗапрошено + Счетчик)')
     assert guard < total
     assert 'Если Смещение > 10000 Тогда' in body
-    assert 'ОтветОшибка(400, "offset: не более 10000", "offset_too_large")' in body
+    # Код у 4-й позиції: 3-й аргумент — reason, код у ньому дав би error_code=bad_request.
+    assert 'ОтветОшибка(400, "offset: не более 10000", "", "offset_too_large")' in body
 
 
 def test_navigation_mode_resolve_is_implemented():
@@ -124,3 +125,48 @@ def test_eventlog_exclude_system_requires_boolean():
     body = body_of(source(), "ЖурналРегистрацииPOST")
     assert 'ТипЗнч(Параметры.exclude_system) <> Тип("Булево")' in body
     assert '"exclude_system: ожидается boolean"' in body
+
+
+def call_args(source: str, start: int) -> list[str]:
+    """Позиційні аргументи виклику, що починається з позиції start (після дужки)."""
+    depth, i = 1, start
+    while depth:
+        if source[i] == "(":
+            depth += 1
+        elif source[i] == ")":
+            depth -= 1
+        i += 1
+    args, current, depth, quoted = [], "", 0, False
+    for char in source[start:i - 1]:
+        if char == '"':
+            quoted = not quoted
+        if not quoted:
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+            elif char == "," and depth == 0:
+                args.append(current.strip())
+                current = ""
+                continue
+        current += char
+    args.append(current.strip())
+    return args
+
+
+def test_error_code_never_sits_in_reason_slot():
+    # Контракт: ОтветОшибка(статус, текст, reason, error_code, request_id).
+    # Машинний код у 3-й позиції потрапляє в reason, а error_code падає на дефолт
+    # від статусу — саме так контракт і розходився з #100/#101.
+    src = source()
+    misplaced = []
+    for match in re.finditer(r"ОтветОшибка\(", src):
+        args = call_args(src, match.end())
+        if len(args) == 3 and re.fullmatch(r'"[a-z0-9_]+"', args[2]):
+            misplaced.append(src.count("\n", 0, match.start()) + 1)
+    assert not misplaced, misplaced
+
+
+def test_metadata_rights_admin_gate_has_error_code():
+    body = body_of(source(), "ПраваМетаданныхPOST")
+    assert 'ОтветОшибка(403, "Проверка другого пользователя/ролей требует административных прав", "", "admin_rights_required")' in body
