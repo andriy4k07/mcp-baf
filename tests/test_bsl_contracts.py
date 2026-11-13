@@ -152,3 +152,74 @@ def test_references_use_one_query_per_table_instead_of_per_field():
     # Запрос остаётся под правами и RLS и привязан к цели.
     assert 'ВЫБРАТЬ РАЗРЕШЕННЫЕ РАЗЛИЧНЫЕ ПЕРВЫЕ ' in body
     assert 'УстановитьПараметр("Цель", Цель)' in body
+def test_query_handlers_parse_body_inside_try():
+    # Невалидный JSON и отсутствие query — ошибка входа (400), а не платформенный
+    # 500: разбор тела и доступ к полю обязаны стоять внутри Попытка.
+    source = MODULE.read_text(encoding="utf-8-sig")
+    for name in ("ЗапросPOST", "ПроверкаЗапросаPOST"):
+        body = body_of(source, name)
+        parse = body.index('Параметры = РазобратьJSON(Запрос.ПолучитьТелоКакСтроку());')
+        assert body.index("Попытка") < parse
+        assert body.index("Исключение", parse) > parse
+        assert body.index("КонецПопытки", parse) > parse
+        assert 'ОтветОшибка(400, "invalid JSON body", "", "invalid_json")' in body
+        assert 'Параметры.Свойство("query")' in body
+        assert 'ОтветОшибка(400, "query is required", "", "missing_query")' in body
+        # null/массив в теле не должен доходить до Параметры.query.
+        assert 'ТипЗнч(Параметры) <> Тип("Структура")' in body
+
+
+def test_eventlog_export_is_wrapped_in_try():
+    # Отказ прав на администрирование данных или недоступный журнал — 500 с
+    # устойчивым кодом, а не неперехваченный платформенный текст.
+    source = MODULE.read_text(encoding="utf-8-sig")
+    body = body_of(source, "ЖурналРегистрацииPOST")
+    call = body.index("ВыгрузитьЖурналРегистрации(")
+    assert body.rindex("Попытка", 0, call) > body.index("Параметры.Свойство(\"user\")")
+    exception = body.index("Исключение", call)
+    assert body.index("КонецПопытки", call) > exception
+    assert 'Возврат ОтветОшибка(500' in body[call:]
+    assert '"eventlog_unavailable"' in body[call:]
+    # Полный текст платформы уходит в журнал регистрации, не клиенту.
+    assert 'ЗаписатьОшибкуВЖурнал("eventlog_unavailable"' in body[call:]
+
+
+def test_error_response_carries_stable_code_and_request_id():
+    source = MODULE.read_text(encoding="utf-8-sig")
+    match = re.search(r"Функция ОтветОшибка\(.*?КонецФункции", source, re.S)
+    assert match
+    body = match.group(0)
+    assert 'Данные = Новый Структура("error,error_code,request_id"' in body
+    assert 'Ответ.Заголовки.Вставить("X-Request-Id", ИдентификаторЗапроса)' in body
+    assert "КодОшибкиПоУмолчанию(КодСостояния)" in body
+    for code in ("invalid_json", "missing_query", "invalid_query",
+                 "eventlog_unavailable", "access_denied"):
+        assert f'"{code}"' in source
+
+
+def test_no_raw_platform_error_text_reaches_client():
+    # ОписаниеОшибки() содержит путь модуля и номер строки: клиенту он не нужен,
+    # а полный текст остаётся в журнале регистрации.
+    source = MODULE.read_text(encoding="utf-8-sig")
+    assert "ОписаниеОшибки()" not in source
+    assert "КраткоеПредставлениеОшибки(ИнформацияОбОшибке())" in source
+    assert source.count("ПодробноеПредставлениеОшибки(ИнформацияОбОшибке())") == 1
+    # Журнал может быть недоступен — запись не должна валить обработчик.
+    journal = source[source.index("Процедура ЗаписатьОшибкуВЖурнал"):]
+    journal = journal[:journal.index("КонецПроцедуры")]
+    assert "Попытка" in journal and "Исключение" in journal
+    assert 'ЗаписьЖурналаРегистрации("MCP.Ошибка"' in journal
+
+
+def test_eventlog_user_filter_checks_type_before_concatenation():
+    source = MODULE.read_text(encoding="utf-8-sig")
+    body = body_of(source, "ЖурналРегистрацииPOST")
+    guard = body.index('ТипЗнч(Параметры.user) <> Тип("Строка")')
+    assert guard < body.index('" + Параметры.user')
+
+
+def test_access_denied_text_is_uniform():
+    source = MODULE.read_text(encoding="utf-8-sig")
+    # Один и тот же отказ по праву метода — один и тот же текст.
+    assert "Нет права использования метода или включён привилегированный режим" not in source
+    assert source.count('ОтветОшибка(403, "Нет права использования метода")') >= 9
