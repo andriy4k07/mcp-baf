@@ -96,7 +96,20 @@ def format_object_structure(obj: dict[str, Any]) -> str:
 
 
 def _attr_line(attr: dict[str, Any]) -> str:
+    type_text = attr.get("type", "")
+    type_names = attr.get("type_names") or []
+    if type_names:
+        # type_names — полные имена типов (Справочник.Номенклатура), их
+        # Строка(Тип) не содержит; без них агент не видит связи объектов.
+        type_text = ", ".join(str(name) for name in type_names)
+    details = []
+    if attr.get("length"):
+        details.append(f"длина {attr['length']}")
+    if attr.get("precision") is not None:
+        details.append(f"точность {attr['precision']}, масштаб {attr.get('scale', 0)}")
+    if details:
+        type_text += " (" + ", ".join(details) + ")"
     return (
         f"- **{attr.get('name', '')}** ({attr.get('synonym', '')}) "
-        f"— {attr.get('type', '')}"
+        f"— {type_text}"
     )
