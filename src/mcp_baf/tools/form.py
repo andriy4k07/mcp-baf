@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import Annotated, Any
+from urllib.parse import quote
 
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
@@ -54,7 +55,8 @@ def register(
         )],
         object_name: Annotated[str, Field(description="Имя объекта метаданных")],
         form_name: Annotated[str, Field(description=(
-            "Имя формы (если не указано - возвращается первая найденная форма)"
+            "Имя формы (если не указано - возвращается первая найденная форма). "
+            "Неизвестное имя формы — ошибка, а не подмена основной формой"
         ))] = "",
     ) -> str:
         if not object_type or not object_name:
@@ -66,11 +68,16 @@ def register(
                 object_type, object_name, OBJECT_TYPE_TO_DUMP_DIR
             )
             # HTTP-endpoint отдаёт имя и заголовок формы (синоним из конфигурации).
+            # form_name уходит query-параметром form: без него 1С молча отдавала
+            # основную форму, и клиент получал структуру не той формы.
+            endpoint = f"/form/{url_type}/{url_name}"
+            if form_name:
+                endpoint += f"?form={quote(form_name, safe='')}"
             form: dict[str, Any] = {}
             http_error: Exception | None = None
             dump_note = ""
             try:
-                form = await client.get(f"/form/{url_type}/{url_name}")
+                form = await client.get(endpoint)
             except OneCError as exc:
                 http_error = exc
 
