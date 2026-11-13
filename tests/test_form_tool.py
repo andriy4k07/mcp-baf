@@ -1,15 +1,45 @@
 """get_form_structure: отказ dump-обогащения виден в ответе, а не только в логе."""
 
 import asyncio
+from urllib.parse import parse_qs, unquote
 
 import httpx
 import pytest
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 
 from mcp_baf_audit import AuditLog
 from mcp_baf.client import OneCClient
 from mcp_baf.config import Config
 from mcp_baf.tools import form
+
+
+def test_unknown_form_name_is_reported_not_silently_replaced(tmp_path):
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        return httpx.Response(404, json={"error": "Form not found"})
+
+    audit = AuditLog(str(tmp_path / "audit"))
+    client = OneCClient(Config(base_url="http://test"), httpx.MockTransport(handler), audit=audit)
+    mcp = MCPServer("test")
+    form.register(mcp, client, audit)
+
+    async def scenario():
+        try:
+            await mcp.call_tool("get_form_structure", {
+                "object_type": "Document", "object_name": "Тест",
+                "form_name": "НетТакойФормы",
+            })
+        finally:
+            await client.aclose()
+
+    # Без dump-выгрузки неизвестная форма — явная ошибка, а не основная форма.
+    with pytest.raises(ToolError, match="Form not found"):
+        asyncio.run(scenario())
+    query = parse_qs(unquote(requests[0].url.query.decode("ascii")))
+    assert query["form"] == ["НетТакойФормы"]
 
 
 def test_dump_rejection_reported_in_output(tmp_path):
