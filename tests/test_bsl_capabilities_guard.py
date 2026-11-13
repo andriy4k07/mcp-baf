@@ -102,4 +102,5 @@ def test_eventlog_requires_admin_right_explicitly():
     assert gate in text
     assert text.index(gate) < text.index('ВыгрузитьЖурналРегистрации(')
     assert 'eventlog_access_denied' in text[text.index(gate):]
-    assert 'ОтветОшибка(403, "Чтение журнала регистрации требует административных прав"' in text
+    # Код у 4-й позиції: у слоті reason він дав би error_code=access_denied.
+    assert 'ОтветОшибка(403, "Чтение журнала регистрации требует административных прав", "", "eventlog_access_denied")' in text
