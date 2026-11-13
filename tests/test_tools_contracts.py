@@ -10,7 +10,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from mcp_baf_audit import AuditLog
-from mcp_baf.client import OneCClient
+from mcp_baf.client import OneCClient, OneCError
 from mcp_baf.config import Config
 from mcp_baf.dumpindex.modulenames import METADATA_TYPES, OBJECT_TYPE_TO_DUMP_DIR
 from mcp_baf.tools import (
@@ -291,4 +291,25 @@ def test_metadata_rights_missing_fields_do_not_crash(tmp_path):
     server, client, _ = setup(tmp_path, objects, {"rights": [{"allowed": True}], "notes": []})
     text = call(server, "get_metadata_rights", metadata_object="Документ.Продажа")
     assert "|  |  | да |" in text
+    asyncio.run(client.aclose())
+
+
+def test_query_error_body_surfaces_stable_code(tmp_path):
+    # 400 от 1С несёт error_code и request_id: агент видит стабильный код,
+    # а платформенный текст остаётся в журнале регистрации 1С.
+    def handler(request):
+        return httpx.Response(400, json={
+            "error": "query is required",
+            "error_code": "missing_query",
+            "request_id": "0f5c0a0e-1111-2222-3333-444455556666",
+        })
+
+    audit = AuditLog(str(tmp_path))
+    client = OneCClient(Config(base_url="http://test"), httpx.MockTransport(handler), audit=audit)
+    with pytest.raises(OneCError) as excinfo:
+        asyncio.run(client.post("/query", {"limit": 5}))
+    message = str(excinfo.value)
+    assert "status 400" in message
+    assert "missing_query" in message and "request_id" in message
+    assert "Модуль(" not in message
     asyncio.run(client.aclose())
