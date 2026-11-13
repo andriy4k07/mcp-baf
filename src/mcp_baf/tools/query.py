@@ -18,6 +18,9 @@ from mcp_baf.tools.common import (
 
 DEFAULT_QUERY_LIMIT = 100
 MAX_QUERY_LIMIT = 1000
+# Глубокий offset стоит полного прохода результата: расширение 1С отдаёт 400
+# выше этого потолка (Module.bsl: «offset: не более 10000»).
+MAX_QUERY_OFFSET = 10000
 
 # Комментарии языка запросов 1С: // до конца строки и /* ... */.
 _QUERY_COMMENT_RE = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
@@ -61,12 +64,13 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter,
             "Максимальное количество строк результата "
             f"(по умолчанию {DEFAULT_QUERY_LIMIT}, максимум {MAX_QUERY_LIMIT})"
         ))] = 0,
-        offset: Annotated[int, Field(ge=0, description=(
+        offset: Annotated[int, Field(ge=0, le=MAX_QUERY_OFFSET, description=(
             "Сколько строк результата пропустить (пагинация). "
             "Используй вместе с limit, чтобы читать результат порциями: "
             "следующая страница — offset + limit. Это не серверная пагинация: "
             "1С проходит весь результат и лишь пропускает первые строки, "
-            "а без УПОРЯДОЧИТЬ ПО порядок строк не гарантирован — для "
+            f"поэтому offset ограничен {MAX_QUERY_OFFSET}. "
+            "Без УПОРЯДОЧИТЬ ПО порядок строк не гарантирован — для "
             "стабильных страниц в запросе нужен УПОРЯДОЧИТЬ ПО"
         ))] = 0,
         parameters: Annotated[dict[str, Any] | None, Field(description=(
@@ -108,12 +112,25 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter,
 
 
 def format_query_result(r: dict[str, Any], offset: int = 0) -> str:
-    """Форматирует результат запроса как markdown-таблицу."""
+    """Форматирует результат запроса как markdown-таблицу.
+
+    Ключи ответа 1С: `count` — размер этой страницы, `total` — сколько строк
+    всего (расширение отдаёт его только когда результат прочитан до конца).
+    `truncated` значит «в результате есть ещё строки»; при нём `total`
+    отсутствует, и это честно показывается как «всего: неизвестно».
+    """
     columns = r.get("columns") or []
     rows = r.get("rows") or []
-    # total в ответе 1С — число выгруженных строк, а не найденных: показываем
-    # реально полученное количество и сдвиг страницы, чтобы не путать.
-    lines = [f"## Результат запроса (записей: {len(rows)}, offset: {offset})", ""]
+    count = r.get("count")
+    count = count if isinstance(count, int) else len(rows)
+    total = r.get("total")
+    header = f"## Результат запроса (записей: {count}, offset: {offset}"
+    if isinstance(total, int):
+        header += f", всего: {total}"
+    elif r.get("truncated"):
+        header += ", всего: неизвестно"
+    header += ")"
+    lines = [header, ""]
 
     if not columns or not rows:
         lines.append("Нет данных.")
