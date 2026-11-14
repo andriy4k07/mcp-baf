@@ -104,3 +104,12 @@ def test_eventlog_requires_admin_right_explicitly():
     assert 'eventlog_access_denied' in text[text.index(gate):]
     # Код у 4-й позиції: у слоті reason він дав би error_code=access_denied.
     assert 'ОтветОшибка(403, "Чтение журнала регистрации требует административных прав", "", "eventlog_access_denied")' in text
+
+
+def test_method_available_requires_admin_for_eventlog():
+    # Иначе /capabilities отдаёт eventlog.POST не-админу и инструмент виден в list_tools, а вызов даёт 403.
+    text = module_text()
+    text = text[text.index('Функция МетодДоступен('):]
+    text = text[:text.index('КонецФункции')]
+    assert 'ИмяШаблона = "ЖурналРегистрации" И НЕ ПравоДоступа("Администрирование", Метаданные)' in text
+    assert text.index('"method_use_denied"') < text.index('"admin_rights_required"')
