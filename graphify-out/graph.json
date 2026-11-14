@@ -285,8 +285,8 @@
       "source_location": "L224",
       "_origin": "ast",
       "id": "src_mcp_baf_main_resolve_tls",
-      "community": 43,
-      "community_name": "ensure_self_signed",
+      "community": 7,
+      "community_name": "CLI Entry Point & Config",
       "norm_label": "_resolve_tls()"
     },
     {
@@ -417,8 +417,8 @@
       "source_location": "L225",
       "_origin": "ast",
       "id": "src_mcp_baf_main_rationale_225",
-      "community": 43,
-      "community_name": "ensure_self_signed",
+      "community": 7,
+      "community_name": "CLI Entry Point & Config",
       "norm_label": "(cert, key) \u0434\u043b\u044f https: \u044f\u0432\u043d\u044b\u0435 \u0444\u0430\u0438\u043b\u044b \u0438\u043b\u0438 \u0441\u0430\u043c\u043e\u043f\u043e\u0434\u043f\u0438\u0441\u0430\u043d\u043d\u044b\u0438 ca \u0432 <cache_dir>/tls/."
     },
     {
@@ -483,8 +483,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_access",
-      "community": 44,
-      "community_name": "access.py",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "access.py"
     },
     {
@@ -637,8 +637,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_access_rationale_1",
-      "community": 44,
-      "community_name": "access.py",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e\u0441\u0442\u044c http-\u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442\u043e\u0432 \u043f\u043e \u044d\u0444\u0444\u0435\u043a\u0442\u0438\u0432\u043d\u044b\u043c \u043f\u0440\u0430\u0432\u0430\u043c \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f \u0441\u0435\u0440\u0432\u0438\u0441\u0430."
     },
     {
@@ -692,8 +692,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_bsl_init",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 69,
+      "community_name": "bsl/__init__.py",
       "norm_label": "bsl/__init__.py"
     },
     {
@@ -703,8 +703,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "src_mcp_baf_bsl_init_search",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 69,
+      "community_name": "bsl/__init__.py",
       "norm_label": "search()"
     },
     {
@@ -714,8 +714,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_bsl_init_rationale_1",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 69,
+      "community_name": "bsl/__init__.py",
       "norm_label": "\u0441\u043f\u0440\u0430\u0432\u043e\u0447\u043d\u0438\u043a \u0432\u0441\u0442\u0440\u043e\u0435\u043d\u043d\u044b\u0445 \u0444\u0443\u043d\u043a\u0446\u0438\u0438 \u044f\u0437\u044b\u043a\u0430 1\u0441 (bsl).  \u043f\u043e\u0440\u0442 \u043f\u0430\u043a\u0435\u0442\u0430 bsl \u0438\u0437 go-\u0432\u0435\u0440\u0441\u0438\u0438. \u0434\u0430\u043d"
     },
     {
@@ -725,8 +725,8 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "src_mcp_baf_bsl_init_rationale_20",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 69,
+      "community_name": "bsl/__init__.py",
       "norm_label": "\u0438\u0449\u0435\u0442 \u0444\u0443\u043d\u043a\u0446\u0438\u0438 \u043f\u043e \u0438\u043c\u0435\u043d\u0438 (\u0440\u0443\u0441\u0441\u043a\u043e\u043c\u0443 \u0438\u043b\u0438 \u0430\u043d\u0433\u043b\u0438\u0438\u0441\u043a\u043e\u043c\u0443), \u0431\u0435\u0437 \u0443\u0447\u0435\u0442\u0430 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430."
     },
     {
@@ -736,8 +736,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_bsl_functions_data",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 69,
+      "community_name": "bsl/__init__.py",
       "norm_label": "_functions_data.py"
     },
     {
@@ -747,8 +747,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_bsl_functions_data_rationale_1",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 69,
+      "community_name": "bsl/__init__.py",
       "norm_label": "\u0441\u043f\u0440\u0430\u0432\u043e\u0447\u043d\u0438\u043a \u0432\u0441\u0442\u0440\u043e\u0435\u043d\u043d\u044b\u0445 \u0444\u0443\u043d\u043a\u0446\u0438\u0438 1\u0441 (\u043f\u043e\u0440\u0442 bsl/functions.go).  \u0444\u0430\u0438\u043b \u0441\u0433\u0435\u043d\u0435\u0440\u0438\u0440\u043e\u0432\u0430\u043d \u0441\u043a\u0440"
     },
     {
@@ -1198,8 +1198,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_client",
-      "community": 0,
-      "community_name": "MCP Tool Registration Helpers",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "client.py"
     },
     {
@@ -1209,7 +1209,7 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "src_mcp_baf_client_scrub_error_detail",
-      "community": 51,
+      "community": 70,
       "community_name": "scrub_error_detail",
       "norm_label": "scrub_error_detail()"
     },
@@ -1220,8 +1220,8 @@
       "source_location": "L60",
       "_origin": "ast",
       "id": "src_mcp_baf_client_onecerror",
-      "community": 34,
-      "community_name": "._do",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "onecerror"
     },
     {
@@ -1231,8 +1231,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_client_py_exception",
-      "community": 34,
-      "community_name": "._do",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "exception"
     },
     {
@@ -1242,8 +1242,8 @@
       "source_location": "L64",
       "_origin": "ast",
       "id": "src_mcp_baf_client_retryableonecerror",
-      "community": 34,
-      "community_name": "._do",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "_retryableonecerror"
     },
     {
@@ -1297,8 +1297,8 @@
       "source_location": "L128",
       "_origin": "ast",
       "id": "src_mcp_baf_client_onecclient_safe_error_detail",
-      "community": 34,
-      "community_name": "._do",
+      "community": 70,
+      "community_name": "scrub_error_detail",
       "norm_label": "._safe_error_detail()"
     },
     {
@@ -1396,8 +1396,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_client_rationale_1",
-      "community": 0,
-      "community_name": "MCP Tool Registration Helpers",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "\u0430\u0441\u0438\u043d\u0445\u0440\u043e\u043d\u043d\u044b\u0438 http-\u043a\u043b\u0438\u0435\u043d\u0442 \u0434\u043b\u044f \u043e\u0431\u0449\u0435\u043d\u0438\u044f \u0441 1\u0441:\u043f\u0440\u0435\u0434\u043f\u0440\u0438\u044f\u0442\u0438\u0435."
     },
     {
@@ -1407,7 +1407,7 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "src_mcp_baf_client_rationale_32",
-      "community": 51,
+      "community": 70,
       "community_name": "scrub_error_detail",
       "norm_label": "\u043c\u0430\u0441\u043a\u0438\u0440\u0443\u0435\u0442 \u043f\u0434\u043d \u0438 \u043e\u0431\u0440\u0435\u0437\u0430\u0435\u0442 \u0442\u0435\u043b\u043e \u043e\u0448\u0438\u0431\u043a\u0438 1\u0441 \u0434\u043e \u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u043e\u0438 \u0434\u043b\u0438\u043d\u044b."
     },
@@ -1418,8 +1418,8 @@
       "source_location": "L61",
       "_origin": "ast",
       "id": "src_mcp_baf_client_rationale_61",
-      "community": 34,
-      "community_name": "._do",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "\u043e\u0448\u0438\u0431\u043a\u0430 \u0432\u0437\u0430\u0438\u043c\u043e\u0434\u0435\u0438\u0441\u0442\u0432\u0438\u044f \u0441 1\u0441 \u0441 \u043f\u043e\u043d\u044f\u0442\u043d\u044b\u043c \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044e \u0442\u0435\u043a\u0441\u0442\u043e\u043c."
     },
     {
@@ -1429,8 +1429,8 @@
       "source_location": "L65",
       "_origin": "ast",
       "id": "src_mcp_baf_client_rationale_65",
-      "community": 34,
-      "community_name": "._do",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "\u0442\u0440\u0430\u043d\u0437\u0438\u0435\u043d\u0442\u043d\u0430\u044f \u043e\u0448\u0438\u0431\u043a\u0430: \u0438\u0434\u0435\u043c\u043f\u043e\u0442\u0435\u043d\u0442\u043d\u044b\u0438 \u0437\u0430\u043f\u0440\u043e\u0441 \u0438\u043c\u0435\u0435\u0442 \u0441\u043c\u044b\u0441\u043b \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u044c."
     },
     {
@@ -1451,8 +1451,8 @@
       "source_location": "L129",
       "_origin": "ast",
       "id": "src_mcp_baf_client_rationale_129",
-      "community": 34,
-      "community_name": "._do",
+      "community": 70,
+      "community_name": "scrub_error_detail",
       "norm_label": "\u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u044b\u0438 \u0444\u0440\u0430\u0433\u043c\u0435\u043d\u0442 \u043e\u0448\u0438\u0431\u043a\u0438 1\u0441 \u0434\u043b\u044f \u0442\u0435\u043a\u0441\u0442\u0430 \u0438\u0441\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u044f (\u0438 \u0434\u043b\u044f \u0430\u0433\u0435\u043d\u0442\u0430).          \u0431\u0435\u0437"
     },
     {
@@ -1506,8 +1506,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_config",
-      "community": 0,
-      "community_name": "MCP Tool Registration Helpers",
+      "community": 9,
+      "community_name": "Server Assembly & Config",
       "norm_label": "config.py"
     },
     {
@@ -1627,8 +1627,8 @@
       "source_location": "L404",
       "_origin": "ast",
       "id": "src_mcp_baf_config_version",
-      "community": 0,
-      "community_name": "MCP Tool Registration Helpers",
+      "community": 7,
+      "community_name": "CLI Entry Point & Config",
       "norm_label": "_version()"
     },
     {
@@ -1649,8 +1649,8 @@
       "source_location": "L516",
       "_origin": "ast",
       "id": "src_mcp_baf_config_check_transport",
-      "community": 0,
-      "community_name": "MCP Tool Registration Helpers",
+      "community": 9,
+      "community_name": "Server Assembly & Config",
       "norm_label": "_check_transport()"
     },
     {
@@ -1660,8 +1660,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_config_rationale_1",
-      "community": 0,
-      "community_name": "MCP Tool Registration Helpers",
+      "community": 9,
+      "community_name": "Server Assembly & Config",
       "norm_label": "\u043a\u043e\u043d\u0444\u0438\u0433\u0443\u0440\u0430\u0446\u0438\u044f mcp-\u0441\u0435\u0440\u0432\u0435\u0440\u0430.  \u043f\u0440\u0438\u043e\u0440\u0438\u0442\u0435\u0442 \u0438\u0441\u0442\u043e\u0447\u043d\u0438\u043a\u043e\u0432 (\u043e\u0442 \u043d\u0438\u0437\u0448\u0435\u0433\u043e \u043a \u0432\u044b\u0441\u0448\u0435\u043c\u0443): \u0437\u043d\u0430\u0447\u0435\u043d\u0438\u044f"
     },
     {
@@ -1748,8 +1748,8 @@
       "source_location": "L517",
       "_origin": "ast",
       "id": "src_mcp_baf_config_rationale_517",
-      "community": 0,
-      "community_name": "MCP Tool Registration Helpers",
+      "community": 9,
+      "community_name": "Server Assembly & Config",
       "norm_label": "\u0441\u0435\u0442\u0435\u0432\u043e\u0438 \u0442\u0440\u0430\u043d\u0441\u043f\u043e\u0440\u0442: \u0442\u043e\u043b\u044c\u043a\u043e \u0441 \u0442\u043e\u043a\u0435\u043d\u043e\u043c, plain http \u2014 \u0442\u043e\u043b\u044c\u043a\u043e \u0441 \u044f\u0432\u043d\u044b\u043c opt-in."
     },
     {
@@ -1792,8 +1792,8 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_cache_user_cache_dir",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 52,
+      "community_name": "test_https_transport.py",
       "norm_label": "user_cache_dir()"
     },
     {
@@ -1847,8 +1847,8 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_cache_rationale_24",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 52,
+      "community_name": "test_https_transport.py",
       "norm_label": "\u043f\u043b\u0430\u0442\u0444\u043e\u0440\u043c\u0435\u043d\u043d\u044b\u0438 \u043a\u0430\u0442\u0430\u043b\u043e\u0433 \u043a\u044d\u0448\u0430 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f (\u0430\u043d\u0430\u043b\u043e\u0433 os.usercachedir \u0432 go)."
     },
     {
@@ -2045,8 +2045,8 @@
       "source_location": "L115",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_formparser_find_form_files",
-      "community": 5,
-      "community_name": "1C Form XML Parser",
+      "community": 10,
+      "community_name": "Form Structure Tool",
       "norm_label": "find_form_files()"
     },
     {
@@ -2210,8 +2210,8 @@
       "source_location": "L118",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_formparser_rationale_118",
-      "community": 5,
-      "community_name": "1C Form XML Parser",
+      "community": 10,
+      "community_name": "Form Structure Tool",
       "norm_label": "\u043d\u0430\u0445\u043e\u0434\u0438\u0442 \u0432\u0441\u0435 form.xml \u043e\u0431\u044a\u0435\u043a\u0442\u0430 \u0432 dump-\u0432\u044b\u0433\u0440\u0443\u0437\u043a\u0435.      \u0432\u043e\u0437\u0432\u0440\u0430\u0449\u0430\u0435\u0442 \u0441\u043b\u043e\u0432\u0430\u0440\u044c \u0438\u043c\u044f \u0444\u043e\u0440\u043c\u044b"
     },
     {
@@ -2298,8 +2298,8 @@
       "source_location": "L101",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_index_matches",
-      "community": 50,
-      "community_name": "LockTimeout",
+      "community": 56,
+      "community_name": "._search_smart",
       "norm_label": "matches"
     },
     {
@@ -2309,8 +2309,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "list",
-      "community": 50,
-      "community_name": "LockTimeout",
+      "community": 56,
+      "community_name": "._search_smart",
       "norm_label": "list"
     },
     {
@@ -2342,8 +2342,8 @@
       "source_location": "L127",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_index_filestate",
-      "community": 50,
-      "community_name": "LockTimeout",
+      "community": 59,
+      "community_name": "file_lock",
       "norm_label": "_filestate"
     },
     {
@@ -2364,8 +2364,8 @@
       "source_location": "L143",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_index_dumpindex_init",
-      "community": 8,
-      "community_name": "Index Disk Cache",
+      "community": 6,
+      "community_name": "SQLite FTS5 Index Store",
       "norm_label": ".__init__()"
     },
     {
@@ -2463,8 +2463,8 @@
       "source_location": "L311",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_index_dumpindex_walk_files",
-      "community": 50,
-      "community_name": "LockTimeout",
+      "community": 6,
+      "community_name": "SQLite FTS5 Index Store",
       "norm_label": "._walk_files()"
     },
     {
@@ -2672,8 +2672,8 @@
       "source_location": "L823",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_index_compile_user_regex",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 56,
+      "community_name": "._search_smart",
       "norm_label": "_compile_user_regex()"
     },
     {
@@ -2683,8 +2683,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "pattern",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 56,
+      "community_name": "._search_smart",
       "norm_label": "pattern"
     },
     {
@@ -2705,8 +2705,8 @@
       "source_location": "L850",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_index_best_line",
-      "community": 2,
-      "community_name": "nfc",
+      "community": 56,
+      "community_name": "._search_smart",
       "norm_label": "_best_line()"
     },
     {
@@ -2716,8 +2716,8 @@
       "source_location": "L866",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_index_first_line_with_any",
-      "community": 2,
-      "community_name": "nfc",
+      "community": 56,
+      "community_name": "._search_smart",
       "norm_label": "_first_line_with_any()"
     },
     {
@@ -2738,8 +2738,8 @@
       "source_location": "L102",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_index_rationale_102",
-      "community": 50,
-      "community_name": "LockTimeout",
+      "community": 56,
+      "community_name": "._search_smart",
       "norm_label": "\u0441\u043f\u0438\u0441\u043e\u043a \u0441\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0438; `truncated` \u2014 \u0441\u043a\u0430\u043d \u043f\u0440\u0435\u0440\u0432\u0430\u043d \u043f\u043e \u0431\u044e\u0434\u0436\u0435\u0442\u0443 \u0432\u0440\u0435\u043c\u0435\u043d\u0438."
     },
     {
@@ -2760,8 +2760,8 @@
       "source_location": "L128",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_index_rationale_128",
-      "community": 50,
-      "community_name": "LockTimeout",
+      "community": 59,
+      "community_name": "file_lock",
       "norm_label": "\u0441\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435 \u043e\u0434\u043d\u043e\u0433\u043e .bsl \u0444\u0430\u0438\u043b\u0430 \u043d\u0430 \u0434\u0438\u0441\u043a\u0435 (\u0434\u043b\u044f diff \u043c\u0430\u043d\u0438\u0444\u0435\u0441\u0442\u0430)."
     },
     {
@@ -2782,8 +2782,8 @@
       "source_location": "L312",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_index_rationale_312",
-      "community": 50,
-      "community_name": "LockTimeout",
+      "community": 6,
+      "community_name": "SQLite FTS5 Index Store",
       "norm_label": "\u0441\u043e\u0431\u0438\u0440\u0430\u0435\u0442 \u0441\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435 \u0432\u0441\u0435\u0445 .bsl \u0444\u0430\u0438\u043b\u043e\u0432: rel_path -> (\u043f\u0443\u0442\u044c, mtime, size)."
     },
     {
@@ -2870,8 +2870,8 @@
       "source_location": "L824",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_index_rationale_824",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 56,
+      "community_name": "._search_smart",
       "norm_label": "\u043a\u043e\u043c\u043f\u0438\u043b\u0438\u0440\u0443\u0435\u0442 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c\u0441\u043a\u0438\u0438 regex \u0441 \u043e\u0433\u0440\u0430\u043d\u0438\u0447\u0435\u043d\u0438\u044f\u043c\u0438 \u043f\u0440\u043e\u0442\u0438\u0432 redos.      \u043e\u0442\u043a\u043b\u043e\u043d\u044f\u0435\u0442"
     },
     {
@@ -2881,8 +2881,8 @@
       "source_location": "L851",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_index_rationale_851",
-      "community": 2,
-      "community_name": "nfc",
+      "community": 56,
+      "community_name": "._search_smart",
       "norm_label": "\u0441\u0442\u0440\u043e\u043a\u0430 \u0441 \u043d\u0430\u0438\u0431\u043e\u043b\u044c\u0448\u0438\u043c \u0447\u0438\u0441\u043b\u043e\u043c \u0440\u0430\u0437\u043b\u0438\u0447\u043d\u044b\u0445 \u0442\u043e\u043a\u0435\u043d\u043e\u0432 \u0437\u0430\u043f\u0440\u043e\u0441\u0430 (0 \u2014 \u043d\u0435\u0442 \u0441\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0438)."
     },
     {
@@ -3035,8 +3035,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_synonyms",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 43,
+      "community_name": "ensure_self_signed",
       "norm_label": "synonyms.py"
     },
     {
@@ -3046,8 +3046,8 @@
       "source_location": "L72",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_synonyms_build_synonym_map",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 43,
+      "community_name": "ensure_self_signed",
       "norm_label": "build_synonym_map()"
     },
     {
@@ -3057,8 +3057,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_synonyms_rationale_1",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 43,
+      "community_name": "ensure_self_signed",
       "norm_label": "\u0434\u0432\u0443\u044f\u0437\u044b\u0447\u043d\u044b\u0435 bsl-\u0441\u0438\u043d\u043e\u043d\u0438\u043c\u044b \u0434\u043b\u044f \u043f\u043e\u043b\u043d\u043e\u0442\u0435\u043a\u0441\u0442\u043e\u0432\u043e\u0433\u043e \u043f\u043e\u0438\u0441\u043a\u0430.  \u043f\u043e\u0440\u0442 dump/analyzer.go (buil"
     },
     {
@@ -3068,8 +3068,8 @@
       "source_location": "L73",
       "_origin": "ast",
       "id": "src_mcp_baf_dumpindex_synonyms_rationale_73",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 43,
+      "community_name": "ensure_self_signed",
       "norm_label": "\u0434\u0432\u0443\u043d\u0430\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u043d\u0430\u044f \u043a\u0430\u0440\u0442\u0430 \u0441\u0438\u043d\u043e\u043d\u0438\u043c\u043e\u0432 bsl (\u0432 \u043d\u0438\u0436\u043d\u0435\u043c \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0435)."
     },
     {
@@ -3101,8 +3101,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "valueerror",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 10,
+      "community_name": "Form Structure Tool",
       "norm_label": "valueerror"
     },
     {
@@ -3222,8 +3222,8 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "src_mcp_baf_filelock_locktimeout",
-      "community": 50,
-      "community_name": "LockTimeout",
+      "community": 59,
+      "community_name": "file_lock",
       "norm_label": "locktimeout"
     },
     {
@@ -3233,8 +3233,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "timeouterror",
-      "community": 50,
-      "community_name": "LockTimeout",
+      "community": 59,
+      "community_name": "file_lock",
       "norm_label": "timeouterror"
     },
     {
@@ -3288,8 +3288,8 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "src_mcp_baf_filelock_rationale_23",
-      "community": 50,
-      "community_name": "LockTimeout",
+      "community": 59,
+      "community_name": "file_lock",
       "norm_label": "\u043b\u043e\u043a \u043d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0432\u0437\u044f\u0442\u044c \u0437\u0430 \u043e\u0442\u0432\u0435\u0434\u0435\u043d\u043d\u043e\u0435 \u0432\u0440\u0435\u043c\u044f."
     },
     {
@@ -3310,8 +3310,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_init",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 43,
+      "community_name": "ensure_self_signed",
       "norm_label": "helpindex/__init__.py"
     },
     {
@@ -3321,8 +3321,8 @@
       "source_location": "L38",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_init_pageparser",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 52,
+      "community_name": "test_https_transport.py",
       "norm_label": "pageparser"
     },
     {
@@ -3332,8 +3332,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "htmlparser",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 52,
+      "community_name": "test_https_transport.py",
       "norm_label": "htmlparser"
     },
     {
@@ -3343,8 +3343,8 @@
       "source_location": "L39",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_init_pageparser_init",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 52,
+      "community_name": "test_https_transport.py",
       "norm_label": ".__init__()"
     },
     {
@@ -3354,8 +3354,8 @@
       "source_location": "L46",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_init_pageparser_handle_starttag",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 52,
+      "community_name": "test_https_transport.py",
       "norm_label": ".handle_starttag()"
     },
     {
@@ -3365,8 +3365,8 @@
       "source_location": "L57",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_init_pageparser_handle_endtag",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 52,
+      "community_name": "test_https_transport.py",
       "norm_label": ".handle_endtag()"
     },
     {
@@ -3376,8 +3376,8 @@
       "source_location": "L65",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_init_pageparser_handle_data",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 52,
+      "community_name": "test_https_transport.py",
       "norm_label": ".handle_data()"
     },
     {
@@ -3387,8 +3387,8 @@
       "source_location": "L72",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_init_parse_page",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 43,
+      "community_name": "ensure_self_signed",
       "norm_label": "parse_page()"
     },
     {
@@ -3398,8 +3398,8 @@
       "source_location": "L93",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_init_normalize",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 43,
+      "community_name": "ensure_self_signed",
       "norm_label": "normalize()"
     },
     {
@@ -3420,8 +3420,8 @@
       "source_location": "L98",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_init_helpindex_init",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 52,
+      "community_name": "test_https_transport.py",
       "norm_label": ".__init__()"
     },
     {
@@ -3442,8 +3442,8 @@
       "source_location": "L114",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_init_helpindex_build",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 43,
+      "community_name": "ensure_self_signed",
       "norm_label": "._build()"
     },
     {
@@ -3453,8 +3453,8 @@
       "source_location": "L190",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_init_helpindex_check",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 43,
+      "community_name": "ensure_self_signed",
       "norm_label": "._check()"
     },
     {
@@ -3464,8 +3464,8 @@
       "source_location": "L198",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_init_helpindex_search",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 43,
+      "community_name": "ensure_self_signed",
       "norm_label": ".search()"
     },
     {
@@ -3475,8 +3475,8 @@
       "source_location": "L220",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_init_helpindex_get",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 43,
+      "community_name": "ensure_self_signed",
       "norm_label": ".get()"
     },
     {
@@ -3486,8 +3486,8 @@
       "source_location": "L227",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_init_helpindex_close",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 43,
+      "community_name": "ensure_self_signed",
       "norm_label": ".close()"
     },
     {
@@ -3497,8 +3497,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_init_rationale_1",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 43,
+      "community_name": "ensure_self_signed",
       "norm_label": "\u043b\u043e\u043a\u0430\u043b\u044c\u043d\u0430\u044f \u0441\u043f\u0440\u0430\u0432\u043a\u0430 \u043f\u043b\u0430\u0442\u0444\u043e\u0440\u043c\u044b: hbk \u2192 sqlite fts5, \u0431\u0435\u0437 \u0432\u043d\u0435\u0448\u043d\u0438\u0445 \u0441\u0435\u0440\u0432\u0438\u0441\u043e\u0432."
     },
     {
@@ -3508,8 +3508,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_hbk",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 48,
+      "community_name": "test_tls_concurrency.py",
       "norm_label": "hbk.py"
     },
     {
@@ -3519,8 +3519,8 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_hbk_number",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 48,
+      "community_name": "test_tls_concurrency.py",
       "norm_label": "_number()"
     },
     {
@@ -3530,8 +3530,8 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_hbk_slice",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 48,
+      "community_name": "test_tls_concurrency.py",
       "norm_label": "_slice()"
     },
     {
@@ -3541,8 +3541,8 @@
       "source_location": "L36",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_hbk_body",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 48,
+      "community_name": "test_tls_concurrency.py",
       "norm_label": "_body()"
     },
     {
@@ -3552,8 +3552,8 @@
       "source_location": "L61",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_hbk_decode_html",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 48,
+      "community_name": "test_tls_concurrency.py",
       "norm_label": "decode_html()"
     },
     {
@@ -3563,8 +3563,8 @@
       "source_location": "L74",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_hbk_read_pages",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 48,
+      "community_name": "test_tls_concurrency.py",
       "norm_label": "read_pages()"
     },
     {
@@ -3574,8 +3574,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_hbk_py_path",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 48,
+      "community_name": "test_tls_concurrency.py",
       "norm_label": "path"
     },
     {
@@ -3585,8 +3585,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_hbk_rationale_1",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 48,
+      "community_name": "test_tls_concurrency.py",
       "norm_label": "\u0447\u0442\u0435\u043d\u0438\u0435 hbk: \u0430\u0434\u0430\u043f\u0442\u0430\u0446\u0438\u044f \u043a\u043e\u043d\u0442\u0435\u0438\u043d\u0435\u0440\u043d\u043e\u0433\u043e \u043f\u0430\u0440\u0441\u0435\u0440\u0430 rzateev/onec-help-mcp @ f66860b.  sp"
     },
     {
@@ -3596,8 +3596,8 @@
       "source_location": "L37",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_hbk_rationale_37",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 48,
+      "community_name": "test_tls_concurrency.py",
       "norm_label": "\u0446\u0435\u043f\u043e\u0447\u043a\u0430 \u0431\u043b\u043e\u043a\u043e\u0432 \u043a\u043e\u043d\u0442\u0435\u0438\u043d\u0435\u0440\u0430; \u0437\u0430\u0449\u0438\u0442\u0430 \u043e\u0442 \u0446\u0438\u043a\u043b\u043e\u0432 \u0438 \u043d\u0435\u0432\u0435\u0440\u043d\u044b\u0445 \u0440\u0430\u0437\u043c\u0435\u0440\u043e\u0432."
     },
     {
@@ -3607,8 +3607,8 @@
       "source_location": "L75",
       "_origin": "ast",
       "id": "src_mcp_baf_helpindex_hbk_rationale_75",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 48,
+      "community_name": "test_tls_concurrency.py",
       "norm_label": "\u0432\u044b\u0434\u0430\u0435\u0442 html-\u0441\u0442\u0440\u0430\u043d\u0438\u0446\u044b filestorage \u0431\u0435\u0437 \u0438\u0437\u0432\u043b\u0435\u0447\u0435\u043d\u0438\u044f \u0444\u0430\u0438\u043b\u043e\u0432 \u043d\u0430 \u0434\u0438\u0441\u043a."
     },
     {
@@ -4223,8 +4223,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_pii",
-      "community": 39,
-      "community_name": "pii.py",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "pii.py"
     },
     {
@@ -4399,8 +4399,8 @@
       "source_location": "L341",
       "_origin": "ast",
       "id": "src_mcp_baf_pii_is_pii_name",
-      "community": 39,
-      "community_name": "pii.py",
+      "community": 50,
+      "community_name": "LockTimeout",
       "norm_label": "_is_pii_name()"
     },
     {
@@ -4410,8 +4410,8 @@
       "source_location": "L345",
       "_origin": "ast",
       "id": "src_mcp_baf_pii_pii_aliases",
-      "community": 39,
-      "community_name": "pii.py",
+      "community": 50,
+      "community_name": "LockTimeout",
       "norm_label": "_pii_aliases()"
     },
     {
@@ -4421,8 +4421,8 @@
       "source_location": "L388",
       "_origin": "ast",
       "id": "src_mcp_baf_pii_mask_pii_result",
-      "community": 32,
-      "community_name": "traced_text",
+      "community": 50,
+      "community_name": "LockTimeout",
       "norm_label": "mask_pii_result()"
     },
     {
@@ -4432,8 +4432,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_pii_rationale_1",
-      "community": 39,
-      "community_name": "pii.py",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "\u043c\u0430\u0441\u043a\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435 \u043f\u0434\u043d \u0432 \u043e\u0442\u0432\u0435\u0442\u0430\u0445 mcp-\u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442\u043e\u0432.  `--mask-pii` \u0434\u043e\u043b\u0436\u0435\u043d \u0437\u0430\u043a\u0440\u044b\u0432\u0430\u0442\u044c \u0432\u0441\u0435"
     },
     {
@@ -4586,8 +4586,8 @@
       "source_location": "L346",
       "_origin": "ast",
       "id": "src_mcp_baf_pii_rationale_346",
-      "community": 39,
-      "community_name": "pii.py",
+      "community": 50,
+      "community_name": "LockTimeout",
       "norm_label": "\u0430\u043b\u0438\u0430\u0441\u044b `\u043a\u0430\u043a x`, \u0447\u044c\u0435 \u0432\u044b\u0440\u0430\u0436\u0435\u043d\u0438\u0435 \u0441\u043e\u0434\u0435\u0440\u0436\u0438\u0442 \u0447\u0443\u0432\u0441\u0442\u0432\u0438\u0442\u0435\u043b\u044c\u043d\u043e\u0435 \u043f\u043e\u043b\u0435 (\u0432 \u043d\u0438\u0436\u043d\u0435\u043c \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0435)."
     },
     {
@@ -4597,8 +4597,8 @@
       "source_location": "L389",
       "_origin": "ast",
       "id": "src_mcp_baf_pii_rationale_389",
-      "community": 32,
-      "community_name": "traced_text",
+      "community": 50,
+      "community_name": "LockTimeout",
       "norm_label": "\u043c\u0430\u0441\u043a\u0438\u0440\u0443\u0435\u0442 \u043f\u0434\u043d \u0432 \u0441\u0442\u0440\u043e\u043a\u0430\u0445 \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442\u0430: \u043f\u043e \u0438\u043c\u0435\u043d\u0438 \u043a\u043e\u043b\u043e\u043d\u043a\u0438, \u0430\u043b\u0438\u0430\u0441\u0443 \u0438\u0437 query \u0438 \u043f\u043e regex"
     },
     {
@@ -4608,8 +4608,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_prompts",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 71,
+      "community_name": "prompts.py",
       "norm_label": "prompts.py"
     },
     {
@@ -4619,8 +4619,8 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "src_mcp_baf_prompts_register",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 71,
+      "community_name": "prompts.py",
       "norm_label": "register()"
     },
     {
@@ -4630,8 +4630,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_prompts_py_mcpserver",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 71,
+      "community_name": "prompts.py",
       "norm_label": "mcpserver"
     },
     {
@@ -4641,8 +4641,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_prompts_rationale_1",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 71,
+      "community_name": "prompts.py",
       "norm_label": "mcp-prompts \u0434\u043b\u044f \u0442\u0438\u043f\u043e\u0432\u044b\u0445 \u0437\u0430\u0434\u0430\u0447 \u0440\u0430\u0437\u0440\u0430\u0431\u043e\u0442\u043a\u0438 1\u0441 (\u043f\u043e\u0440\u0442 prompts/prompts.go).  \u043a\u0430\u0436\u0434\u044b\u0438 p"
     },
     {
@@ -4652,8 +4652,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_server",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "server.py"
     },
     {
@@ -4663,8 +4663,8 @@
       "source_location": "L62",
       "_origin": "ast",
       "id": "src_mcp_baf_server_check_extension_version",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "_check_extension_version()"
     },
     {
@@ -4685,8 +4685,8 @@
       "source_location": "L91",
       "_origin": "ast",
       "id": "src_mcp_baf_server_create_server",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "create_server()"
     },
     {
@@ -4696,8 +4696,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_server_py_mcpserver",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "mcpserver"
     },
     {
@@ -4707,8 +4707,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_server_rationale_1",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "\u0441\u0431\u043e\u0440\u043a\u0430 mcp-\u0441\u0435\u0440\u0432\u0435\u0440\u0430: \u0441\u043e\u0437\u0434\u0430\u043d\u0438\u0435 mcpserver \u0438 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044f \u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442\u043e\u0432."
     },
     {
@@ -4718,8 +4718,8 @@
       "source_location": "L63",
       "_origin": "ast",
       "id": "src_mcp_baf_server_rationale_63",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "\u0441\u0432\u0435\u0440\u044f\u0435\u0442 \u0432\u0435\u0440\u0441\u0438\u044e \u0440\u0430\u0441\u0448\u0438\u0440\u0435\u043d\u0438\u044f 1\u0441 \u0441 \u043e\u0436\u0438\u0434\u0430\u0435\u043c\u043e\u0438.      \u0435\u0441\u043b\u0438 /version \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d (\u043d\u0435\u0442 \u0441\u0432\u044f"
     },
     {
@@ -4729,8 +4729,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tls",
-      "community": 41,
-      "community_name": "tls.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "tls.py"
     },
     {
@@ -4773,8 +4773,8 @@
       "source_location": "L65",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_san_name",
-      "community": 43,
-      "community_name": "ensure_self_signed",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "_san_name()"
     },
     {
@@ -4784,8 +4784,8 @@
       "source_location": "L70",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_self_signed_hosts",
-      "community": 43,
-      "community_name": "ensure_self_signed",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "self_signed_hosts()"
     },
     {
@@ -4795,8 +4795,8 @@
       "source_location": "L80",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_san",
-      "community": 41,
-      "community_name": "tls.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "_san()"
     },
     {
@@ -4806,8 +4806,8 @@
       "source_location": "L89",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_bundle_valid",
-      "community": 43,
-      "community_name": "ensure_self_signed",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "_bundle_valid()"
     },
     {
@@ -4817,8 +4817,8 @@
       "source_location": "L144",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_san_covers",
-      "community": 43,
-      "community_name": "ensure_self_signed",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "_san_covers()"
     },
     {
@@ -4828,8 +4828,8 @@
       "source_location": "L156",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_leaf_san",
-      "community": 41,
-      "community_name": "tls.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "_leaf_san()"
     },
     {
@@ -4839,8 +4839,8 @@
       "source_location": "L171",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_expires_within",
-      "community": 41,
-      "community_name": "tls.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "_expires_within()"
     },
     {
@@ -4850,8 +4850,8 @@
       "source_location": "L190",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_write_atomic",
-      "community": 41,
-      "community_name": "tls.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "_write_atomic()"
     },
     {
@@ -4861,8 +4861,8 @@
       "source_location": "L209",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_ensure_self_signed",
-      "community": 43,
-      "community_name": "ensure_self_signed",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "ensure_self_signed()"
     },
     {
@@ -4872,8 +4872,8 @@
       "source_location": "L258",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_renew_leaf",
-      "community": 41,
-      "community_name": "tls.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "_renew_leaf()"
     },
     {
@@ -4883,8 +4883,8 @@
       "source_location": "L300",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_generate",
-      "community": 41,
-      "community_name": "tls.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "_generate()"
     },
     {
@@ -4894,8 +4894,8 @@
       "source_location": "L327",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_build_ca",
-      "community": 41,
-      "community_name": "tls.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "_build_ca()"
     },
     {
@@ -4905,8 +4905,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "datetime",
-      "community": 41,
-      "community_name": "tls.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "datetime"
     },
     {
@@ -4916,8 +4916,8 @@
       "source_location": "L356",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_build_leaf",
-      "community": 41,
-      "community_name": "tls.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "_build_leaf()"
     },
     {
@@ -4927,8 +4927,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_rationale_1",
-      "community": 41,
-      "community_name": "tls.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "tls \u0434\u043b\u044f https-\u0442\u0440\u0430\u043d\u0441\u043f\u043e\u0440\u0442\u0443: \u0441\u0432\u043e\u0456 cert/key \u0430\u0431\u043e \u0441\u0430\u043c\u043e\u043f\u0456\u0434\u043f\u0438\u0441\u0430\u043d\u0438\u0438 ca \u0443 \u043a\u0430\u0442\u0430\u043b\u043e\u0437\u0456.  \u0431\u0435\u0437 \u044f"
     },
     {
@@ -4971,8 +4971,8 @@
       "source_location": "L66",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_rationale_66",
-      "community": 43,
-      "community_name": "ensure_self_signed",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "\u0456\u043c'\u044f \u0434\u043b\u044f san: `[::1]:8001` -> `::1` (\u0434\u0443\u0436\u043a\u0438 \u0438 \u043f\u043e\u0440\u0442 \u0443 san \u043d\u0435 \u043f\u043e\u0442\u0440\u0430\u043f\u043b\u044f\u044e\u0442\u044c)."
     },
     {
@@ -4982,8 +4982,8 @@
       "source_location": "L71",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_rationale_71",
-      "community": 43,
-      "community_name": "ensure_self_signed",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "san \u0437\u0430 \u0437\u0430\u043c\u043e\u0432\u0447\u0443\u0432\u0430\u043d\u043d\u044f\u043c: localhost, loopback \u0456 hostname \u043a\u043e\u043d\u0442\u0435\u0438\u043d\u0435\u0440\u0430/\u0445\u043e\u0441\u0442\u0430."
     },
     {
@@ -4993,8 +4993,8 @@
       "source_location": "L90",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_rationale_90",
-      "community": 43,
-      "community_name": "ensure_self_signed",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "\u043a\u043e\u043c\u043f\u043b\u0435\u043a\u0442 \u0433\u043e\u0442\u043e\u0432 \u0438 \u0441\u043e\u0433\u043b\u0430\u0441\u043e\u0432\u0430\u043d: ca \u043f\u043e\u0434\u043f\u0438\u0441\u044b\u0432\u0430\u0435\u0442 server.crt, key \u2014 \u0435\u0433\u043e \u043f\u0430\u0440\u0430.      \u043f\u0440\u043e"
     },
     {
@@ -5004,8 +5004,8 @@
       "source_location": "L145",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_rationale_145",
-      "community": 43,
-      "community_name": "ensure_self_signed",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "true, \u0435\u0441\u043b\u0438 san \u043b\u0438\u0441\u0442\u0430 \u043f\u043e\u043a\u0440\u044b\u0432\u0430\u0435\u0442 \u0432\u0441\u0435 \u0442\u0435\u043a\u0443\u0449\u0438\u0435 `hosts`.      \u043a\u043e\u043c\u043f\u043b\u0435\u043a\u0442 \u043c\u043e\u0436\u0435\u0442 \u0431\u044b\u0442\u044c \u0441\u0432\u044f"
     },
     {
@@ -5015,8 +5015,8 @@
       "source_location": "L157",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_rationale_157",
-      "community": 41,
-      "community_name": "tls.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "\u0438\u043c\u0435\u043d\u0430 \u0438\u0437 san \u043b\u0438\u0441\u0442\u0430 (dns \u0438 ip); none \u2014 \u043d\u0435\u0442 san \u0438\u043b\u0438 \u0431\u0438\u0442\u044b\u0438 \u0444\u0430\u0438\u043b."
     },
     {
@@ -5026,8 +5026,8 @@
       "source_location": "L172",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_rationale_172",
-      "community": 41,
-      "community_name": "tls.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "true, \u0435\u0441\u043b\u0438 \u0441\u0435\u0440\u0442\u0438\u0444\u0438\u043a\u0430\u0442 \u0432 `path` \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d \u0438\u043b\u0438 \u0438\u0441\u0442\u0435\u043a\u0430\u0435\u0442 \u0440\u0430\u043d\u044c\u0448\u0435 \u0447\u0435\u043c \u0447\u0435\u0440\u0435\u0437 `days`."
     },
     {
@@ -5037,8 +5037,8 @@
       "source_location": "L191",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_rationale_191",
-      "community": 41,
-      "community_name": "tls.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "\u0437\u0430\u043f\u0438\u0441\u0430\u0442\u044c \u0444\u0430\u0438\u043b \u0447\u0435\u0440\u0435\u0437 \u0432\u0440\u0435\u043c\u0435\u043d\u043d\u044b\u0438 + os.replace: \u0447\u0438\u0442\u0430\u0442\u0435\u043b\u044c \u0432\u0438\u0434\u0438\u0442 \u043b\u0438\u0431\u043e \u0441\u0442\u0430\u0440\u043e\u0435,     \u043b\u0438\u0431\u043e"
     },
     {
@@ -5048,8 +5048,8 @@
       "source_location": "L210",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_rationale_210",
-      "community": 43,
-      "community_name": "ensure_self_signed",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "(ca.crt, server.crt, server.key) \u0443 directory; \u0433\u0435\u043d\u0435\u0440\u0443\u0454 \u0430\u0431\u043e \u043f\u0435\u0440\u0435\u0432\u0438\u043f\u0443\u0441\u043a\u0430\u0454 \u043b\u0438\u0441\u0442."
     },
     {
@@ -5059,8 +5059,8 @@
       "source_location": "L261",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_rationale_261",
-      "community": 41,
-      "community_name": "tls.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "\u043f\u0435\u0440\u0435\u0432\u044b\u043f\u0443\u0441\u0442\u0438\u0442\u044c \u043b\u0438\u0441\u0442 \u0442\u0435\u043c \u0436\u0435 ca. false \u2014 ca-\u043a\u043b\u044e\u0447 \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d/\u043d\u0435 \u043f\u0430\u0440\u0430.      `ca.crt`"
     },
     {
@@ -5070,8 +5070,8 @@
       "source_location": "L328",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_rationale_328",
-      "community": 41,
-      "community_name": "tls.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "\u043d\u043e\u0432\u0438\u0438 ca: (\u043a\u043b\u044e\u0447, \u0456\u043c'\u044f, subjectkeyidentifier, \u0441\u0435\u0440\u0442\u0438\u0444\u0456\u043a\u0430\u0442)."
     },
     {
@@ -5081,8 +5081,8 @@
       "source_location": "L357",
       "_origin": "ast",
       "id": "src_mcp_baf_tls_rationale_357",
-      "community": 41,
-      "community_name": "tls.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "\u0441\u0435\u0440\u0432\u0435\u0440\u043d\u0438\u0438 \u043b\u0438\u0441\u0442, \u043f\u0456\u0434\u043f\u0438\u0441\u0430\u043d\u0438\u0438 `ca_key`: (\u043a\u043b\u044e\u0447, \u0441\u0435\u0440\u0442\u0438\u0444\u0456\u043a\u0430\u0442)."
     },
     {
@@ -5092,8 +5092,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_init",
-      "community": 26,
-      "community_name": "test_objects.py",
+      "community": 0,
+      "community_name": "MCP Tool Registration Helpers",
       "norm_label": "tools/__init__.py"
     },
     {
@@ -5103,8 +5103,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_init_rationale_1",
-      "community": 26,
-      "community_name": "test_objects.py",
+      "community": 0,
+      "community_name": "MCP Tool Registration Helpers",
       "norm_label": "mcp-\u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442\u044b \u0441\u0435\u0440\u0432\u0435\u0440\u0430 mcp-baf."
     },
     {
@@ -5114,8 +5114,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_bsl_analysis",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "bsl_analysis.py"
     },
     {
@@ -5125,8 +5125,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_bsl_analysis_register",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "register()"
     },
     {
@@ -5136,8 +5136,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_bsl_analysis_rationale_1",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "\u0430\u043d\u0430\u043b\u0438\u0437 \u0438 \u0444\u043e\u0440\u043c\u0430\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435 \u043f\u0435\u0440\u0435\u0434\u0430\u043d\u043d\u043e\u0433\u043e \u0442\u0435\u043a\u0441\u0442\u0430 \u0431\u0435\u0437 \u0438\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u044f \u0438\u0441\u0445\u043e\u0434\u043d\u0438\u043a\u043e\u0432."
     },
     {
@@ -5147,8 +5147,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_bsl_help",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "bsl_help.py"
     },
     {
@@ -5158,8 +5158,8 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_bsl_help_register",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "register()"
     },
     {
@@ -5169,8 +5169,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_bsl_help_py_mcpserver",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "mcpserver"
     },
     {
@@ -5180,8 +5180,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_bsl_help_py_auditwriter",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "auditwriter"
     },
     {
@@ -5191,8 +5191,8 @@
       "source_location": "L68",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_bsl_help_format_functions",
-      "community": 26,
-      "community_name": "test_objects.py",
+      "community": 41,
+      "community_name": "tls.py",
       "norm_label": "format_functions()"
     },
     {
@@ -5202,8 +5202,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_bsl_help_rationale_1",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "\u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442 bsl_syntax_help: \u0441\u043f\u0440\u0430\u0432\u043e\u0447\u043d\u0438\u043a \u0432\u0441\u0442\u0440\u043e\u0435\u043d\u043d\u044b\u0445 \u0444\u0443\u043d\u043a\u0446\u0438\u0438 \u044f\u0437\u044b\u043a\u0430 1\u0441.  \u0440\u0430\u0431\u043e\u0442\u0430\u0435\u0442 \u043b\u043e"
     },
     {
@@ -5213,8 +5213,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_common",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "common.py"
     },
     {
@@ -5224,8 +5224,8 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_common_traced_text",
-      "community": 37,
-      "community_name": "configuration_info.py",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "traced_text()"
     },
     {
@@ -5235,8 +5235,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_common_py_auditwriter",
-      "community": 37,
-      "community_name": "configuration_info.py",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "auditwriter"
     },
     {
@@ -5257,8 +5257,8 @@
       "source_location": "L69",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_common_clamp_limit",
-      "community": 3,
-      "community_name": "index.py",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "clamp_limit()"
     },
     {
@@ -5312,8 +5312,8 @@
       "source_location": "L114",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_common_truncate_output",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "truncate_output()"
     },
     {
@@ -5323,8 +5323,8 @@
       "source_location": "L130",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_common_escape_pipe",
-      "community": 10,
-      "community_name": "Form Structure Tool",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "escape_pipe()"
     },
     {
@@ -5345,8 +5345,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_common_rationale_1",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "\u043e\u0431\u0449\u0438\u0435 \u043f\u043e\u043c\u043e\u0449\u043d\u0438\u043a\u0438 \u0434\u043b\u044f mcp-\u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442\u043e\u0432."
     },
     {
@@ -5356,8 +5356,8 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_common_rationale_31",
-      "community": 37,
-      "community_name": "configuration_info.py",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "\u0432\u044b\u043f\u043e\u043b\u043d\u044f\u0435\u0442 \u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442 \u0441\u043e \u0441\u043a\u0432\u043e\u0437\u043d\u044b\u043c \u0430\u0443\u0434\u0438\u0442\u043e\u043c \u0438 \u0432\u043e\u0437\u0432\u0440\u0430\u0449\u0430\u0435\u0442 \u0435\u0433\u043e \u0442\u0435\u043a\u0441\u0442 \u043a\u0430\u043a \u0435\u0441\u0442\u044c.      \u0430"
     },
     {
@@ -5367,8 +5367,8 @@
       "source_location": "L70",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_common_rationale_70",
-      "community": 3,
-      "community_name": "index.py",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "\u043d\u043e\u0440\u043c\u0430\u043b\u0438\u0437\u0443\u0435\u0442 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c\u0441\u043a\u0438\u0438 limit \u043a \u0434\u0438\u0430\u043f\u0430\u0437\u043e\u043d\u0443 [default, maximum]."
     },
     {
@@ -5411,8 +5411,8 @@
       "source_location": "L115",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_common_rationale_115",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "\u043e\u0431\u0440\u0435\u0437\u0430\u0435\u0442 \u0432\u044b\u0432\u043e\u0434 \u043f\u043e \u043b\u0438\u043c\u0438\u0442\u0443, \u0441\u043e\u0445\u0440\u0430\u043d\u044f\u044f \u0446\u0435\u043b\u044b\u0435 \u0441\u0442\u0440\u043e\u043a\u0438 \u0438 \u044f\u0432\u043d\u0443\u044e \u043f\u043e\u043c\u0435\u0442\u043a\u0443."
     },
     {
@@ -5422,8 +5422,8 @@
       "source_location": "L131",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_common_rationale_131",
-      "community": 10,
-      "community_name": "Form Structure Tool",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "\u044d\u043a\u0440\u0430\u043d\u0438\u0440\u0443\u0435\u0442 \u0432\u0435\u0440\u0442\u0438\u043a\u0430\u043b\u044c\u043d\u0443\u044e \u0447\u0435\u0440\u0442\u0443, \u0447\u0442\u043e\u0431\u044b \u043d\u0435 \u043b\u043e\u043c\u0430\u0442\u044c markdown-\u0442\u0430\u0431\u043b\u0438\u0446\u044b."
     },
     {
@@ -5444,8 +5444,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_configuration_info",
-      "community": 37,
-      "community_name": "configuration_info.py",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "configuration_info.py"
     },
     {
@@ -5455,8 +5455,8 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_configuration_info_register",
-      "community": 37,
-      "community_name": "configuration_info.py",
+      "community": 72,
+      "community_name": "register",
       "norm_label": "register()"
     },
     {
@@ -5466,8 +5466,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_configuration_info_py_mcpserver",
-      "community": 37,
-      "community_name": "configuration_info.py",
+      "community": 72,
+      "community_name": "register",
       "norm_label": "mcpserver"
     },
     {
@@ -5477,8 +5477,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_configuration_info_py_auditwriter",
-      "community": 37,
-      "community_name": "configuration_info.py",
+      "community": 72,
+      "community_name": "register",
       "norm_label": "auditwriter"
     },
     {
@@ -5488,8 +5488,8 @@
       "source_location": "L42",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_configuration_info_format_configuration_info",
-      "community": 10,
-      "community_name": "Form Structure Tool",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "format_configuration_info()"
     },
     {
@@ -5499,8 +5499,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_configuration_info_py_any",
-      "community": 10,
-      "community_name": "Form Structure Tool",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "any"
     },
     {
@@ -5510,8 +5510,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_configuration_info_rationale_1",
-      "community": 37,
-      "community_name": "configuration_info.py",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "\u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442 get_configuration_info: \u043e\u0431\u0449\u0430\u044f \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u044f \u043e \u0431\u0430\u0437\u0435 1\u0441."
     },
     {
@@ -5521,8 +5521,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_eventlog",
-      "community": 0,
-      "community_name": "MCP Tool Registration Helpers",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "eventlog.py"
     },
     {
@@ -5532,8 +5532,8 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_eventlog_register",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "register()"
     },
     {
@@ -5543,8 +5543,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_eventlog_py_mcpserver",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "mcpserver"
     },
     {
@@ -5554,8 +5554,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_eventlog_py_auditwriter",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "auditwriter"
     },
     {
@@ -5587,8 +5587,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_eventlog_rationale_1",
-      "community": 0,
-      "community_name": "MCP Tool Registration Helpers",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "\u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442 get_event_log: \u0447\u0442\u0435\u043d\u0438\u0435 \u0436\u0443\u0440\u043d\u0430\u043b\u0430 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438 1\u0441."
     },
     {
@@ -5609,8 +5609,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_form",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "form.py"
     },
     {
@@ -5620,8 +5620,8 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_form_register",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "register()"
     },
     {
@@ -5631,8 +5631,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_form_py_mcpserver",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "mcpserver"
     },
     {
@@ -5642,8 +5642,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_form_py_auditwriter",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "auditwriter"
     },
     {
@@ -5653,8 +5653,8 @@
       "source_location": "L129",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_form_form_from_dump",
-      "community": 5,
-      "community_name": "1C Form XML Parser",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "form_from_dump()"
     },
     {
@@ -5664,8 +5664,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_form_py_any",
-      "community": 5,
-      "community_name": "1C Form XML Parser",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "any"
     },
     {
@@ -5675,8 +5675,8 @@
       "source_location": "L154",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_form_convert_dump_form",
-      "community": 5,
-      "community_name": "1C Form XML Parser",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "convert_dump_form()"
     },
     {
@@ -5686,8 +5686,8 @@
       "source_location": "L178",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_form_merge_dump_into_form",
-      "community": 5,
-      "community_name": "1C Form XML Parser",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "merge_dump_into_form()"
     },
     {
@@ -5697,8 +5697,8 @@
       "source_location": "L203",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_form_format_form_structure",
-      "community": 10,
-      "community_name": "Form Structure Tool",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "format_form_structure()"
     },
     {
@@ -5708,8 +5708,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_form_rationale_1",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "\u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442 get_form_structure: \u0441\u0442\u0440\u0443\u043a\u0442\u0443\u0440\u0430 \u0443\u043f\u0440\u0430\u0432\u043b\u044f\u0435\u043c\u043e\u0438 \u0444\u043e\u0440\u043c\u044b \u043e\u0431\u044a\u0435\u043a\u0442\u0430.  http-endpoi"
     },
     {
@@ -5719,8 +5719,8 @@
       "source_location": "L132",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_form_rationale_132",
-      "community": 5,
-      "community_name": "1C Form XML Parser",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "\u0437\u0430\u0433\u0440\u0443\u0436\u0430\u0435\u0442 \u0441\u0442\u0440\u0443\u043a\u0442\u0443\u0440\u0443 \u0444\u043e\u0440\u043c\u044b \u0438\u0437 form.xml dump-\u0432\u044b\u0433\u0440\u0443\u0437\u043a\u0438."
     },
     {
@@ -5730,8 +5730,8 @@
       "source_location": "L155",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_form_rationale_155",
-      "community": 5,
-      "community_name": "1C Form XML Parser",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "\u043f\u0440\u0435\u043e\u0431\u0440\u0430\u0437\u0443\u0435\u0442 \u0440\u0430\u0437\u043e\u0431\u0440\u0430\u043d\u043d\u044b\u0438 form.xml \u043a \u0444\u043e\u0440\u043c\u0430\u0442\u0443 http-\u043e\u0442\u0432\u0435\u0442\u0430 1\u0441."
     },
     {
@@ -5741,8 +5741,8 @@
       "source_location": "L179",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_form_rationale_179",
-      "community": 5,
-      "community_name": "1C Form XML Parser",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "\u0434\u043e\u043f\u043e\u043b\u043d\u044f\u0435\u0442 http-\u043e\u0442\u0432\u0435\u0442 \u0434\u0430\u043d\u043d\u044b\u043c\u0438 \u0438\u0437 dump.      http \u0432\u0441\u0435\u0433\u0434\u0430 \u043e\u0442\u0434\u0430\u0435\u0442 \u043e\u0441\u043d\u043e\u0432\u043d\u0443\u044e \u0444\u043e\u0440\u043c\u0443 \u043e\u0431\u044a"
     },
     {
@@ -5752,8 +5752,8 @@
       "source_location": "L204",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_form_rationale_204",
-      "community": 10,
-      "community_name": "Form Structure Tool",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "\u0444\u043e\u0440\u043c\u0430\u0442\u0438\u0440\u0443\u0435\u0442 \u0441\u0442\u0440\u0443\u043a\u0442\u0443\u0440\u0443 \u0444\u043e\u0440\u043c\u044b; \u043f\u0440\u0438 mask_pii \u0441\u0432\u043e\u0431\u043e\u0434\u043d\u044b\u0438 \u0442\u0435\u043a\u0441\u0442 \u043c\u0430\u0441\u043a\u0438\u0440\u0443\u0435\u0442\u0441\u044f.      \u0437\u0430\u0433\u043e"
     },
     {
@@ -5807,8 +5807,8 @@
       "source_location": "L103",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_metadata_load_tree",
-      "community": 12,
-      "community_name": "Metadata Tree Tool",
+      "community": 10,
+      "community_name": "Form Structure Tool",
       "norm_label": "load_tree()"
     },
     {
@@ -5818,8 +5818,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_metadata_py_any",
-      "community": 12,
-      "community_name": "Metadata Tree Tool",
+      "community": 10,
+      "community_name": "Form Structure Tool",
       "norm_label": "any"
     },
     {
@@ -5895,8 +5895,8 @@
       "source_location": "L106",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_metadata_rationale_106",
-      "community": 12,
-      "community_name": "Metadata Tree Tool",
+      "community": 10,
+      "community_name": "Form Structure Tool",
       "norm_label": "\u0434\u0435\u0440\u0435\u0432\u043e \u043c\u0435\u0442\u0430\u0434\u0430\u043d\u043d\u044b\u0445: \u043e\u0434\u043d\u0430 \u043a\u043e\u043b\u043b\u0435\u043a\u0446\u0438\u044f \u043f\u0440\u0438 filter, \u0438\u043d\u0430\u0447\u0435 \u043a\u044d\u0448\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u044b\u0438 \u043f\u043e\u043b\u043d\u044b\u0438 \u043e\u0431\u0445\u043e\u0434."
     },
     {
@@ -5939,8 +5939,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_object_structure",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "object_structure.py"
     },
     {
@@ -5983,8 +5983,8 @@
       "source_location": "L62",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_object_structure_format_object_structure",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 36,
+      "community_name": ".__init__",
       "norm_label": "format_object_structure()"
     },
     {
@@ -5994,8 +5994,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_object_structure_py_any",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 36,
+      "community_name": ".__init__",
       "norm_label": "any"
     },
     {
@@ -6005,8 +6005,8 @@
       "source_location": "L101",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_object_structure_attr_line",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 36,
+      "community_name": ".__init__",
       "norm_label": "_attr_line()"
     },
     {
@@ -6016,8 +6016,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_object_structure_rationale_1",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "\u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442 get_object_structure: \u0440\u0435\u043a\u0432\u0438\u0437\u0438\u0442\u044b \u0438 \u0441\u0442\u0440\u0443\u043a\u0442\u0443\u0440\u0430 \u043e\u0431\u044a\u0435\u043a\u0442\u0430 \u043c\u0435\u0442\u0430\u0434\u0430\u043d\u043d\u044b\u0445."
     },
     {
@@ -6027,8 +6027,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_objects",
-      "community": 10,
-      "community_name": "Form Structure Tool",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "objects.py"
     },
     {
@@ -6071,8 +6071,8 @@
       "source_location": "L69",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_objects_required_str",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 10,
+      "community_name": "Form Structure Tool",
       "norm_label": "_required_str()"
     },
     {
@@ -6082,8 +6082,8 @@
       "source_location": "L77",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_objects_format_references",
-      "community": 10,
-      "community_name": "Form Structure Tool",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "format_references()"
     },
     {
@@ -6093,8 +6093,8 @@
       "source_location": "L119",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_objects_register",
-      "community": 10,
-      "community_name": "Form Structure Tool",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "register()"
     },
     {
@@ -6104,8 +6104,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_objects_rationale_1",
-      "community": 10,
-      "community_name": "Form Structure Tool",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "\u043f\u043e\u0438\u0441\u043a \u0441\u0441\u044b\u043b\u043e\u043a, \u043d\u0430\u0432\u0438\u0433\u0430\u0446\u0438\u044f \u0438 \u043f\u0440\u0430\u0432\u0430 \u043c\u0435\u0442\u0430\u0434\u0430\u043d\u043d\u044b\u0445. \u0441\u043e\u0431\u0441\u0442\u0432\u0435\u043d\u043d\u0430\u044f \u0440\u0435\u0430\u043b\u0438\u0437\u0430\u0446\u0438\u044f \u043a\u043e\u043d\u0442\u0440\u0430\u043a\u0442\u043e\u0432."
     },
     {
@@ -6126,8 +6126,8 @@
       "source_location": "L70",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_objects_rationale_70",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 10,
+      "community_name": "Form Structure Tool",
       "norm_label": "\u043e\u0431\u044f\u0437\u0430\u0442\u0435\u043b\u044c\u043d\u043e\u0435 \u0441\u0442\u0440\u043e\u043a\u043e\u0432\u043e\u0435 \u043f\u043e\u043b\u0435 \u043e\u0442\u0432\u0435\u0442\u0430 1\u0441: \u0438\u043d\u0430\u0447\u0435 \u044f\u0432\u043d\u0430\u044f \u043e\u0448\u0438\u0431\u043a\u0430 \u043a\u043e\u043d\u0442\u0440\u0430\u043a\u0442\u0430."
     },
     {
@@ -6203,8 +6203,8 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_query_register",
-      "community": 57,
-      "community_name": "register",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "register()"
     },
     {
@@ -6214,8 +6214,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_query_py_mcpserver",
-      "community": 57,
-      "community_name": "register",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "mcpserver"
     },
     {
@@ -6225,8 +6225,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_query_py_auditwriter",
-      "community": 57,
-      "community_name": "register",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "auditwriter"
     },
     {
@@ -6236,8 +6236,8 @@
       "source_location": "L114",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_query_format_query_result",
-      "community": 10,
-      "community_name": "Form Structure Tool",
+      "community": 11,
+      "community_name": "1C HTTP Client",
       "norm_label": "format_query_result()"
     },
     {
@@ -6247,8 +6247,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_query_py_any",
-      "community": 10,
-      "community_name": "Form Structure Tool",
+      "community": 11,
+      "community_name": "1C HTTP Client",
       "norm_label": "any"
     },
     {
@@ -6280,8 +6280,8 @@
       "source_location": "L115",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_query_rationale_115",
-      "community": 10,
-      "community_name": "Form Structure Tool",
+      "community": 11,
+      "community_name": "1C HTTP Client",
       "norm_label": "\u0444\u043e\u0440\u043c\u0430\u0442\u0438\u0440\u0443\u0435\u0442 \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 \u0437\u0430\u043f\u0440\u043e\u0441\u0430 \u043a\u0430\u043a markdown-\u0442\u0430\u0431\u043b\u0438\u0446\u0443.      \u043a\u043b\u044e\u0447\u0438 \u043e\u0442\u0432\u0435\u0442\u0430 1\u0441: `count"
     },
     {
@@ -6291,8 +6291,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_search_code",
-      "community": 3,
-      "community_name": "index.py",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "search_code.py"
     },
     {
@@ -6302,8 +6302,8 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_search_code_register",
-      "community": 3,
-      "community_name": "index.py",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "register()"
     },
     {
@@ -6313,8 +6313,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_search_code_py_mcpserver",
-      "community": 3,
-      "community_name": "index.py",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "mcpserver"
     },
     {
@@ -6324,8 +6324,8 @@
       "source_location": "",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_search_code_py_auditwriter",
-      "community": 3,
-      "community_name": "index.py",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "auditwriter"
     },
     {
@@ -6346,8 +6346,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_mcp_baf_tools_search_code_rationale_1",
-      "community": 3,
-      "community_name": "index.py",
+      "community": 16,
+      "community_name": "Query Validation Tool",
       "norm_label": "\u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442 search_code: \u043f\u043e\u043b\u043d\u043e\u0442\u0435\u043a\u0441\u0442\u043e\u0432\u044b\u0438 \u043f\u043e\u0438\u0441\u043a \u043f\u043e \u043a\u043e\u0434\u0443 \u043c\u043e\u0434\u0443\u043b\u0435\u0438 \u043a\u043e\u043d\u0444\u0438\u0433\u0443\u0440\u0430\u0446\u0438\u0438."
     },
     {
@@ -6544,8 +6544,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_bsl",
-      "community": 26,
-      "community_name": "test_objects.py",
+      "community": 41,
+      "community_name": "tls.py",
       "norm_label": "test_bsl.py"
     },
     {
@@ -6555,8 +6555,8 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "tests_test_bsl_test_data_complete",
-      "community": 26,
-      "community_name": "test_objects.py",
+      "community": 41,
+      "community_name": "tls.py",
       "norm_label": "test_data_complete()"
     },
     {
@@ -6566,8 +6566,8 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "tests_test_bsl_test_search_russian",
-      "community": 26,
-      "community_name": "test_objects.py",
+      "community": 41,
+      "community_name": "tls.py",
       "norm_label": "test_search_russian()"
     },
     {
@@ -6577,8 +6577,8 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "tests_test_bsl_test_search_english_case_insensitive",
-      "community": 26,
-      "community_name": "test_objects.py",
+      "community": 41,
+      "community_name": "tls.py",
       "norm_label": "test_search_english_case_insensitive()"
     },
     {
@@ -6588,8 +6588,8 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "tests_test_bsl_test_search_substring_multiple",
-      "community": 26,
-      "community_name": "test_objects.py",
+      "community": 41,
+      "community_name": "tls.py",
       "norm_label": "test_search_substring_multiple()"
     },
     {
@@ -6599,8 +6599,8 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "tests_test_bsl_test_search_not_found",
-      "community": 26,
-      "community_name": "test_objects.py",
+      "community": 41,
+      "community_name": "tls.py",
       "norm_label": "test_search_not_found()"
     },
     {
@@ -6610,8 +6610,8 @@
       "source_location": "L45",
       "_origin": "ast",
       "id": "tests_test_bsl_test_format_functions",
-      "community": 26,
-      "community_name": "test_objects.py",
+      "community": 41,
+      "community_name": "tls.py",
       "norm_label": "test_format_functions()"
     },
     {
@@ -6621,8 +6621,8 @@
       "source_location": "L52",
       "_origin": "ast",
       "id": "tests_test_bsl_test_format_multiple_separated",
-      "community": 26,
-      "community_name": "test_objects.py",
+      "community": 41,
+      "community_name": "tls.py",
       "norm_label": "test_format_multiple_separated()"
     },
     {
@@ -6632,8 +6632,8 @@
       "source_location": "L57",
       "_origin": "ast",
       "id": "tests_test_bsl_call_help",
-      "community": 26,
-      "community_name": "test_objects.py",
+      "community": 41,
+      "community_name": "tls.py",
       "norm_label": "_call_help()"
     },
     {
@@ -6643,8 +6643,8 @@
       "source_location": "L63",
       "_origin": "ast",
       "id": "tests_test_bsl_audit",
-      "community": 26,
-      "community_name": "test_objects.py",
+      "community": 41,
+      "community_name": "tls.py",
       "norm_label": "_audit"
     },
     {
@@ -6654,8 +6654,8 @@
       "source_location": "L64",
       "_origin": "ast",
       "id": "tests_test_bsl_audit_write",
-      "community": 26,
-      "community_name": "test_objects.py",
+      "community": 41,
+      "community_name": "tls.py",
       "norm_label": ".write()"
     },
     {
@@ -6665,8 +6665,8 @@
       "source_location": "L68",
       "_origin": "ast",
       "id": "tests_test_bsl_test_syntax_help_rejects_short_query",
-      "community": 26,
-      "community_name": "test_objects.py",
+      "community": 41,
+      "community_name": "tls.py",
       "norm_label": "test_syntax_help_rejects_short_query()"
     },
     {
@@ -6676,8 +6676,8 @@
       "source_location": "L74",
       "_origin": "ast",
       "id": "tests_test_bsl_test_syntax_help_caps_results",
-      "community": 26,
-      "community_name": "test_objects.py",
+      "community": 41,
+      "community_name": "tls.py",
       "norm_label": "test_syntax_help_caps_results()"
     },
     {
@@ -6687,8 +6687,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_bsl_rationale_1",
-      "community": 26,
-      "community_name": "test_objects.py",
+      "community": 41,
+      "community_name": "tls.py",
       "norm_label": "\u0442\u0435\u0441\u0442\u044b \u0441\u043f\u0440\u0430\u0432\u043e\u0447\u043d\u0438\u043a\u0430 \u0432\u0441\u0442\u0440\u043e\u0435\u043d\u043d\u044b\u0445 \u0444\u0443\u043d\u043a\u0446\u0438\u0438 bsl \u0438 \u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442\u0430 bsl_syntax_help."
     },
     {
@@ -6962,8 +6962,8 @@
       "source_location": "L288",
       "_origin": "ast",
       "id": "tests_test_bsl_analysis_test_bsl_format_marks_truncation_outside_code_fence",
-      "community": 20,
-      "community_name": "Async Transport Stub",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "test_bsl_format_marks_truncation_outside_code_fence()"
     },
     {
@@ -6973,8 +6973,8 @@
       "source_location": "L299",
       "_origin": "ast",
       "id": "tests_test_bsl_analysis_test_tools_filters_limits_privacy_and_no_source_file_changes",
-      "community": 20,
-      "community_name": "Async Transport Stub",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "test_tools_filters_limits_privacy_and_no_source_file_changes()"
     },
     {
@@ -6984,8 +6984,8 @@
       "source_location": "L316",
       "_origin": "ast",
       "id": "tests_test_bsl_analysis_test_audit_has_char_count_not_code_and_stays_small",
-      "community": 20,
-      "community_name": "Async Transport Stub",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "test_audit_has_char_count_not_code_and_stays_small()"
     },
     {
@@ -7886,7 +7886,7 @@
       "source_location": "L128",
       "_origin": "ast",
       "id": "tests_test_client_test_scrub_error_detail_masks_and_truncates",
-      "community": 51,
+      "community": 70,
       "community_name": "scrub_error_detail",
       "norm_label": "test_scrub_error_detail_masks_and_truncates()"
     },
@@ -8018,8 +8018,8 @@
       "source_location": "L282",
       "_origin": "ast",
       "id": "tests_test_client_dripstream",
-      "community": 34,
-      "community_name": "._do",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "_dripstream"
     },
     {
@@ -8029,8 +8029,8 @@
       "source_location": "L285",
       "_origin": "ast",
       "id": "tests_test_client_dripstream_aiter",
-      "community": 34,
-      "community_name": "._do",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": ".__aiter__()"
     },
     {
@@ -8249,8 +8249,8 @@
       "source_location": "L283",
       "_origin": "ast",
       "id": "tests_test_client_rationale_283",
-      "community": 34,
-      "community_name": "._do",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "\u043c\u0435\u0434\u043b\u0435\u043d\u043d\u043e \u00ab\u043a\u0430\u043f\u0430\u044e\u0449\u0438\u0438\u00bb \u043e\u0442\u0432\u0435\u0442: read-\u0442\u0430\u0438\u043c\u0430\u0443\u0442 \u043d\u0430 \u0447\u0430\u043d\u043a \u043d\u0435 \u0441\u0440\u0430\u0431\u0430\u0442\u044b\u0432\u0430\u0435\u0442."
     },
     {
@@ -10218,8 +10218,8 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "tests_test_helpindex_test_hbk_fixture_and_bilingual_encoding",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 48,
+      "community_name": "test_tls_concurrency.py",
       "norm_label": "test_hbk_fixture_and_bilingual_encoding()"
     },
     {
@@ -10273,8 +10273,8 @@
       "source_location": "L134",
       "_origin": "ast",
       "id": "tests_test_helpindex_test_html_sections_and_script_hidden",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 43,
+      "community_name": "ensure_self_signed",
       "norm_label": "test_html_sections_and_script_hidden()"
     },
     {
@@ -10284,8 +10284,8 @@
       "source_location": "L140",
       "_origin": "ast",
       "id": "tests_test_helpindex_test_block_chain_and_cycle_detection",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 48,
+      "community_name": "test_tls_concurrency.py",
       "norm_label": "test_block_chain_and_cycle_detection()"
     },
     {
@@ -10339,8 +10339,8 @@
       "source_location": "L208",
       "_origin": "ast",
       "id": "tests_test_helpindex_test_table_cells_stay_separate_and_bad_bytes_do_not_fail",
-      "community": 22,
-      "community_name": "HelpIndex",
+      "community": 48,
+      "community_name": "test_tls_concurrency.py",
       "norm_label": "test_table_cells_stay_separate_and_bad_bytes_do_not_fail()"
     },
     {
@@ -10383,8 +10383,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_https_transport",
-      "community": 52,
-      "community_name": "test_https_transport.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "test_https_transport.py"
     },
     {
@@ -10394,8 +10394,8 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "tests_test_https_transport_load",
-      "community": 52,
-      "community_name": "test_https_transport.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "_load()"
     },
     {
@@ -10405,8 +10405,8 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "tests_test_https_transport_test_stdio_is_default_and_needs_no_token",
-      "community": 52,
-      "community_name": "test_https_transport.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "test_stdio_is_default_and_needs_no_token()"
     },
     {
@@ -10416,8 +10416,8 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "tests_test_https_transport_test_network_transport_guards",
-      "community": 52,
-      "community_name": "test_https_transport.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "test_network_transport_guards()"
     },
     {
@@ -10427,8 +10427,8 @@
       "source_location": "L37",
       "_origin": "ast",
       "id": "tests_test_https_transport_test_transport_options_from_env",
-      "community": 52,
-      "community_name": "test_https_transport.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "test_transport_options_from_env()"
     },
     {
@@ -10438,8 +10438,8 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "tests_test_https_transport_test_self_signed_ca_verifies_strictly",
-      "community": 43,
-      "community_name": "ensure_self_signed",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "test_self_signed_ca_verifies_strictly()"
     },
     {
@@ -10449,8 +10449,8 @@
       "source_location": "L69",
       "_origin": "ast",
       "id": "tests_test_https_transport_test_self_signed_hosts_strips_ipv6_brackets_and_port",
-      "community": 52,
-      "community_name": "test_https_transport.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "test_self_signed_hosts_strips_ipv6_brackets_and_port()"
     },
     {
@@ -10460,8 +10460,8 @@
       "source_location": "L77",
       "_origin": "ast",
       "id": "tests_test_https_transport_test_self_signed_san_contains_ipv6_ipaddress",
-      "community": 43,
-      "community_name": "ensure_self_signed",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "test_self_signed_san_contains_ipv6_ipaddress()"
     },
     {
@@ -10471,8 +10471,8 @@
       "source_location": "L93",
       "_origin": "ast",
       "id": "tests_test_https_transport_test_https_server_end_to_end",
-      "community": 52,
-      "community_name": "test_https_transport.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "test_https_server_end_to_end()"
     },
     {
@@ -10482,8 +10482,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_https_transport_rationale_1",
-      "community": 52,
-      "community_name": "test_https_transport.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "https-\u0442\u0440\u0430\u043d\u0441\u043f\u043e\u0440\u0442: \u0442\u043e\u043a\u0435\u043d \u043e\u0431\u044f\u0437\u0430\u0442\u0435\u043b\u0435\u043d, plain http \u2014 \u0434\u0432\u043e\u0438\u043d\u043e\u0438 opt-in, tls c \u0433\u0435\u043d\u0435\u0440\u0438\u0440\u0443\u0435\u043c"
     },
     {
@@ -10493,8 +10493,8 @@
       "source_location": "L70",
       "_origin": "ast",
       "id": "tests_test_https_transport_rationale_70",
-      "community": 52,
-      "community_name": "test_https_transport.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "san \u0434\u043b\u044f `[::1]:8001` \u2014 ip `::1`, \u0430 \u043d\u0435 dns `[`; \u043f\u043e\u0440\u0442 \u0432 san \u043d\u0435 \u043f\u043e\u0442\u0440\u0430\u043f\u043b\u044f\u0454."
     },
     {
@@ -12126,10 +12126,43 @@
       "norm_label": "test_query_access_denied_matches_ua_ru_en_texts()"
     },
     {
+      "label": "test_query_strict_limit_offset_and_not_select_code()",
+      "file_type": "code",
+      "source_file": "tests/test_metadata_reads_bsl_guard.py",
+      "source_location": "L187",
+      "_origin": "ast",
+      "id": "tests_test_metadata_reads_bsl_guard_test_query_strict_limit_offset_and_not_select_code",
+      "community": 40,
+      "community_name": "test_metadata_reads_bsl_guard.py",
+      "norm_label": "test_query_strict_limit_offset_and_not_select_code()"
+    },
+    {
+      "label": "test_internal_500_hides_detail_and_logs_it()",
+      "file_type": "code",
+      "source_file": "tests/test_metadata_reads_bsl_guard.py",
+      "source_location": "L195",
+      "_origin": "ast",
+      "id": "tests_test_metadata_reads_bsl_guard_test_internal_500_hides_detail_and_logs_it",
+      "community": 40,
+      "community_name": "test_metadata_reads_bsl_guard.py",
+      "norm_label": "test_internal_500_hides_detail_and_logs_it()"
+    },
+    {
+      "label": "test_has_read_right_is_guarded_by_try()",
+      "file_type": "code",
+      "source_file": "tests/test_metadata_reads_bsl_guard.py",
+      "source_location": "L204",
+      "_origin": "ast",
+      "id": "tests_test_metadata_reads_bsl_guard_test_has_read_right_is_guarded_by_try",
+      "community": 40,
+      "community_name": "test_metadata_reads_bsl_guard.py",
+      "norm_label": "test_has_read_right_is_guarded_by_try()"
+    },
+    {
       "label": "test_input_errors_are_400_before_internal_try()",
       "file_type": "code",
       "source_file": "tests/test_metadata_reads_bsl_guard.py",
-      "source_location": "L183",
+      "source_location": "L209",
       "_origin": "ast",
       "id": "tests_test_metadata_reads_bsl_guard_test_input_errors_are_400_before_internal_try",
       "community": 40,
@@ -12473,8 +12506,8 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "tests_test_pii_isolate_pii_state",
-      "community": 32,
-      "community_name": "traced_text",
+      "community": 73,
+      "community_name": "_isolate_pii_state",
       "norm_label": "_isolate_pii_state()"
     },
     {
@@ -12484,8 +12517,8 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "tests_test_pii_r",
-      "community": 32,
-      "community_name": "traced_text",
+      "community": 50,
+      "community_name": "LockTimeout",
       "norm_label": "_r()"
     },
     {
@@ -12506,8 +12539,8 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "tests_test_pii_test_column_masking_stable_tokens",
-      "community": 32,
-      "community_name": "traced_text",
+      "community": 50,
+      "community_name": "LockTimeout",
       "norm_label": "test_column_masking_stable_tokens()"
     },
     {
@@ -12517,8 +12550,8 @@
       "source_location": "L53",
       "_origin": "ast",
       "id": "tests_test_pii_test_regex_phone_email",
-      "community": 32,
-      "community_name": "traced_text",
+      "community": 51,
+      "community_name": "scrub_error_detail",
       "norm_label": "test_regex_phone_email()"
     },
     {
@@ -12539,8 +12572,8 @@
       "source_location": "L71",
       "_origin": "ast",
       "id": "tests_test_pii_test_mask_pii_text_replaces_contacts_only",
-      "community": 46,
-      "community_name": "mask_pii_text",
+      "community": 32,
+      "community_name": "traced_text",
       "norm_label": "test_mask_pii_text_replaces_contacts_only()"
     },
     {
@@ -12572,8 +12605,8 @@
       "source_location": "L113",
       "_origin": "ast",
       "id": "tests_test_pii_test_email_in_code_like_token_still_masked",
-      "community": 46,
-      "community_name": "mask_pii_text",
+      "community": 32,
+      "community_name": "traced_text",
       "norm_label": "test_email_in_code_like_token_still_masked()"
     },
     {
@@ -12583,7 +12616,7 @@
       "source_location": "L120",
       "_origin": "ast",
       "id": "tests_test_pii_test_error_detail_scrub_keeps_guids",
-      "community": 51,
+      "community": 70,
       "community_name": "scrub_error_detail",
       "norm_label": "test_error_detail_scrub_keeps_guids()"
     },
@@ -12594,8 +12627,8 @@
       "source_location": "L129",
       "_origin": "ast",
       "id": "tests_test_pii_test_form_structure_masks_title_and_handlers",
-      "community": 10,
-      "community_name": "Form Structure Tool",
+      "community": 46,
+      "community_name": "mask_pii_text",
       "norm_label": "test_form_structure_masks_title_and_handlers()"
     },
     {
@@ -12616,8 +12649,8 @@
       "source_location": "L165",
       "_origin": "ast",
       "id": "tests_test_pii_test_secret_debt_markers_mask_columns",
-      "community": 32,
-      "community_name": "traced_text",
+      "community": 50,
+      "community_name": "LockTimeout",
       "norm_label": "test_secret_debt_markers_mask_columns()"
     },
     {
@@ -12627,8 +12660,8 @@
       "source_location": "L176",
       "_origin": "ast",
       "id": "tests_test_pii_test_extra_markers_env_and_cli",
-      "community": 7,
-      "community_name": "CLI Entry Point & Config",
+      "community": 50,
+      "community_name": "LockTimeout",
       "norm_label": "test_extra_markers_env_and_cli()"
     },
     {
@@ -12638,8 +12671,8 @@
       "source_location": "L194",
       "_origin": "ast",
       "id": "tests_test_pii_test_masked_columns_reported_in_result_and_output",
-      "community": 32,
-      "community_name": "traced_text",
+      "community": 50,
+      "community_name": "LockTimeout",
       "norm_label": "test_masked_columns_reported_in_result_and_output()"
     },
     {
@@ -12748,8 +12781,8 @@
       "source_location": "L352",
       "_origin": "ast",
       "id": "tests_test_pii_captured_tool_kwargs",
-      "community": 57,
-      "community_name": "register",
+      "community": 32,
+      "community_name": "traced_text",
       "norm_label": "_captured_tool_kwargs()"
     },
     {
@@ -12759,8 +12792,8 @@
       "source_location": "L371",
       "_origin": "ast",
       "id": "tests_test_pii_test_tool_descriptions_document_token_semantics",
-      "community": 57,
-      "community_name": "register",
+      "community": 32,
+      "community_name": "traced_text",
       "norm_label": "test_tool_descriptions_document_token_semantics()"
     },
     {
@@ -12814,8 +12847,8 @@
       "source_location": "L453",
       "_origin": "ast",
       "id": "tests_test_pii_test_leftover_pid_temp_file_does_not_block_startup",
-      "community": 32,
-      "community_name": "traced_text",
+      "community": 74,
+      "community_name": "test_leftover_pid_temp_file_does_not_block_startup",
       "norm_label": "test_leftover_pid_temp_file_does_not_block_startup()"
     },
     {
@@ -12858,8 +12891,8 @@
       "source_location": "L493",
       "_origin": "ast",
       "id": "tests_test_pii_test_ukrainian_default_markers",
-      "community": 32,
-      "community_name": "traced_text",
+      "community": 50,
+      "community_name": "LockTimeout",
       "norm_label": "test_ukrainian_default_markers()"
     },
     {
@@ -12880,8 +12913,8 @@
       "source_location": "L506",
       "_origin": "ast",
       "id": "tests_test_pii_test_alias_of_sensitive_field_is_masked",
-      "community": 32,
-      "community_name": "traced_text",
+      "community": 50,
+      "community_name": "LockTimeout",
       "norm_label": "test_alias_of_sensitive_field_is_masked()"
     },
     {
@@ -12913,8 +12946,8 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "tests_test_pii_rationale_24",
-      "community": 32,
-      "community_name": "traced_text",
+      "community": 73,
+      "community_name": "_isolate_pii_state",
       "norm_label": "\u0433\u043b\u043e\u0431\u0430\u043b\u044c\u043d\u043e\u0435 \u0441\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435 pii (\u043a\u043b\u044e\u0447, \u043c\u0430\u0440\u043a\u0435\u0440\u044b) \u043d\u0435 \u0442\u0435\u0447\u0435\u0442 \u043c\u0435\u0436\u0434\u0443 \u0442\u0435\u0441\u0442\u0430\u043c\u0438."
     },
     {
@@ -12990,8 +13023,8 @@
       "source_location": "L454",
       "_origin": "ast",
       "id": "tests_test_pii_rationale_454",
-      "community": 32,
-      "community_name": "traced_text",
+      "community": 74,
+      "community_name": "test_leftover_pid_temp_file_does_not_block_startup",
       "norm_label": "#78: \u0437\u0430\u043b\u0438\u0448\u043e\u043a \u0441\u0442\u0430\u0440\u043e\u0433\u043e pii.key.<pid>.tmp (kill \u043c\u0456\u0436 open \u0456 unlink; \u0443     docker pid"
     },
     {
@@ -13023,8 +13056,8 @@
       "source_location": "L58",
       "_origin": "ast",
       "id": "tests_test_protocol_test_tool_schemas_prompts_and_expected_errors",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "test_tool_schemas_prompts_and_expected_errors()"
     },
     {
@@ -13210,8 +13243,8 @@
       "source_location": "L137",
       "_origin": "ast",
       "id": "tests_test_query_test_escape_pipe_escapes_backslash_first",
-      "community": 10,
-      "community_name": "Form Structure Tool",
+      "community": 11,
+      "community_name": "1C HTTP Client",
       "norm_label": "test_escape_pipe_escapes_backslash_first()"
     },
     {
@@ -13254,8 +13287,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_server",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "test_server.py"
     },
     {
@@ -13265,8 +13298,8 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "tests_test_server_test_registered_tools",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "test_registered_tools()"
     },
     {
@@ -13276,8 +13309,8 @@
       "source_location": "L44",
       "_origin": "ast",
       "id": "tests_test_server_test_optional_tools_and_unavailable_database",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "test_optional_tools_and_unavailable_database()"
     },
     {
@@ -13287,8 +13320,8 @@
       "source_location": "L58",
       "_origin": "ast",
       "id": "tests_test_server_test_lifespan_writes_server_start_stop",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "test_lifespan_writes_server_start_stop()"
     },
     {
@@ -13309,8 +13342,8 @@
       "source_location": "L99",
       "_origin": "ast",
       "id": "tests_test_server_test_every_tool_is_classified_as_http_or_local",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "test_every_tool_is_classified_as_http_or_local()"
     },
     {
@@ -13331,8 +13364,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_server_rationale_1",
-      "community": 9,
-      "community_name": "Server Assembly & Config",
+      "community": 15,
+      "community_name": "HTTP Audit Tests",
       "norm_label": "\u0442\u0435\u0441\u0442\u044b \u0441\u043e\u0441\u0442\u0430\u0432\u0430 mcp-\u0441\u0435\u0440\u0432\u0435\u0440\u0430 \u0438 \u0430\u0443\u0434\u0438\u0442\u0430 \u0436\u0438\u0437\u043d\u0435\u043d\u043d\u043e\u0433\u043e \u0446\u0438\u043a\u043b\u0430."
     },
     {
@@ -13342,8 +13375,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_tls_concurrency",
-      "community": 48,
-      "community_name": "test_tls_concurrency.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "test_tls_concurrency.py"
     },
     {
@@ -13353,8 +13386,8 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "tests_test_tls_concurrency_child_env",
-      "community": 48,
-      "community_name": "test_tls_concurrency.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "_child_env()"
     },
     {
@@ -13364,8 +13397,8 @@
       "source_location": "L36",
       "_origin": "ast",
       "id": "tests_test_tls_concurrency_digest",
-      "community": 48,
-      "community_name": "test_tls_concurrency.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "_digest()"
     },
     {
@@ -13375,8 +13408,8 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "tests_test_tls_concurrency_assert_bundle_consistent",
-      "community": 48,
-      "community_name": "test_tls_concurrency.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "_assert_bundle_consistent()"
     },
     {
@@ -13386,8 +13419,8 @@
       "source_location": "L66",
       "_origin": "ast",
       "id": "tests_test_tls_concurrency_test_concurrent_threads_share_one_bundle",
-      "community": 48,
-      "community_name": "test_tls_concurrency.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "test_concurrent_threads_share_one_bundle()"
     },
     {
@@ -13397,8 +13430,8 @@
       "source_location": "L92",
       "_origin": "ast",
       "id": "tests_test_tls_concurrency_test_concurrent_processes_share_one_bundle",
-      "community": 48,
-      "community_name": "test_tls_concurrency.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "test_concurrent_processes_share_one_bundle()"
     },
     {
@@ -13408,8 +13441,8 @@
       "source_location": "L115",
       "_origin": "ast",
       "id": "tests_test_tls_concurrency_test_existing_valid_bundle_not_regenerated",
-      "community": 48,
-      "community_name": "test_tls_concurrency.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "test_existing_valid_bundle_not_regenerated()"
     },
     {
@@ -13419,8 +13452,8 @@
       "source_location": "L125",
       "_origin": "ast",
       "id": "tests_test_tls_concurrency_test_incomplete_bundle_regenerated",
-      "community": 48,
-      "community_name": "test_tls_concurrency.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "test_incomplete_bundle_regenerated()"
     },
     {
@@ -13430,8 +13463,8 @@
       "source_location": "L139",
       "_origin": "ast",
       "id": "tests_test_tls_concurrency_test_foreign_ca_not_trusted_after_regeneration",
-      "community": 48,
-      "community_name": "test_tls_concurrency.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "test_foreign_ca_not_trusted_after_regeneration()"
     },
     {
@@ -13441,8 +13474,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_tls_concurrency_rationale_1",
-      "community": 48,
-      "community_name": "test_tls_concurrency.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "\u0433\u043e\u043d\u043a\u0430 \u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0438\u0438 \u0441\u0430\u043c\u043e\u043f\u043e\u0434\u043f\u0438\u0441\u0430\u043d\u043d\u043e\u0433\u043e tls-\u043a\u043e\u043c\u043f\u043b\u0435\u043a\u0442\u0430 (issue #26).  \u0434\u0432\u0430 \u043f\u0440\u043e\u0446\u0435\u0441\u0441\u0430/\u043f\u043e\u0442\u043e\u043a\u0430"
     },
     {
@@ -13452,8 +13485,8 @@
       "source_location": "L42",
       "_origin": "ast",
       "id": "tests_test_tls_concurrency_rationale_42",
-      "community": 48,
-      "community_name": "test_tls_concurrency.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "ca.crt \u043f\u043e\u0434\u043f\u0438\u0441\u044b\u0432\u0430\u0435\u0442 server.crt, \u0430 server.key \u2014 \u043f\u0430\u0440\u0430 \u043a server.crt."
     },
     {
@@ -13463,8 +13496,8 @@
       "source_location": "L140",
       "_origin": "ast",
       "id": "tests_test_tls_concurrency_rationale_140",
-      "community": 48,
-      "community_name": "test_tls_concurrency.py",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "ca.crt \u043e\u0442 \u0447\u0443\u0436\u043e\u0433\u043e \u043f\u0440\u043e\u0446\u0435\u0441\u0441\u0430 (\u043d\u0435 \u043f\u043e\u0434\u043f\u0438\u0441\u044b\u0432\u0430\u0435\u0442 server.crt) \u2014 \u043f\u0435\u0440\u0435\u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0438\u044f."
     },
     {
@@ -13661,8 +13694,8 @@
       "source_location": "L290",
       "_origin": "ast",
       "id": "tests_test_tls_renewal_test_san_covering_hosts_keeps_fresh_bundle",
-      "community": 43,
-      "community_name": "ensure_self_signed",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "test_san_covering_hosts_keeps_fresh_bundle()"
     },
     {
@@ -13771,8 +13804,8 @@
       "source_location": "L291",
       "_origin": "ast",
       "id": "tests_test_tls_renewal_rationale_291",
-      "community": 43,
-      "community_name": "ensure_self_signed",
+      "community": 35,
+      "community_name": "test_bsl.py",
       "norm_label": "\u043e\u0431\u0440\u0430\u0442\u043d\u044b\u0438 \u0441\u043b\u0443\u0447\u0430\u0438: san \u0443\u0436\u0435 \u043f\u043e\u043a\u0440\u044b\u0432\u0430\u0435\u0442 hosts \u2014 \u043b\u0438\u0441\u0442 \u043d\u0435 \u0442\u0440\u043e\u0433\u0430\u0435\u043c."
     },
     {
@@ -13914,8 +13947,8 @@
       "source_location": "L126",
       "_origin": "ast",
       "id": "tests_test_tools_contracts_test_constant_type_is_rendered",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 36,
+      "community_name": ".__init__",
       "norm_label": "test_constant_type_is_rendered()"
     },
     {
@@ -14057,8 +14090,8 @@
       "source_location": "L255",
       "_origin": "ast",
       "id": "tests_test_tools_contracts_test_truncate_output_keeps_whole_lines",
-      "community": 14,
-      "community_name": "Object Structure Tool",
+      "community": 36,
+      "community_name": ".__init__",
       "norm_label": "test_truncate_output_keeps_whole_lines()"
     },
     {
@@ -43673,11 +43706,33 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "tests/test_metadata_reads_bsl_guard.py",
-      "source_location": "L183",
+      "source_location": "L204",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_metadata_reads_bsl_guard",
+      "target": "tests_test_metadata_reads_bsl_guard_test_has_read_right_is_guarded_by_try",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_metadata_reads_bsl_guard.py",
+      "source_location": "L209",
       "weight": 1.0,
       "_origin": "ast",
       "source": "tests_test_metadata_reads_bsl_guard",
       "target": "tests_test_metadata_reads_bsl_guard_test_input_errors_are_400_before_internal_try",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_metadata_reads_bsl_guard.py",
+      "source_location": "L195",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_metadata_reads_bsl_guard",
+      "target": "tests_test_metadata_reads_bsl_guard_test_internal_500_hides_detail_and_logs_it",
       "confidence_score": 1.0
     },
     {
@@ -43758,6 +43813,17 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_metadata_reads_bsl_guard.py",
+      "source_location": "L187",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_metadata_reads_bsl_guard",
+      "target": "tests_test_metadata_reads_bsl_guard_test_query_strict_limit_offset_and_not_select_code",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "tests/test_metadata_reads_bsl_guard.py",
@@ -43821,10 +43887,34 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "tests/test_metadata_reads_bsl_guard.py",
-      "source_location": "L184",
+      "source_location": "L205",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_metadata_reads_bsl_guard_test_has_read_right_is_guarded_by_try",
+      "target": "tests_test_metadata_reads_bsl_guard_source",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_metadata_reads_bsl_guard.py",
+      "source_location": "L210",
       "weight": 1.0,
       "_origin": "ast",
       "source": "tests_test_metadata_reads_bsl_guard_test_input_errors_are_400_before_internal_try",
+      "target": "tests_test_metadata_reads_bsl_guard_source",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_metadata_reads_bsl_guard.py",
+      "source_location": "L196",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_metadata_reads_bsl_guard_test_internal_500_hides_detail_and_logs_it",
       "target": "tests_test_metadata_reads_bsl_guard_source",
       "confidence_score": 1.0
     },
@@ -43917,6 +44007,18 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "tests/test_metadata_reads_bsl_guard.py",
+      "source_location": "L188",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_metadata_reads_bsl_guard_test_query_strict_limit_offset_and_not_select_code",
+      "target": "tests_test_metadata_reads_bsl_guard_source",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_metadata_reads_bsl_guard.py",
       "source_location": "L121",
       "weight": 1.0,
       "_origin": "ast",
@@ -43953,10 +44055,22 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "tests/test_metadata_reads_bsl_guard.py",
-      "source_location": "L186",
+      "source_location": "L212",
       "weight": 1.0,
       "_origin": "ast",
       "source": "tests_test_metadata_reads_bsl_guard_test_input_errors_are_400_before_internal_try",
+      "target": "tests_test_metadata_reads_bsl_guard_body_of",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_metadata_reads_bsl_guard.py",
+      "source_location": "L199",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_metadata_reads_bsl_guard_test_internal_500_hides_detail_and_logs_it",
       "target": "tests_test_metadata_reads_bsl_guard_body_of",
       "confidence_score": 1.0
     },
@@ -44001,7 +44115,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "tests/test_metadata_reads_bsl_guard.py",
-      "source_location": "L178",
+      "source_location": "L180",
       "weight": 1.0,
       "_origin": "ast",
       "source": "tests_test_metadata_reads_bsl_guard_test_query_access_denied_matches_ua_ru_en_texts",
@@ -44025,10 +44139,46 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "tests/test_metadata_reads_bsl_guard.py",
+      "source_location": "L188",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_metadata_reads_bsl_guard_test_query_strict_limit_offset_and_not_select_code",
+      "target": "tests_test_metadata_reads_bsl_guard_body_of",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_metadata_reads_bsl_guard.py",
+      "source_location": "L205",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_metadata_reads_bsl_guard_test_has_read_right_is_guarded_by_try",
+      "target": "tests_test_metadata_reads_bsl_guard_func_of",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_metadata_reads_bsl_guard.py",
       "source_location": "L83",
       "weight": 1.0,
       "_origin": "ast",
       "source": "tests_test_metadata_reads_bsl_guard_test_navigation_mode_resolve_is_implemented",
+      "target": "tests_test_metadata_reads_bsl_guard_func_of",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_metadata_reads_bsl_guard.py",
+      "source_location": "L181",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "tests_test_metadata_reads_bsl_guard_test_query_access_denied_matches_ua_ru_en_texts",
       "target": "tests_test_metadata_reads_bsl_guard_func_of",
       "confidence_score": 1.0
     },
@@ -49612,5 +49762,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "58e428baf8ef068a5daf114279e651d3ecd49abc"
+  "built_at_commit": "a1a1f3386a74e821167dd34c446ba7196127772c"
 }

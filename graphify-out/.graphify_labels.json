@@ -67,5 +67,11 @@
   "65": "test_docker_entrypoint.py",
   "66": "_fake_run_with_log",
   "67": "_timeout_run",
-  "68": "docker-entrypoint.sh"
+  "68": "docker-entrypoint.sh",
+  "69": "bsl/__init__.py",
+  "70": "scrub_error_detail",
+  "71": "prompts.py",
+  "72": "register",
+  "73": "_isolate_pii_state",
+  "74": "test_leftover_pid_temp_file_does_not_block_startup"
 }
