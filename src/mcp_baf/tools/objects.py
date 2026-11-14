@@ -97,6 +97,25 @@ def format_references(result: dict, mask_pii: bool = False) -> str:
     return "\n".join(lines)
 
 
+# Типы метаданных для /metadata-rights: английские имена контракта (/object,
+# /form) и русские имена платформы принимаются наравне — тот же словарь,
+# что в BSL-функции КаноническийТипМетаданных.
+METADATA_RIGHTS_KINDS = frozenset({
+    "Catalog", "Справочник", "Document", "Документ", "Enum", "Перечисление",
+    "DataProcessor", "Обработка", "Report", "Отчет",
+    "InformationRegister", "РегистрСведений",
+    "AccumulationRegister", "РегистрНакопления",
+    "AccountingRegister", "РегистрБухгалтерии",
+    "CalculationRegister", "РегистрРасчета",
+    "ChartOfAccounts", "ПланСчетов",
+    "ChartOfCharacteristicTypes", "ПланВидовХарактеристик",
+    "ChartOfCalculationTypes", "ПланВидовРасчета",
+    "ExchangePlan", "ПланОбмена", "BusinessProcess", "БизнесПроцесс",
+    "Task", "Задача",
+    "Constant", "Константа",
+})
+
+
 def register(mcp, client, audit, mask_pii: bool = False):
     @mcp.tool(description="Найти ссылки на объект по GUID и полному имени типа. Области: catalogs, documents, information_registers, accumulation_registers, accounting_registers, calculation_registers, all. Поиск в пределах прав/RLS. Бюджет проверяется между запросами, текущий запрос не прерывается.", annotations=ToolAnnotations(read_only_hint=True))
     async def find_object_references(
@@ -132,12 +151,14 @@ def register(mcp, client, audit, mask_pii: bool = False):
             return f"## Объект\n\n[{label}]({output_link})\n\nТип: `{_required_str(r, 'kind', 'get_object_link')}`\nGUID: `{_required_str(r, 'ref', 'get_object_link')}`"
         return await traced_text(audit, "get_object_link", run, args={"mode": mode, "ref": ref, "kind": kind})
 
-    @mcp.tool(description="Права объекта метаданных для текущего HTTP-пользователя; user_name и roles требуют административных прав. rights — имена прав платформы, пустой список использует типовые права объекта. Проверка RLS не выполняется. Недоступная проверка не означает отсутствие права.", annotations=ToolAnnotations(read_only_hint=True))
+    @mcp.tool(description="Права объекта метаданных для текущего HTTP-пользователя; user_name и roles требуют административных прав. metadata_object — Тип.Имя, тип принимается в английской (Catalog, Document) или русской (Справочник, Документ) форме. rights — имена прав платформы, пустой список использует типовые права объекта. Проверка RLS не выполняется. Недоступная проверка не означает отсутствие права.", annotations=ToolAnnotations(read_only_hint=True))
     async def get_metadata_rights(metadata_object: str, user_name: str = "", rights: list[str] | None = None, roles: list[str] | None = None) -> str:
         async def run():
             parts = metadata_object.split(".")
             if len(parts) != 2 or not all(NAME.fullmatch(p) for p in parts):
                 raise ValueError("metadata_object: ожидается Тип.Имя из метаданных")
+            if parts[0] not in METADATA_RIGHTS_KINDS:
+                raise ValueError("metadata_object: неизвестный тип; принимаются английские (Catalog, Document) и русские (Справочник, Документ) имена")
             r = await client.post("/metadata-rights", dict(metadata_object=metadata_object, user_name=user_name, rights=rights or [], roles=roles or []))
             lines = ["## Права метаданных", "", "RLS-ограничения не анализируются.", "", "| Право | Пользователь / роль | Доступ |", "|---|---|---|"]
             for row in r.get("rights", []):
