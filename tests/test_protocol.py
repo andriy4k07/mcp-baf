@@ -10,8 +10,9 @@ from pathlib import Path
 import httpx
 import pytest
 from mcp import Client, StdioServerParameters
-from mcp.client.stdio import stdio_client
+from mcp.client.stdio import get_default_environment, stdio_client
 
+import mcp_baf
 from mcp_baf import __version__
 from mcp_baf.access import TOOL_METHODS
 from mcp_baf.client import OneCClient
@@ -111,9 +112,17 @@ def test_tool_schemas_prompts_and_expected_errors(tmp_path, monkeypatch, mode, l
 @pytest.mark.parametrize('mode', ['auto', 'legacy'])
 def test_stdio_process_without_database(tmp_path, mode):
     # Закрытый loopback-порт: тест не требует базы, сети или учётных данных.
+    # stdio_client отдаёт дочернему процессу урезанное окружение
+    # (get_default_environment) без PYTHONPATH, поэтому без явного пина он
+    # импортирует пакет, установленный в venv, а не дерево под тестом —
+    # и server_info.version расходится с __version__ этого checkout.
+    # Наследуем только безопасный whitelist: mcp_baf_* из окружения оболочки
+    # (например DUMP_DIR) включили бы лишние инструменты и сломали бы изоляцию.
+    src = str(Path(mcp_baf.__file__).resolve().parents[1])
     params = StdioServerParameters(
         command=sys.executable,
         args=['-m', 'mcp_baf', '--base', 'http://127.0.0.1:1', '--user', '', '--pass', '', '--cache-dir', str(tmp_path)],
+        env={**get_default_environment(), 'PYTHONPATH': src},
     )
 
     async def scenario():
