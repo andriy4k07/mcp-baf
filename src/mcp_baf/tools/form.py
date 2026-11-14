@@ -192,6 +192,12 @@ def merge_dump_into_form(form: dict[str, Any], dump_form: dict[str, Any]) -> Non
     for key in ("elements", "commands", "handlers"):
         if dump_form[key]:
             form[key] = dump_form[key]
+    # dump прочитан успешно: пустой список из Form.xml — это «нет элементов»,
+    # а не «платформа не дала доступ». Флаг HTTP-недоступности снимаем.
+    form["elements_available"] = True
+    form["commands_available"] = True
+    form.pop("elements_reason", None)
+    form.pop("commands_reason", None)
 
 
 def format_form_structure(f: dict[str, Any], mask_pii: bool = False) -> str:
@@ -209,6 +215,20 @@ def format_form_structure(f: dict[str, Any], mask_pii: bool = False) -> str:
     if f.get("title"):
         lines.append(f"**Заголовок:** {cell(f['title'])}")
     lines.append("")
+
+    # Порожній список без позначки читається як «у форми немає елементів».
+    # 1С у серверному контексті віддає елементи/команди лише за наявності доступу.
+    unavailable = []
+    if f.get("elements_available") is False:
+        unavailable.append("элементы")
+    if f.get("commands_available") is False:
+        unavailable.append("команды")
+    if unavailable:
+        lines.append(
+            "> Состав формы (" + " и ".join(unavailable) + ") недоступен из HTTP-сервиса 1С: "
+            "пустой список не значит «их нет». Полная структура — с флагом `--dump`."
+        )
+        lines.append("")
 
     elements = f.get("elements") or []
     if elements:

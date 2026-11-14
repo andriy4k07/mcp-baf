@@ -42,6 +42,15 @@ def scrub_error_detail(detail: str, limit: int = MAX_ERROR_DETAIL_CHARS) -> str:
 # детерминированная, повтор только удлинит ответ.
 _RETRYABLE_STATUSES = frozenset({502, 503, 504})
 
+# Подсказка «что делать» по статусу: без неё агент видит только «1C returned
+# status N» и начинает менять аргументы там, где нужны права или ретрай.
+_STATUS_HINTS = {
+    400: "проверьте аргументы и текст запроса",
+    403: "нет прав у HTTP-пользователя: проверьте роль и права на объект",
+    404: "объект или форма не найдены",
+    500: "внутренний сбой расширения 1С: смотрите журнал регистрации",
+}
+
 # Транспортные ошибки, после которых запрос заведомо не дошёл до 1С. ReadTimeout
 # сюда не входит: 1С могла принять запрос и считать его до 300 с, повтор утроил бы
 # нагрузку на базу и ожидание.
@@ -270,6 +279,9 @@ class OneCClient:
                     )
                     state["error_kind"] = f"http_{resp.status_code}"
                     message = f"1C returned status {resp.status_code}: {detail}"
+                    hint = _STATUS_HINTS.get(resp.status_code)
+                    if hint:
+                        message = f"{message} ({hint})"
                     if resp.status_code in _RETRYABLE_STATUSES:
                         raise _RetryableOneCError(message)
                     raise OneCError(message)
