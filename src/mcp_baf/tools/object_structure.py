@@ -62,6 +62,9 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
 def format_object_structure(obj: dict[str, Any]) -> str:
     lines = [f"# {obj.get('name', '')} ({obj.get('synonym', '')})", ""]
 
+    if obj.get("type") or obj.get("type_names"):  # константа: тип на верхнем уровне
+        lines.extend(["## Тип константы", _attr_line(obj), ""])
+
     attr_sections = [
         ("Измерения", obj.get("dimensions")),
         ("Ресурсы", obj.get("resources")),

@@ -56,6 +56,13 @@ def test_constant_type_is_mapped_in_metadata_lookup():
     assert "Метаданные.Константы" in body
 
 
+def test_constant_object_returns_its_type():
+    source = MODULE.read_text(encoding="utf-8-sig")
+    body = body_of(source, "ОбъектGET")
+    assert "Метаданные.Константы.Найти(ОбъектМД.Имя) = ОбъектМД" in body
+    assert "ДобавитьОписаниеТипа(Результат, ОбъектМД.Тип)" in body
+
+
 def test_object_attributes_carry_structured_type_description():
     # Строка(Тип) теряет имена объектов и длину/точность: рядом обязательны
     # type_names (полные имена), length и precision.
@@ -67,7 +74,7 @@ def test_object_attributes_carry_structured_type_description():
     assert 'Описание.Вставить("precision", ТипОписания.Точность);' in helper
     body = body_of(source, "ОбъектGET")
     # Реквизиты шапки, реквизиты ТЧ, измерения и ресурсы — все четыре места.
-    assert body.count("ДобавитьОписаниеТипа(") == 4
+    assert body.count("ДобавитьОписаниеТипа(") == 5  # + тип константы
     assert "Строка(Реквизит.Тип)" not in body
     assert "Строка(Измерение.Тип)" not in body
     assert "Строка(Ресурс.Тип)" not in body
