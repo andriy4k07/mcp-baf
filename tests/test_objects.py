@@ -155,7 +155,7 @@ def test_rights_accept_english_and_russian_type_names(tmp_path, kind):
 def test_rights_reject_unknown_type_before_http(tmp_path):
     server, client, requests = setup_tools(tmp_path, {})
     with pytest.raises(Exception, match='неизвестный тип'):
-        call(server, 'get_metadata_rights', metadata_object='Constant.Номенклатура')
+        call(server, 'get_metadata_rights', metadata_object='Foo.Номенклатура')
     assert requests == []
     asyncio.run(client.aclose())
 
@@ -170,3 +170,19 @@ def test_mask_pii_in_references_and_link(tmp_path):
     out = call(server, 'get_object_link', mode='make', ref=GUID, kind=KIND)
     assert 'a@ex.com' not in out and 'PII:' in out
     asyncio.run(client.aclose())
+
+
+def test_rights_kinds_match_bsl_metadata_map():
+    # Английские ключи BSL-мапы НайтиМетаданныеПоТипуИИмени = английская часть
+    # Python-набора; иначе тип проходит клиент и падает в 1С (или наоборот).
+    import re
+    from pathlib import Path
+    module = (Path(objects.__file__).parents[1] / "extension_src/HTTPServices/MCPService/Ext/Module.bsl")
+    source = module.read_text(encoding="utf-8-sig")
+    body = re.search(r"Функция НайтиМетаданныеПоТипуИИмени\(.*?КонецФункции", source, re.S).group(0)
+    bsl_keys = set(re.findall(r'Соответствие\.Вставить\("([A-Za-z]+)"', body))
+    aliases = re.search(r"Функция КаноническийТипМетаданных\(.*?КонецФункции", source, re.S).group(0)
+    ru = set(re.findall(r'Псевдонимы\.Вставить\("([^"]+)"', aliases))
+    english = {k for k in objects.METADATA_RIGHTS_KINDS if k.isascii()}
+    assert english == bsl_keys
+    assert objects.METADATA_RIGHTS_KINDS - english == ru
