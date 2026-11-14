@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import copy
+import re
 import time
 
 from mcp.server.mcpserver import Context, MCPServer
@@ -27,6 +28,21 @@ TOOL_METHODS = {
     "get_object_link": "object-link.POST",
     "get_metadata_rights": "metadata-rights.POST",
 }
+
+
+# reason из тела ошибки 1С: {"error": ..., "reason": "method_use_denied"}.
+# Клиент отдаёт тело как текст сообщения, поэтому код причины достаём из него.
+_REASON_RE = re.compile(r'"reason"\s*:\s*"([^"]+)"')
+
+
+def capabilities_failure_reason(exc: BaseException) -> str:
+    """Код причины отказа `/capabilities` (`reason` из тела 1С), если он есть.
+
+    Без него в аудите и тексте ошибки «нет связи», «нет расширения» и «нет
+    права использования метода» выглядят одинаково.
+    """
+    match = _REASON_RE.search(str(exc))
+    return match.group(1) if match else ""
 
 
 def strip_schema_titles(schema: dict) -> None:
@@ -114,9 +130,11 @@ class AccessMCP(MCPServer):
                 self._access_error = ""
             except Exception as exc:
                 self._allowed = set()
+                reason_code = capabilities_failure_reason(exc)
                 self._access_error = (
                     "Проверка прав /capabilities недоступна. Проверьте подключение, "
                     "права HTTP-пользователя и установите расширение 0.6.0 или новее."
+                    + (f" Причина 1С: {reason_code}." if reason_code else "")
                 )
                 # Причину отказа нельзя терять: без неё в аудите «нет связи»,
                 # «нет расширения» и «нет права» выглядят одинаково. Пишем класс
@@ -127,6 +145,7 @@ class AccessMCP(MCPServer):
                     "access.capabilities_unavailable",
                     level="error",
                     trace_id=get_trace_id(),
+                    reason_code=reason_code,
                     reason=type(exc).__name__,
                     error=str(exc)[:300],
                 )
