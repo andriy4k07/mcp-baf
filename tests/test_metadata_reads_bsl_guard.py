@@ -175,9 +175,35 @@ def test_metadata_rights_admin_gate_has_error_code():
 
 
 def test_query_access_denied_matches_ua_ru_en_texts():
-    body = body_of(source(), "ЗапросPOST")
+    src = source()
+    # Текстова евристика централізована в одній функції (структурної ознаки в платформі немає).
+    assert "Если ЭтоОтказПрав(ТекстОшибки) Тогда" in body_of(src, "ЗапросPOST")
+    body = func_of(src, "ЭтоОтказПрав")
     for text in ("Недостаточно прав", "Недостатньо прав", "Insufficient rights"):
         assert f'ВРег("{text}")' in body, text
+    assert src.count('ВРег("Недостаточно прав")') == 1
+
+
+def test_query_strict_limit_offset_and_not_select_code():
+    body = body_of(source(), "ЗапросPOST")
+    # limit:0 / offset:-5 — 400, а не мовчазний кламп.
+    assert 'Параметры.limit <= 0 Тогда\n            Возврат ОтветОшибка(400, "limit: ожидается положительное число", "", "invalid_argument")' in body
+    assert 'Параметры.offset < 0 Тогда\n            Возврат ОтветОшибка(400, "offset: ожидается неотрицательное число", "", "invalid_argument")' in body
+    assert 'ОтветОшибка(400, "Only SELECT queries allowed", "", "not_select")' in body
+
+
+def test_internal_500_hides_detail_and_logs_it():
+    src = source()
+    assert 'ОтветОшибка(500, КраткоеПредставлениеОшибки' not in src
+    for handler in ("НавигацияPOST", "СсылкиPOST", "ПраваМетаданныхPOST"):
+        body = body_of(src, handler)
+        assert 'ОтветОшибка(500, "internal error: see event log", "", "internal")' in body, handler
+        assert 'ЗаписатьОшибкуВЖурнал("internal"' in body, handler
+
+
+def test_has_read_right_is_guarded_by_try():
+    body = func_of(source(), "ЕстьПравоЧтения")
+    assert body.index("Попытка") < body.index("НайтиПоПолномуИмени")
 
 
 def test_input_errors_are_400_before_internal_try():
