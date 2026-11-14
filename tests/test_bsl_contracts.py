@@ -203,7 +203,8 @@ def test_no_raw_platform_error_text_reaches_client():
     source = MODULE.read_text(encoding="utf-8-sig")
     assert "ОписаниеОшибки()" not in source
     assert "КраткоеПредставлениеОшибки(ИнформацияОбОшибке())" in source
-    assert source.count("ПодробноеПредставлениеОшибки(ИнформацияОбОшибке())") == 1
+    assert source.count("ПодробноеПредставлениеОшибки(Инфо)") == 1
+    assert "ПодробноеПредставлениеОшибки(ИнформацияОбОшибке())" not in source
     # Журнал может быть недоступен — запись не должна валить обработчик.
     journal = source[source.index("Процедура ЗаписатьОшибкуВЖурнал"):]
     journal = journal[:journal.index("КонецПроцедуры")]
