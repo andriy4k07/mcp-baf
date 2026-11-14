@@ -150,6 +150,9 @@ def test_eventlog_invalid_filters_return_400():
     source = (EXTENSION/'HTTPServices/MCPService/Ext/Module.bsl').read_text(encoding='utf-8-sig').replace('\r\n', '\n')
     body = source[source.index('Функция ЖурналРегистрацииPOST'):]
     body = body[:body.index('КонецФункции')]
-    assert body.count('ОтветОшибка(400') == 4  # start_date, end_date, level, user
+    assert body.count('ОтветОшибка(400') == 8  # invalid JSON x2, limit, start_date, end_date, level, user тип, user не найден
     assert 'Исключение\n        КонецПопытки' not in body
     assert '"T00:00:00"' in source
+    # Невалидный JSON больше не подменяется пустой структурой: фильтры
+    # по умолчанию дали бы тихо другой срез журнала.
+    assert 'Исключение\n        Параметры = Новый Структура;' not in body
