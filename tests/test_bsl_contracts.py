@@ -224,3 +224,14 @@ def test_access_denied_text_is_uniform():
     # Один и тот же отказ по праву метода — один и тот же текст.
     assert "Нет права использования метода или включён привилегированный режим" not in source
     assert source.count('ОтветОшибка(403, "Нет права использования метода")') >= 9
+
+
+def test_eventlog_empty_body_means_empty_params_and_bad_limit_is_400():
+    source = MODULE.read_text(encoding="utf-8-sig")
+    body = body_of(source, "ЖурналРегистрацииPOST")
+    # Пустое тело — не ошибка; битый JSON по-прежнему 400 invalid_json.
+    assert "Если ПустаяСтрока(ТелоЗапроса) Тогда\n        Параметры = Новый Структура;" in body
+    assert '"invalid JSON body", "", "invalid_json"' in body
+    # Нечисловой/неположительный limit — 400, а не молчаливый дефолт.
+    assert 'ТипЗнч(Параметры.limit) <> Тип("Число")' in body
+    assert '"limit: ожидается положительное число", "", "invalid_param"' in body
