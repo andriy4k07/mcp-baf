@@ -172,3 +172,22 @@ def test_error_code_never_sits_in_reason_slot():
 def test_metadata_rights_admin_gate_has_error_code():
     body = body_of(source(), "ПраваМетаданныхPOST")
     assert 'ОтветОшибка(403, "Проверка другого пользователя/ролей требует административных прав", "", "admin_rights_required")' in body
+
+
+def test_query_access_denied_matches_ua_ru_en_texts():
+    body = body_of(source(), "ЗапросPOST")
+    for text in ("Недостаточно прав", "Недостатньо прав", "Insufficient rights"):
+        assert f'ВРег("{text}")' in body, text
+
+
+def test_input_errors_are_400_before_internal_try():
+    src = source()
+    for handler in ("НавигацияPOST", "СсылкиPOST", "ПраваМетаданныхPOST"):
+        body = body_of(src, handler)
+        first_try = body.index("    Попытка\n")
+        head = body[:first_try]
+        assert "РазобратьТелоЗапроса(Запрос)" in head, handler
+        assert 'ОтветОшибка(400' in head and '"invalid_argument"' in head, handler
+    # Неизвестный тип метаданных (Неопределено из ЕстьПравоЧтения) — 400, а не крах.
+    for handler in ("НавигацияPOST", "СсылкиPOST"):
+        assert "Если ПраваЧтения = Неопределено" in body_of(src, handler), handler
