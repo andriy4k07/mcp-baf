@@ -78,7 +78,9 @@ def test_select_guard_is_shared_and_strips_leading_comments():
     # вести себя так же, иначе такой запрос проходит клиент и падает в 1С.
     source = MODULE.read_text(encoding="utf-8-sig")
     guard = function_body(source, "Функция ЭтоВыборка(ТекстЗапроса)")
-    assert 'Лев(Текст, 2) = "//"' in guard and 'Лев(Текст, 2) = "/*"' in guard
+    assert 'Пара = "//"' in guard and 'Пара = "/*"' in guard
+    # Комментарии пропускаются и посреди запроса, слово — по символам (как регекс Python).
+    assert "ВРег(Символ) <> НРег(Символ)" in guard
     assert 'ВРег(ПервоеСлово) = "ВЫБРАТЬ" ИЛИ ВРег(ПервоеСлово) = "SELECT"' in guard
     # Оба хендлера используют один гард; старый префиксный чек ушёл.
     assert "НЕ ЭтоВыборка(ТекстЗапроса)" in body_of(source, "ЗапросPOST")
