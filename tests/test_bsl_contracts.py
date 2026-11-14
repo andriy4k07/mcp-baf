@@ -121,7 +121,9 @@ def test_eventlog_unknown_level_is_rejected():
 def test_form_handler_honors_form_query_param():
     source = MODULE.read_text(encoding="utf-8-sig")
     body = body_of(source, "ФормаGET")
-    assert 'ПараметрыЗапроса.Свойство("form")' in body
+    # ПараметрыЗапроса — ФиксированноеСоответствие, Свойство() на живой базе падает.
+    assert 'ПараметрыЗапроса.Получить("form")' in body
+    assert "ПараметрыЗапроса.Свойство" not in body
     assert "НайтиФормуОбъекта(ОбъектМД, ИмяФормы)" in body
     assert 'ОтветОшибка(404, "Form not found")' in body
 
@@ -129,7 +131,8 @@ def test_form_handler_honors_form_query_param():
 def test_metadata_handler_supports_filter_param():
     source = MODULE.read_text(encoding="utf-8-sig")
     body = body_of(source, "МетаданныеGET")
-    assert 'ПараметрыЗапроса.Свойство("filter")' in body
+    assert 'ПараметрыЗапроса.Получить("filter")' in body
+    assert "ПараметрыЗапроса.Свойство" not in body
     assert "КоллекцииКВыгрузке" in body
     assert 'ОтветОшибка(400, "filter: неизвестная коллекция метаданных: " + Фильтр)' in body
 
@@ -142,6 +145,10 @@ def test_references_use_one_query_per_table_instead_of_per_field():
     assert "ГруппыТаблиц" in body
     assert 'Выборка["ПолеСовпадения"]' in body
     assert '" ИЛИ "' in body
+    # Один ВЫБОР с несколькими КОГДА: "ВЫБОР" внутри цикла ломал запрос на 2+ полях.
+    assert 'Маркеры = "ВЫБОР";' in body
+    assert 'Маркеры + " КОГДА Т."' in body
+    assert '"ВЫБОР КОГДА' not in body
     # Запрос остаётся под правами и RLS и привязан к цели.
     assert 'ВЫБРАТЬ РАЗРЕШЕННЫЕ РАЗЛИЧНЫЕ ПЕРВЫЕ ' in body
     assert 'УстановитьПараметр("Цель", Цель)' in body
