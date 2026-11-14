@@ -66,8 +66,10 @@ def test_query_pagination_is_honest():
     # total більше не дорівнює розміру сторінки.
     assert 'Результат.Вставить("total", Счетчик)' not in body
     guard = body.index("Если НЕ Усечено Тогда")
-    total = body.index('Результат.Вставить("total", СмещениеЗапрошено + Счетчик)')
+    total = body.index('Результат.Вставить("total", СмещениеЗапрошено - Смещение + Счетчик)')
     assert guard < total
+    # offset больше числа строк: total = реально прочитанные, а не offset.
+    assert 'СмещениеЗапрошено + Счетчик' not in body
     assert 'Если Смещение > 10000 Тогда' in body
     # Код у 4-й позиції: 3-й аргумент — reason, код у ньому дав би error_code=bad_request.
     assert 'ОтветОшибка(400, "offset: не более 10000", "", "offset_too_large")' in body
