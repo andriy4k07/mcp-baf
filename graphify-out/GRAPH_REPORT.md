@@ -1,16 +1,16 @@
 # Graph Report - mcp-baf  (2026-11-14)
 
 ## Corpus Check
-- 90 files · ~86,516 words
+- 90 files · ~86,680 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1434 nodes · 2932 edges · 69 communities (65 shown, 4 thin omitted)
+- 1437 nodes · 2942 edges · 75 communities (68 shown, 7 thin omitted)
 - Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 155 edges (avg confidence: 0.75)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `58e428ba`
+- Built from commit: `a1a1f338`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -83,6 +83,12 @@
 - _fake_run_with_log
 - _timeout_run
 - docker-entrypoint.sh
+- bsl/__init__.py
+- scrub_error_detail
+- prompts.py
+- register
+- _isolate_pii_state
+- test_leftover_pid_temp_file_does_not_block_startup
 
 ## God Nodes (most connected - your core abstractions)
 1. `OneCClient` - 62 edges
@@ -97,85 +103,85 @@
 10. `ensure_self_signed()` - 26 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `test_email_in_code_like_token_still_masked()` --calls--> `mask_pii_text()`  [INFERRED]
+  tests/test_pii.py → src/mcp_baf/pii.py
+- `test_mask_pii_text_replaces_contacts_only()` --calls--> `mask_pii_text()`  [INFERRED]
+  tests/test_pii.py → src/mcp_baf/pii.py
 - `test_failed_extension_exits_1()` --calls--> `_run_dump()`  [INFERRED]
   tests/test_main.py → src/mcp_baf/__main__.py
 - `test_is_loopback_bind_covers_ipv4_loopback_and_falls_back()` --calls--> `_is_loopback_bind()`  [INFERRED]
   tests/test_main.py → src/mcp_baf/__main__.py
 - `_settings()` --calls--> `_http_security()`  [INFERRED]
   tests/test_main.py → src/mcp_baf/__main__.py
-- `_DripStream` --uses--> `OneCClient`  [INFERRED]
-  tests/test_client.py → src/mcp_baf/client.py
-- `_DripStream` --uses--> `Config`  [INFERRED]
-  tests/test_client.py → src/mcp_baf/config.py
 
 ## Import Cycles
 - None detected.
 
-## Communities (69 total, 4 thin omitted)
+## Communities (75 total, 7 thin omitted)
 
 ### Community 0 - "MCP Tool Registration Helpers"
-Cohesion: 0.15
-Nodes (13): Асинхронный HTTP-клиент для общения с 1С:Предприятие., _check_transport(), Конфигурация MCP-сервера.  Приоритет источников (от низшего к высшему): значения, Сетевой транспорт: только с токеном, plain http — только с явным opt-in., _version(), format_event_log(), Any, Инструмент get_event_log: чтение журнала регистрации 1С. (+5 more)
+Cohesion: 0.24
+Nodes (8): format_event_log(), Any, Форматирует журнал; при mask_pii телефон/email в полях скрываются.      Журнал р, MCP-инструменты сервера mcp-baf., Тесты маскирования ПДн в журнале регистрации (get_event_log)., test_event_log_masking_empty_result(), test_event_log_masks_phone_and_email(), test_event_log_without_masking_keeps_contacts()
 
 ### Community 1 - "1C Extension Installer"
 Cohesion: 0.05
 Nodes (63): Имя каталога не может принадлежать расширению (каталог «вида»,     стандартный к, _rejected_dir_name(), _build_designer_args(), classify_designer_error(), _designer_log_is_fatal(), designer_timeout(), dump(), _error_contains() (+55 more)
 
 ### Community 2 - "nfc"
-Cohesion: 0.07
-Nodes (62): NamedTuple, Расположение дискового кэша индекса (порт dump/cache.go).  Кэш каждой dump-выгру, Удаляет временные файлы `<prefix>*` старше `max_age` секунд (сироты после SIGKIL, remove_stale(), discover_extension_roots(), _list_dirs(), _manifest_name(), Поиск вложенных кореньев расширений в dump-выгрузке.  Порт поведения feenlace/mc (+54 more)
+Cohesion: 0.08
+Nodes (59): NamedTuple, Расположение дискового кэша индекса (порт dump/cache.go).  Кэш каждой dump-выгру, Удаляет временные файлы `<prefix>*` старше `max_age` секунд (сироты после SIGKIL, remove_stale(), discover_extension_roots(), _list_dirs(), _manifest_name(), Поиск вложенных кореньев расширений в dump-выгрузке.  Порт поведения feenlace/mc (+51 more)
 
 ### Community 3 - "index.py"
-Cohesion: 0.16
-Nodes (14): Match, Одно совпадение поиска в BSL-модуле., Индекс полнотекстового поиска по dump-выгрузке конфигурации 1С., clamp_limit(), Нормализует пользовательский limit к диапазону [default, maximum]., format_search_result(), AuditWriter, MCPServer (+6 more)
+Cohesion: 0.25
+Nodes (8): Match, Одно совпадение поиска в BSL-модуле., Индекс полнотекстового поиска по dump-выгрузке конфигурации 1С., format_search_result(), Форматирует результаты поиска; при mask_pii код маскируется по regex.      В код, Найденное до исчерпания бюджета не выбрасывается, а помечается усечённым., test_partial_results_kept_on_budget_exhaustion(), test_search_code_masks_context()
 
 ### Community 5 - "1C Form XML Parser"
-Cohesion: 0.09
-Nodes (45): _descend_into_child_items(), display_type(), find_form_files(), FormCommandInfo, FormElementInfo, FormHandlerInfo, FormInfo, _local() (+37 more)
+Cohesion: 0.13
+Nodes (36): _descend_into_child_items(), display_type(), FormCommandInfo, FormElementInfo, FormHandlerInfo, FormInfo, _local(), _parse_child_items() (+28 more)
 
 ### Community 6 - "SQLite FTS5 Index Store"
-Cohesion: 0.14
-Nodes (8): Connection, DumpIndex, Exception, Индекс поиска по коду модулей из dump-выгрузки конфигурации.      Строится асинх, Создаёт схему и наполняет базу пачками по BUILD_BATCH модулей.          Содержим, Атомарно подменяет index.db собранным временным файлом.          На POSIX os.rep, Открывает кэш и инкрементально применяет изменения файлов., Удаляет документ из FTS5 с внешним содержимым.          Команде 'delete' нужно с
+Cohesion: 0.12
+Nodes (9): Connection, DumpIndex, Exception, Индекс поиска по коду модулей из dump-выгрузки конфигурации.      Строится асинх, Собирает состояние всех .bsl файлов: rel_path -> (путь, mtime, size)., Создаёт схему и наполняет базу пачками по BUILD_BATCH модулей.          Содержим, Атомарно подменяет index.db собранным временным файлом.          На POSIX os.rep, Открывает кэш и инкрементально применяет изменения файлов. (+1 more)
 
 ### Community 7 - "CLI Entry Point & Config"
 Cohesion: 0.05
-Nodes (70): Namespace, ConfigError, _env_bool(), _env_float(), _env_int(), _env_int_nonneg(), _env_secret(), load_config() (+62 more)
+Nodes (72): Namespace, ConfigError, _env_bool(), _env_float(), _env_int(), _env_int_nonneg(), _env_secret(), load_config() (+64 more)
 
 ### Community 8 - "Index Disk Cache"
-Cohesion: 0.17
+Cohesion: 0.18
 Nodes (26): cache_path(), index_db_path(), Каталог кэша индекса для данной dump-выгрузки., _assert_db_intact(), build(), mk_bsl(), _mk_dump(), Тесты дискового кэша индекса и инкрементального обновления. (+18 more)
 
 ### Community 9 - "Server Assembly & Config"
-Cohesion: 0.09
-Nodes (22): MCP-сервер для чтения BAF, поиска справки и анализа BSL., MCPServer, MCP-prompts для типовых задач разработки 1С (порт prompts/prompts.go).  Каждый p, register(), _check_extension_version(), create_server(), MCPServer, Сборка MCP-сервера: создание MCPServer и регистрация инструментов. (+14 more)
+Cohesion: 0.18
+Nodes (7): _check_transport(), Конфигурация MCP-сервера.  Приоритет источников (от низшего к высшему): значения, Сетевой транспорт: только с токеном, plain http — только с явным opt-in., MCP-сервер для чтения BAF, поиска справки и анализа BSL., _join_background_threads(), Контракты SDK 2: схемы, все prompts, ошибки и реальный stdio-процесс., Не пропускаем фоновые daemon-потоки за границу теста (issue #56).      create_se
 
 ### Community 10 - "Form Structure Tool"
-Cohesion: 0.13
-Nodes (18): escape_pipe(), Экранирует вертикальную черту, чтобы не ломать markdown-таблицы., format_configuration_info(), Any, format_form_structure(), Форматирует структуру формы; при mask_pii свободный текст маскируется.      Заго, format_references(), parse_link() (+10 more)
+Cohesion: 0.20
+Nodes (12): find_form_files(), Находит все Form.xml объекта в dump-выгрузке.      Возвращает словарь имя формы, load_tree(), Any, Дерево метаданных: одна коллекция при filter, иначе кэшированный полный обход., parse_link(), Внутренняя ссылка или URL публикации с фрагментом e1cib/data/., Обязательное строковое поле ответа 1С: иначе явная ошибка контракта. (+4 more)
 
 ### Community 11 - "1C HTTP Client"
-Cohesion: 0.08
-Nodes (25): format_cell(), Any, Преобразует значение ячейки JSON-ответа в строку для markdown-таблицы., call(), _client_for_status(), Контрактні фікси B12: дати/пагінація /query, підказки статусів, режим ІБ, форма., setup(), test_iso_dates_from_extension_pass_through_unchanged() (+17 more)
+Cohesion: 0.07
+Nodes (29): format_cell(), Any, Преобразует значение ячейки JSON-ответа в строку для markdown-таблицы., format_query_result(), Any, Форматирует результат запроса как markdown-таблицу.      Ключи ответа 1С: `count, call(), _client_for_status() (+21 more)
 
 ### Community 12 - "Metadata Tree Tool"
-Cohesion: 0.14
-Nodes (15): filter_noise(), format_metadata_summary(), format_metadata_tree(), _is_noise(), load_tree(), Any, AuditWriter, MCPServer (+7 more)
+Cohesion: 0.18
+Nodes (12): filter_noise(), format_metadata_summary(), format_metadata_tree(), _is_noise(), AuditWriter, MCPServer, Инструмент get_metadata_tree: объекты конфигурации по категориям., Убирает автогенерируемые объекты из дерева метаданных. (+4 more)
 
 ### Community 13 - "Form Parser Tests"
 Cohesion: 0.13
 Nodes (6): parse_fixture(), Тесты разбора Form.xml.  Фикстуры в testdata/ — реальные файлы dump-выгрузки 1С, test_catalog_list_form(), test_common_form_password(), test_empty_form(), test_register_record_form()
 
 ### Community 14 - "Object Structure Tool"
-Cohesion: 0.09
-Nodes (28): Collection, Анализ и форматирование переданного текста без изменения исходников., register(), object_path_segments(), Общие помощники для MCP-инструментов., Валидирует тип и имя объекта и возвращает percent-encoded URL-сегменты., Обрезает вывод по лимиту, сохраняя целые строки и явную пометку., Проверяет имя объекта метаданных перед подстановкой в URL/путь. (+20 more)
+Cohesion: 0.22
+Nodes (10): Collection, object_path_segments(), Валидирует тип и имя объекта и возвращает percent-encoded URL-сегменты., Проверяет имя объекта метаданных перед подстановкой в URL/путь., Проверяет тип объекта по белому списку поддерживаемых типов., validate_metadata_name(), validate_metadata_type(), AuditWriter (+2 more)
 
 ### Community 15 - "HTTP Audit Tests"
-Cohesion: 0.13
-Nodes (33): AsyncBaseTransport, AuditLog, AccessMCP, AuditWriter, MCPServer, Скрывает недоступные инструменты и проверяет прямые вызовы., OneCClient, AuditWriter (+25 more)
+Cohesion: 0.08
+Nodes (50): AsyncBaseTransport, AuditLog, AccessMCP, AuditWriter, MCPServer, Доступность HTTP-инструментов по эффективным правам пользователя сервиса., Скрывает недоступные инструменты и проверяет прямые вызовы., OneCClient (+42 more)
 
 ### Community 16 - "Query Validation Tool"
-Cohesion: 0.15
-Nodes (13): audit_text(), Свободный текст (запрос) для args аудита: при --mask-pii маскируется,     всегда, Поиск справки в локальном индексе HBK., register(), query_keyword(), Инструмент execute_query: выполнение запроса 1С (только чтение)., Первое ключевое слово запроса — без комментариев и ведущих пробелов.      Провер, format_validate_result() (+5 more)
+Cohesion: 0.07
+Nodes (44): audit_text(), Свободный текст (запрос) для args аудита: при --mask-pii маскируется,     всегда, Сборка MCP-сервера: создание MCPServer и регистрация инструментов., Анализ и форматирование переданного текста без изменения исходников., register(), AuditWriter, MCPServer, Инструмент bsl_syntax_help: справочник встроенных функций языка 1С.  Работает ло (+36 more)
 
 ### Community 17 - "Manual E2E Check Script"
 Cohesion: 0.47
@@ -191,11 +197,11 @@ Nodes (32): SearchParams, index(), mk_bsl(), mk_manifest(), Тесты инде�
 
 ### Community 20 - "Async Transport Stub"
 Cohesion: 0.05
-Nodes (66): analyze(), _branch_state(), _directives(), format_source(), _inspect(), _is_mixed_script(), _preprocessor_dead_lines(), Собственные базовые проверки и консервативный форматер BSL на Python.  Никаких в (+58 more)
+Nodes (63): analyze(), _branch_state(), _directives(), format_source(), _inspect(), _is_mixed_script(), _preprocessor_dead_lines(), Собственные базовые проверки и консервативный форматер BSL на Python.  Никаких в (+55 more)
 
 ### Community 22 - "HelpIndex"
-Cohesion: 0.06
-Nodes (47): HTMLParser, Pattern, Справочник встроенных функций 1С (порт bsl/functions.go).  Файл сгенерирован скр, Справочник встроенных функций языка 1С (BSL).  Порт пакета bsl из Go-версии. Дан, Ищет функции по имени (русскому или английскому), без учёта регистра., search(), Платформенный каталог кэша пользователя (аналог os.UserCacheDir в Go)., user_cache_dir() (+39 more)
+Cohesion: 0.24
+Nodes (14): HelpIndex, create_index(), make_hbk(), HBK-контейнер, двуязычный поиск, кеш и ошибки построения., test_ambiguous_cards_source_disambiguates(), test_broken_file_does_not_disable_help_and_partial_names_match(), test_build_errors_are_explicit(), test_disk_cache_invalidation_corruption_and_reindex() (+6 more)
 
 ### Community 24 - "traced_text"
 Cohesion: 0.09
@@ -206,8 +212,8 @@ Cohesion: 0.11
 Nodes (19): 1. Встановити, 2. Встановити розширення в 1С, 3. Запустити HTTP-сервіс 1С, 4. Налаштувати AI-клієнт, `audit.log` — журнал подій (JSONL), mcp-baf, `server.log` — операційний журнал, Доступні інструменти (+11 more)
 
 ### Community 26 - "test_objects.py"
-Cohesion: 0.10
-Nodes (23): format_functions(), MCP-инструменты сервера mcp-baf., _Audit, _call_help(), Тесты справочника встроенных функций BSL и инструмента bsl_syntax_help., test_format_functions(), test_format_multiple_separated(), test_syntax_help_caps_results() (+15 more)
+Cohesion: 0.25
+Nodes (14): call(), events(), Контракты read-only инструментов: валидация, форматирование, аудит., setup_tools(), test_link_roundtrip_and_escaped_presentation(), test_mask_pii_in_references_and_link(), test_missing_object_and_service_error(), test_object_link_tolerates_null_link() (+6 more)
 
 ### Community 27 - "Швидкий старт"
 Cohesion: 0.12
@@ -231,27 +237,27 @@ Nodes (11): Далі, Кеш, логи та аудит, Конфігурація
 
 ### Community 32 - "traced_text"
 Cohesion: 0.09
-Nodes (22): mask_pii_result(), Маскирует ПДн в строках результата: по имени колонки, алиасу из query и по regex, _audit_events(), _isolate_pii_state(), _r(), Тесты маскирования ПДн в execute_query и подсистемы --mask-pii (#53)., Глобальное состояние pii (ключ, маркеры) не течёт между тестами., MINOR реві #53: валідація mcp_baf_PII_KEY на старті, значення не витекає. (+14 more)
+Nodes (13): _audit_events(), _captured_tool_kwargs(), Тесты маскирования ПДн в execute_query и подсистемы --mask-pii (#53)., MINOR реві #53: валідація mcp_baf_PII_KEY на старті, значення не витекає., MINOR реві #53: 0600 у README — інваріант, а не лише режим створення.      Файл,, MINOR реві #53: «список замаскированных колонок» — лише для табличних     відпов, test_email_in_code_like_token_still_masked(), test_error_body_masked_phrase_and_audit_event() (+5 more)
 
 ### Community 33 - "form.py"
 Cohesion: 0.11
 Nodes (39): _client(), _events(), _flaky_handler(), Тесты аудита HTTP-вызовов 1С: ровно одно событие one_c.http на запрос, разделённ, Отдаёт responses по порядку; исключения из списка поднимает как есть., #79: тіло не-200 читається лише до 4 КиБ, а не повністю., #78: при --mask-pii фраза-заглушка лише для тіла відповіді 1С;     причину мереж, WriteTimeout — той самий клас, що й ReadTimeout: ярлик timeout, без повтора. (+31 more)
 
 ### Community 34 - "._do"
-Cohesion: 0.12
-Nodes (13): OneCError, Any, Exception, Безопасный фрагмент ошибки 1С для текста исключения (и для агента).          Без, GET-запрос к эндпоинту 1С с разбором JSON-ответа., POST-запрос к эндпоинту 1С с JSON-телом и разбором JSON-ответа.          HTTP-се, Одна попытка запроса; обновляет state для аудита.          Транспортные ошибки и, Пишет ровно одно событие one_c.http. Тело запроса/ответа не логируется. (+5 more)
+Cohesion: 0.25
+Nodes (5): Any, GET-запрос к эндпоинту 1С с разбором JSON-ответа., POST-запрос к эндпоинту 1С с JSON-телом и разбором JSON-ответа.          HTTP-се, Одна попытка запроса; обновляет state для аудита.          Транспортные ошибки и, Пишет ровно одно событие one_c.http. Тело запроса/ответа не логируется.
 
 ### Community 35 - "test_bsl.py"
-Cohesion: 0.18
-Nodes (27): _assert_bundle_consistent(), _digest(), _fresh_enough(), _load_ca_key(), _load_cert(), _make_ca(), Перевыпуск серверного листа по notAfter (issue #37).  Лист живёт 825 дней, но `e, Комплект от версии без ca.key: лист перевыпустить нечем → новый CA. (+19 more)
+Cohesion: 0.05
+Nodes (75): datetime, _build_ca(), _build_leaf(), _bundle_valid(), ensure_self_signed(), _expires_within(), _generate(), _leaf_san() (+67 more)
 
 ### Community 36 - ".__init__"
-Cohesion: 0.19
-Nodes (21): call(), Контракты инструментов: валидация URL-сегментов, filter, лимит вывода, экраниров, setup(), test_configuration_info_cells_are_escaped(), test_constant_type_is_sent_to_object_endpoint(), test_form_name_is_sent_as_query_param(), test_form_rejects_bad_url_segments(), test_form_without_form_name_has_no_form_query() (+13 more)
+Cohesion: 0.14
+Nodes (26): _attr_line(), format_object_structure(), Any, call(), Контракты инструментов: валидация URL-сегментов, filter, лимит вывода, экраниров, setup(), test_configuration_info_cells_are_escaped(), test_constant_type_is_rendered() (+18 more)
 
 ### Community 37 - "configuration_info.py"
-Cohesion: 0.18
-Nodes (15): AuditWriter, Выполняет инструмент со сквозным аудитом и возвращает его текст как есть.      А, traced_text(), AuditWriter, MCPServer, Инструмент get_configuration_info: общая информация о базе 1С., register(), last_event() (+7 more)
+Cohesion: 0.36
+Nodes (8): last_event(), Тесты сквозного аудита вызовов инструментов (tools.common.traced_text).  В отлич, #78: текст запроса в audit.log обрезается всегда, при --mask-pii     литералы-ПД, test_query_text_in_audit_truncated_and_masked(), test_traced_text_keeps_index_state_text_for_client(), test_traced_text_logs_tool_error_on_exception(), test_traced_text_redacts_secret_args(), test_traced_text_returns_markdown_unchanged()
 
 ### Community 38 - "dumpindex/__init__.py"
 Cohesion: 0.15
@@ -259,59 +265,59 @@ Nodes (19): body_of(), function_body(), Статические гарды изм
 
 ### Community 39 - "pii.py"
 Cohesion: 0.14
-Nodes (21): _check_env_key(), configure_pii(), _is_pii_name(), _parse_key_hex(), _pii_aliases(), Маскирование ПДн в ответах MCP-инструментов.  `--mask-pii` должен закрывать все, Маркер короче 3 символов («а») подстрокой маскирует почти все колонки., Разбирает CSV-строку маркеров (env/CLI) в кортеж нижнего регистра. (+13 more)
+Nodes (17): _check_env_key(), configure_pii(), _parse_key_hex(), Маркер короче 3 символов («а») подстрокой маскирует почти все колонки., Разбирает CSV-строку маркеров (env/CLI) в кортеж нижнего регистра., Инициализирует подсистему при старте сервера (см. `__main__.main`).      Каждый, Проверяет формат env-ключа; молчит, когда ключ не задан., Атомарно кладёт ключ в файл; False, если файл уже есть (replace=False).      Пиш (+9 more)
 
 ### Community 40 - "test_metadata_reads_bsl_guard.py"
-Cohesion: 0.25
-Nodes (18): body_of(), call_args(), func_of(), Статичні гарди контрактних фіксів B12 (дати, пагінація, статуси, навігація).  BS, Позиційні аргументи виклику, що починається з позиції start (після дужки)., source(), test_configuration_mode_is_unknown_not_empty(), test_error_code_never_sits_in_reason_slot() (+10 more)
+Cohesion: 0.23
+Nodes (21): body_of(), call_args(), func_of(), Статичні гарди контрактних фіксів B12 (дати, пагінація, статуси, навігація).  BS, Позиційні аргументи виклику, що починається з позиції start (після дужки)., source(), test_configuration_mode_is_unknown_not_empty(), test_error_code_never_sits_in_reason_slot() (+13 more)
 
 ### Community 41 - "tls.py"
-Cohesion: 0.18
-Nodes (16): datetime, _build_ca(), _build_leaf(), _expires_within(), _generate(), _leaf_san(), TLS для https-транспорту: свої cert/key або самопідписаний CA у каталозі.  Без я, Имена из SAN листа (DNS и IP); None — нет SAN или битый файл. (+8 more)
+Cohesion: 0.17
+Nodes (8): format_functions(), _Audit, _call_help(), Тесты справочника встроенных функций BSL и инструмента bsl_syntax_help., test_format_functions(), test_format_multiple_separated(), test_syntax_help_caps_results(), test_syntax_help_rejects_short_query()
 
 ### Community 42 - "_SyntheticBuild"
 Cohesion: 0.16
 Nodes (12): Event, Гонка close() проти потока-строителя DumpIndex (issue #56).  CI флат: сегфолт (e, Циклы «создать индекс → сразу закрыть» — как 4×create_server в protocol-тестах., close() не висит на _db_lock дольше таймаута и не теряет соединение.      Поток-, Индекс без реального dump: файлы и содержимое — синтетика в памяти.      `gate`, close() посреди долгой сборки ждёт поток, а не рвёт соединение под ним., Воспроизведение краша в CI (issue #56): close() во время count(*) в _finish_buil, _SyntheticBuild (+4 more)
 
 ### Community 43 - "ensure_self_signed"
-Cohesion: 0.16
-Nodes (16): (cert, key) для https: явные файлы или самоподписанный CA в <cache_dir>/tls/., _resolve_tls(), _bundle_valid(), ensure_self_signed(), True, если SAN листа покрывает все текущие `hosts`.      Комплект может быть свя, (ca.crt, server.crt, server.key) у directory; генерує або перевипускає лист., Ім'я для SAN: `[::1]:8001` -> `::1` (дужки й порт у SAN не потрапляють)., SAN за замовчуванням: localhost, loopback і hostname контейнера/хоста. (+8 more)
+Cohesion: 0.20
+Nodes (7): build_synonym_map(), Двуязычные BSL-синонимы для полнотекстового поиска.  Порт dump/analyzer.go (buil, Двунаправленная карта синонимов BSL (в нижнем регистре)., normalize(), parse_page(), Локальная справка платформы: HBK → SQLite FTS5, без внешних сервисов., test_html_sections_and_script_hidden()
 
 ### Community 44 - "access.py"
-Cohesion: 0.20
-Nodes (8): BaseException, Context, capabilities_failure_reason(), Доступность HTTP-инструментов по эффективным правам пользователя сервиса., Код причины отказа `/capabilities` (`reason` из тела 1С), если он есть.      Без, Убирает автогенерированные pydantic'ом "title" из JSON-схемы.      Смысла для мо, Шлёт tools/list_changed, если права разошлись с отданным списком.          Клиен, strip_schema_titles()
+Cohesion: 0.23
+Nodes (7): BaseException, Context, capabilities_failure_reason(), Код причины отказа `/capabilities` (`reason` из тела 1С), если он есть.      Без, Убирает автогенерированные pydantic'ом "title" из JSON-схемы.      Смысла для мо, Шлёт tools/list_changed, если права разошлись с отданным списком.          Клиен, strip_schema_titles()
 
 ### Community 45 - "test_dependency_bounds.py"
 Cohesion: 0.22
 Nodes (11): _dependency_specs(), Гарды на контракт зависимостей (issue #37, #49).  `mcp-baf-audit` пишет `audit.l, Имя пакета (нормализованное) -> список объявленных spec-строк., Все прямые импорты объявлены явно и с ожидаемыми границами., httpx/cryptography не должны «уехать» на мажор без ревью., certifi ниже 2026.10.23 несёт скомпрометированные промежуточные CA., _spec(), test_audit_dependency_has_upper_bound() (+3 more)
 
 ### Community 46 - "mask_pii_text"
-Cohesion: 0.23
-Nodes (12): mask_pii_text(), mask_pii_value(), pii_token(), Any, Стабильный в пределах ключа токен вместо значения (HMAC-SHA256)., Заменяет телефон/email на repl(match), идентификатороподобные токены     (GUID,, Маскирует значение: непустые строки — по regex, остальное как есть., Маскирует свободный текст (None -> пустая строка) по regex ПДн.      Используетс (+4 more)
+Cohesion: 0.08
+Nodes (34): OneCError, Exception, Асинхронный HTTP-клиент для общения с 1С:Предприятие., Ошибка взаимодействия с 1С с понятным пользователю текстом., Транзиентная ошибка: идемпотентный запрос имеет смысл повторить., _RetryableOneCError, mask_pii_text(), mask_pii_value() (+26 more)
 
 ### Community 47 - "test_bsl_capabilities_guard.py"
 Cohesion: 0.30
 Nodes (10): body(), module_text(), Статичний гард Module.bsl і карт доступів.  BSL у pytest не виконується, тому ко, Тіло функції <name>(Запрос) без КонецФункции., test_eventlog_requires_admin_right_explicitly(), test_extensions_route_is_gone_and_capabilities_match_tools(), test_metadata_rights_accepts_english_and_russian_type_names(), test_method_available_keeps_out_param_and_reason_order() (+2 more)
 
 ### Community 48 - "test_tls_concurrency.py"
-Cohesion: 0.30
-Nodes (11): _assert_bundle_consistent(), _child_env(), _digest(), Гонка генерации самоподписанного TLS-комплекта (issue #26).  Два процесса/потока, ca.crt от чужого процесса (не подписывает server.crt) — перегенерация., ca.crt подписывает server.crt, а server.key — пара к server.crt., test_concurrent_processes_share_one_bundle(), test_concurrent_threads_share_one_bundle() (+3 more)
+Cohesion: 0.24
+Nodes (12): _body(), decode_html(), _number(), Path, Чтение HBK: адаптация контейнерного парсера rzateev/onec-help-mcp @ f66860b.  SP, Цепочка блоков контейнера; защита от циклов и неверных размеров., Выдаёт HTML-страницы FileStorage без извлечения файлов на диск., read_pages() (+4 more)
 
 ### Community 49 - "_scripted_install"
 Cohesion: 0.18
 Nodes (11): Гоняет _install_from; ответы _run_designer берутся по очереди из responses., _scripted_install(), test_install_compat_mode_chain_keeps_first_error(), test_install_default_run_mode_retry(), test_install_delete_and_retry_success(), test_install_delete_failure_raises(), test_install_reload_failure_after_delete_warns_loudly(), test_install_strip_not_applied_on_new_platform() (+3 more)
 
 ### Community 50 - "LockTimeout"
-Cohesion: 0.20
-Nodes (9): list, _FileState, Matches, Список совпадений; `truncated` — скан прерван по бюджету времени., Состояние одного .bsl файла на диске (для diff манифеста)., Собирает состояние всех .bsl файлов: rel_path -> (путь, mtime, size)., LockTimeout, Лок не удалось взять за отведённое время. (+1 more)
+Cohesion: 0.26
+Nodes (12): _is_pii_name(), mask_pii_result(), _pii_aliases(), Алиасы `КАК X`, чьё выражение содержит чувствительное поле (в нижнем регистре)., Маскирует ПДн в строках результата: по имени колонки, алиасу из query и по regex, _r(), test_alias_of_sensitive_field_is_masked(), test_column_masking_stable_tokens() (+4 more)
 
 ### Community 51 - "scrub_error_detail"
-Cohesion: 0.22
-Nodes (9): Маскирует ПДн и обрезает тело ошибки 1С до безопасной длины., scrub_error_detail(), test_scrub_error_detail_masks_and_truncates(), Прибрати токени PII:<8 hex>, щоб перевіряти «сирі» ПДн поза токенами.      Хеш-т, Рішення #53 п.5: голий 10-значний прогін із провідним нулем маскується як     те, _strip_tokens(), test_bare_ten_digit_zero_prefix_is_accepted_overmasking(), test_error_detail_scrub_keeps_guids() (+1 more)
+Cohesion: 0.33
+Nodes (6): Прибрати токени PII:<8 hex>, щоб перевіряти «сирі» ПДн поза токенами.      Хеш-т, Рішення #53 п.5: голий 10-значний прогін із провідним нулем маскується як     те, _strip_tokens(), test_bare_ten_digit_zero_prefix_is_accepted_overmasking(), test_phones_masked_around_guid_tokens(), test_regex_phone_email()
 
 ### Community 52 - "test_https_transport.py"
-Cohesion: 0.31
-Nodes (7): _load(), https-транспорт: токен обязателен, plain http — двойной opt-in, TLS c генерируем, SAN для `[::1]:8001` — IP `::1`, а не DNS `[`; порт в SAN не потрапляє., test_network_transport_guards(), test_self_signed_hosts_strips_ipv6_brackets_and_port(), test_stdio_is_default_and_needs_no_token(), test_transport_options_from_env()
+Cohesion: 0.22
+Nodes (4): HTMLParser, Платформенный каталог кэша пользователя (аналог os.UserCacheDir в Go)., user_cache_dir(), PageParser
 
 ### Community 53 - "CLAUDE.md"
 Cohesion: 0.25
@@ -326,20 +332,16 @@ Cohesion: 0.29
 Nodes (7): HTTP-контракти, Архітектура, Аудит і HTTP-клієнт, Локальні компоненти, Модель прав: транспортна роль і права на дані, Реєстрація та доступ, Розширення та оновлення
 
 ### Community 56 - "._search_smart"
-Cohesion: 0.33
-Nodes (4): _extract_context(), Ищет совпадения в проиндексированных модулях. Диспетчер по mode., Полнотекстовый поиск с BM25-ранжированием через FTS5., Построчный поиск (режимы regex и exact).          Содержимое берётся пачками, ве
-
-### Community 57 - "register"
-Cohesion: 0.29
-Nodes (7): AuditWriter, MCPServer, register(), _captured_tool_kwargs(), Кожен інструмент із mask-aware formatter зобов'язаний отримувати     config.mask, test_registry_invariant_all_maskable_tools_pass_mask_pii(), test_tool_descriptions_document_token_semantics()
+Cohesion: 0.13
+Nodes (13): list, Pattern, _best_line(), _compile_user_regex(), _extract_context(), _first_line_with_any(), Matches, Список совпадений; `truncated` — скан прерван по бюджету времени. (+5 more)
 
 ### Community 58 - "Документація mcp-baf"
 Cohesion: 0.33
 Nodes (6): Версія, Довідники, Документація mcp-baf, Зміст, Початок роботи, Що варто знати одразу
 
 ### Community 59 - "file_lock"
-Cohesion: 0.47
-Nodes (5): file_lock(), Межпроцессная файловая блокировка для общих файлов кэша.  Нужна там, где два про, Эксклюзивный лок на файле `path` (файл создаётся при необходимости).      `timeo, _try_lock(), _unlock()
+Cohesion: 0.24
+Nodes (10): _FileState, Состояние одного .bsl файла на диске (для diff манифеста)., file_lock(), LockTimeout, Межпроцессная файловая блокировка для общих файлов кэша.  Нужна там, где два про, Лок не удалось взять за отведённое время., Эксклюзивный лок на файле `path` (файл создаётся при необходимости).      `timeo, _try_lock() (+2 more)
 
 ### Community 60 - "_recorder"
 Cohesion: 0.33
@@ -369,20 +371,36 @@ Nodes (3): _fake_run_with_log(), test_run_designer_decodes_cp1251_log(), test_ru
 Cohesion: 0.67
 Nodes (3): test_run_designer_timeout_env_override(), test_run_designer_timeout_reports_clear_error(), _timeout_run()
 
+### Community 69 - "bsl/__init__.py"
+Cohesion: 0.33
+Nodes (4): Справочник встроенных функций 1С (порт bsl/functions.go).  Файл сгенерирован скр, Справочник встроенных функций языка 1С (BSL).  Порт пакета bsl из Go-версии. Дан, Ищет функции по имени (русскому или английскому), без учёта регистра., search()
+
+### Community 70 - "scrub_error_detail"
+Cohesion: 0.33
+Nodes (5): Безопасный фрагмент ошибки 1С для текста исключения (и для агента).          Без, Маскирует ПДн и обрезает тело ошибки 1С до безопасной длины., scrub_error_detail(), test_scrub_error_detail_masks_and_truncates(), test_error_detail_scrub_keeps_guids()
+
+### Community 71 - "prompts.py"
+Cohesion: 0.50
+Nodes (3): MCPServer, MCP-prompts для типовых задач разработки 1С (порт prompts/prompts.go).  Каждый p, register()
+
+### Community 72 - "register"
+Cohesion: 0.67
+Nodes (3): AuditWriter, MCPServer, register()
+
 ## Knowledge Gaps
 - **104 isolated node(s):** `docker-entrypoint.sh script`, `mcp-baf`, `What this is`, `Commands`, `Architecture` (+99 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **4 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **7 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Config` connect `HTTP Audit Tests` to `MCP Tool Registration Helpers`, `form.py`, `._do`, `.__init__`, `CLI Entry Point & Config`, `Server Assembly & Config`, `ensure_self_signed`, `1C HTTP Client`, `traced_text`, `test_objects.py`?**
-  _High betweenness centrality (0.076) - this node is a cross-community bridge._
-- **Why does `create_server()` connect `Server Assembly & Config` to `index.py`, `configuration_info.py`, `SQLite FTS5 Index Store`, `CLI Entry Point & Config`, `Form Structure Tool`, `Metadata Tree Tool`, `Object Structure Tool`, `HTTP Audit Tests`, `Query Validation Tool`, `HelpIndex`, `register`?**
-  _High betweenness centrality (0.068) - this node is a cross-community bridge._
-- **Why does `DumpIndex` connect `SQLite FTS5 Index Store` to `nfc`, `index.py`, `Index Disk Cache`, `Server Assembly & Config`, `_SyntheticBuild`, `LockTimeout`, `SearchParams`, `._search_smart`?**
-  _High betweenness centrality (0.064) - this node is a cross-community bridge._
+- **Why does `Config` connect `HTTP Audit Tests` to `form.py`, `.__init__`, `CLI Entry Point & Config`, `Server Assembly & Config`, `1C HTTP Client`, `mask_pii_text`, `Query Validation Tool`, `traced_text`, `test_objects.py`?**
+  _High betweenness centrality (0.071) - this node is a cross-community bridge._
+- **Why does `create_server()` connect `HTTP Audit Tests` to `SQLite FTS5 Index Store`, `prompts.py`, `CLI Entry Point & Config`, `register`, `Metadata Tree Tool`, `mask_pii_text`, `Object Structure Tool`, `Query Validation Tool`, `HelpIndex`?**
+  _High betweenness centrality (0.065) - this node is a cross-community bridge._
+- **Why does `DumpIndex` connect `SQLite FTS5 Index Store` to `nfc`, `index.py`, `Index Disk Cache`, `_SyntheticBuild`, `HTTP Audit Tests`, `Query Validation Tool`, `SearchParams`, `._search_smart`, `file_lock`?**
+  _High betweenness centrality (0.063) - this node is a cross-community bridge._
 - **Are the 4 inferred relationships involving `OneCClient` (e.g. with `AccessMCP` and `Config`) actually correct?**
   _`OneCClient` has 4 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 6 inferred relationships involving `Config` (e.g. with `OneCClient` and `OneCError`) actually correct?**
