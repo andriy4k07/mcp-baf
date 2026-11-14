@@ -123,6 +123,16 @@ def test_constant_type_is_sent_to_object_endpoint(tmp_path):
     asyncio.run(client.aclose())
 
 
+def test_constant_type_is_rendered():
+    from mcp_baf.tools.object_structure import format_object_structure
+
+    text = format_object_structure({
+        "name": "Курс", "synonym": "Курс", "type": "Число",
+        "type_names": ["Число"], "precision": 15, "scale": 2, "attributes": [],
+    })
+    assert "## Тип константы" in text and "Число (точность 15, масштаб 2)" in text
+
+
 def test_form_name_is_sent_as_query_param(tmp_path):
     server, client, requests = setup(tmp_path, form, {"name": "ФормаСписку"})
     call(server, "get_form_structure", object_type="Document", object_name="Продажа",
