@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+import time
+from typing import Annotated, Any
+from urllib.parse import quote
 
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from mcp_baf_audit import AuditWriter
-from mcp_baf.client import OneCClient
+from mcp_baf.client import OneCClient, OneCError
 from mcp_baf.tools.common import traced_text, truncate_output
 
 # Все известные категории метаданных 1С в порядке отображения:
@@ -46,8 +48,16 @@ METADATA_CATEGORIES = [
 # Суффиксы автогенерируемых объектов, которые отфильтровываются как шум.
 NOISE_SUFFIXES = ("ПрисоединенныеФайлы", "ПрисоединённыеФайлы")
 
+# Кэш полного дерева метаданных: обход 26 коллекций — самый тяжёлый «обзорный»
+# вызов, а метаданные меняются редко. TTL короткий, чтобы после изменения
+# конфигурации агент быстро увидел актуальный состав.
+TREE_CACHE_TTL_SEC = 30.0
+
 
 def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
+    # Кэш на экземпляр сервера: общий для всех вызовов инструмента.
+    cache: dict[str, Any] = {}
+
     @mcp.tool(
         name="get_metadata_tree",
         title="Дерево метаданных конфигурации",
@@ -69,7 +79,7 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
         ))] = "",
     ) -> str:
         async def run() -> str:
-            tree: dict[str, list[str]] = await client.get("/metadata")
+            tree = await load_tree(client, cache, filter)
             filter_noise(tree)
 
             if filter:
@@ -88,6 +98,34 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
         return await traced_text(
             audit, "get_metadata_tree", run, args={"filter": filter}
         )
+
+
+async def load_tree(
+    client: OneCClient, cache: dict[str, Any], filter: str
+) -> dict[str, list[str]]:
+    """Дерево метаданных: одна коллекция при filter, иначе кэшированный полный обход.
+
+    filter уходит query-параметром в 1С, чтобы сервер не перебирал все 26
+    коллекций. Неизвестная категория даёт 400 от 1С — превращаем её в ту же
+    ошибку контракта со списком допустимых значений, что и локальная проверка.
+    """
+    if filter:
+        try:
+            return await client.get(f"/metadata?filter={quote(filter, safe='')}")
+        except OneCError as exc:
+            if "filter" in str(exc):
+                allowed = ", ".join(sorted(key for key, _ in METADATA_CATEGORIES))
+                raise ValueError(
+                    f"filter {filter!r} не найден. Допустимые значения: {allowed}"
+                ) from exc
+            raise
+
+    now = time.monotonic()
+    if cache.get("tree") is None or now >= cache.get("expires", 0.0):
+        cache["tree"] = await client.get("/metadata")
+        cache["expires"] = now + TREE_CACHE_TTL_SEC
+    # filter_noise заменяет списки целиком, поэтому копии верхнего уровня хватает.
+    return dict(cache["tree"])
 
 
 def _is_noise(name: str) -> bool:
