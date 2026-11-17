@@ -143,3 +143,62 @@ def test_stdio_process_without_database(tmp_path, mode):
     events = [json.loads(line) for line in (tmp_path / 'audit.log').read_text().splitlines()]
     assert {'server.start', 'server.stop', 'tool.call', 'tool.error'} <= {event['event'] for event in events}
     assert 'PRIVATE_QUERY' not in json.dumps(events)
+
+def _server(tmp_path, monkeypatch, methods):
+    def handler(request):
+        if request.url.path == '/version':
+            return httpx.Response(200, json={'version': EXPECTED_EXTENSION_VERSION})
+        if request.url.path == '/capabilities':
+            return httpx.Response(200, json={'methods': methods})
+        return httpx.Response(403, json={'error': 'x'})
+
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr('mcp_baf.server.OneCClient', lambda config, **kw: OneCClient(config, transport, **kw))
+    return create_server(Config(base_url='http://test', cache_dir=str(tmp_path)))
+
+
+def test_discover_cache_hint_and_no_logging_capability(tmp_path, monkeypatch):
+    server = _server(tmp_path, monkeypatch, list(TOOL_METHODS.values()))
+
+    async def scenario():
+        async with Client(server, mode='auto') as client:
+            caps = client.server_capabilities.model_dump(by_alias=True, exclude_none=True)
+            assert 'logging' not in caps
+            result = await client.list_tools()
+            wire = result.model_dump(by_alias=True, exclude_none=True)
+            assert wire['ttlMs'] == 30_000 and wire['cacheScope'] == 'private'
+
+    asyncio.run(scenario())
+
+
+def test_tools_list_order_is_deterministic_and_filtered_stably(tmp_path, monkeypatch):
+    async def names(methods):
+        server = _server(tmp_path, monkeypatch, methods)
+        async with Client(server) as client:
+            first = [t.name for t in (await client.list_tools()).tools]
+            assert first == [t.name for t in (await client.list_tools()).tools]
+            return first
+
+    full = asyncio.run(names(list(TOOL_METHODS.values())))
+    part = asyncio.run(names(['query.POST', 'metadata.GET']))
+    # Фильтр по правам сохраняет относительный порядок регистрации.
+    assert part == [n for n in full if n in part]
+    assert {'execute_query', 'get_metadata_tree'} <= set(part)
+
+
+def test_discover_over_streamable_http(tmp_path, monkeypatch):
+    import httpx2
+    from mcp.client.streamable_http import streamable_http_client
+
+    server = _server(tmp_path, monkeypatch, list(TOOL_METHODS.values()))
+    app = server.streamable_http_app(host='127.0.0.1')
+
+    async def scenario():
+        async with app.router.lifespan_context(app):
+            http = httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), base_url='http://127.0.0.1:8000')
+            async with http, Client(streamable_http_client('http://127.0.0.1:8000/mcp', http_client=http), mode='auto') as client:
+                assert client.server_info.name == 'mcp-baf'
+                wire = (await client.list_tools()).model_dump(by_alias=True, exclude_none=True)
+                assert wire['ttlMs'] == 30_000 and len(wire['tools']) == 13
+
+    asyncio.run(scenario())
