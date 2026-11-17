@@ -91,7 +91,15 @@ def format_references(result: dict, mask_pii: bool = False) -> str:
     if not groups:
         lines.append("Совпадений в проверенных областях не найдено.")
     if result.get("timeout_exceeded") or result.get("truncated") or result.get("skipped_names"):
-        lines += ["", "> Поиск неполный: достигнут бюджет/лимит или часть полей недоступна."]
+        hints = {
+            "limit_hits": "общий лимит limit_hits (увеличьте limit_hits, максимум 1000)",
+            "limit_per_meta": "лимит на объект метаданных limit_per_meta (увеличьте limit_per_meta, максимум 100)",
+            "timeout_budget_sec": "бюджет времени timeout_budget_sec (увеличьте timeout_budget_sec, максимум 120, или сузьте scope)",
+        }
+        reasons = [hints.get(str(x), str(x)) for x in result.get("limit_reasons") or []]
+        if result.get("skipped_names"):
+            reasons.append("часть полей/объектов пропущена (см. список ниже; проблема прав или запроса, лимиты не помогут)")
+        lines += ["", "> Поиск неполный: " + ("; ".join(reasons) if reasons else "достигнут лимит или бюджет (причина не указана расширением)") + "."]
     for s in result.get("skipped_names", []):
         lines.append(f"- {escape_pipe(str(s.get('name', '')))}: {escape_pipe(str(s.get('reason', '')))}")
     return "\n".join(lines)
