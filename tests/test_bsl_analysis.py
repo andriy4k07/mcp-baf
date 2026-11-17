@@ -441,3 +441,41 @@ def test_nbsp_and_form_feed_are_whitespace_and_preserved():
     assert formatted.count('\xa0') == src.count('\xa0') and formatted.count('\f') == 1
     assert format_source(formatted) == formatted
     assert 'ParseError' in codes('А = 1 ​;')
+
+
+def _unknown(src):
+    return [d['message'] for d in analyze(src) if d['code'] == 'UnknownGlobalCall']
+
+
+def test_unknown_global_call_positive():
+    src = 'Процедура А()\n\tНеизвестныйМетод(1);\nКонецПроцедуры'
+    hits = [d for d in analyze(src) if d['code'] == 'UnknownGlobalCall']
+    assert len(hits) == 1 and hits[0]['level'] == 'information'
+    assert 'глобального общего модуля' in hits[0]['message']
+
+
+def test_unknown_global_call_negative():
+    src = '''Функция Своя(Знач П) Экспорт
+    Возврат П;
+КонецФункции
+Процедура Б()
+    Х = своя(1);                     // свой метод, другой регистр
+    Х = ТипЗнч(Х) = Тип("Строка");
+    Х = Формат(1, "ЧГ=") + НСтр("ru='а'") + StrTemplate("%1", 2);
+    Х = Новый Структура("а", 1);
+    Х = Вычислить("1");
+    Выполнить("А()");
+    Х = Объект.Что_то(1);
+    Х = ?(Истина, 1, 2);
+    ОткрытьФорму("Форма");
+КонецПроцедуры'''
+    assert _unknown(src) == []
+
+
+def test_unknown_global_call_skips_fragment_without_declarations():
+    assert _unknown('НеизвестныйМетод(1);') == []
+
+
+def test_unknown_global_call_skips_dead_preprocessor_branch():
+    src = 'Процедура А()\n#Если Ложь Тогда\n\tНеизвестныйМетод();\n#КонецЕсли\nКонецПроцедуры'
+    assert _unknown(src) == []
