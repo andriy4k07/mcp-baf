@@ -88,7 +88,7 @@ def test_tool_schemas_prompts_and_expected_errors(tmp_path, monkeypatch, mode, l
                 assert 'title' not in tool.input_schema
 
             prompts = (await client.list_prompts()).prompts
-            assert len(prompts) == 11
+            assert len(prompts) == 13
             for prompt in prompts:
                 args = {arg.name: 'ТЕСТ' for arg in prompt.arguments or []}
                 result = await client.get_prompt(prompt.name, args)
@@ -131,7 +131,7 @@ def test_stdio_process_without_database(tmp_path, mode):
                 assert client.server_info.name == 'mcp-baf'
                 assert client.server_info.version == __version__
                 assert {t.name for t in (await client.list_tools()).tools} == {'bsl_syntax_help', 'bsl_analyze', 'bsl_format'}
-                assert len((await client.list_prompts()).prompts) == 11
+                assert len((await client.list_prompts()).prompts) == 13
                 result = await client.call_tool('bsl_format', {'src': 'Процедура Тест()\nСообщить(1);\nКонецПроцедуры'})
                 assert not result.is_error and '    Сообщить(1);' in result.content[0].text
                 result = await client.call_tool('execute_query', {'query': 'PRIVATE_QUERY'})
