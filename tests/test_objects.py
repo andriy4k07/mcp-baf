@@ -186,3 +186,8 @@ def test_rights_kinds_match_bsl_metadata_map():
     english = {k for k in objects.METADATA_RIGHTS_KINDS if k.isascii()}
     assert english == bsl_keys
     assert objects.METADATA_RIGHTS_KINDS - english == ru
+
+
+def test_references_incomplete_names_the_limit():
+    text = objects.format_references(dict(hits=[], truncated=True, limit_reasons=["limit_per_meta", "timeout_budget_sec"]))
+    assert "limit_per_meta" in text and "timeout_budget_sec" in text and "limit_hits" not in text
