@@ -136,7 +136,19 @@ def format_event_log(r: dict[str, Any], mask_pii: bool = False) -> str:
         shown = f"Показано: {events_count}"
         if isinstance(found, int) and found >= events_count:
             shown += f" из {found}"
-        lines.append(f"{shown}. Список может быть неполным.")
+        nxt = r.get("next_end_date")
+        if nxt:
+            # 1С отдаёт последние записи периода: продолжение — более старые, через end_date.
+            lines.append(
+                f"{shown}. Это не все записи: есть более ранние. Для продолжения вызовите "
+                f"get_event_log с end_date=\"{nxt}\" (остальные фильтры те же; "
+                "записи этой секунды могут повториться)."
+            )
+        else:
+            lines.append(
+                f"{shown}. Список неполный; сузьте период (start_date/end_date) "
+                "или уровень, чтобы получить остальное."
+            )
     else:
         total = found if isinstance(found, int) else r.get("total", events_count)
         lines.append(f"Всего: {total}")

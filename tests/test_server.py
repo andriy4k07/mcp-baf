@@ -134,4 +134,4 @@ def test_event_log_exclude_system_sent_and_truncated_note(tmp_path):
     eventlog.register(FakeMCP(), client, AuditLog(str(tmp_path)))
     out = asyncio.run(tools["get_event_log"](exclude_system=False))
     assert bodies[0]["exclude_system"] is False
-    assert "неполным" in out and "Всего" not in out
+    assert "неполный" in out and "Всего" not in out
