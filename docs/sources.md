@@ -41,7 +41,7 @@ mcp-baf — самостійний проєкт. Ця сторінка фікс�
 
 ## Кандидати діагностик `bsl_analyze`
 
-Станом на issue #54 у `bsl_native` десять перевірок (`local-tools.md`): вісім базових плюс `ReservedDeclarationName` (#4904) і `LatinAndCyrillicSymbolInWord` (#4900). Нижче — оцінка кандидатів з [1c-syntax/bsl-language-server](https://github.com/1c-syntax/bsl-language-server); його код не переноситься (LGPL-3.0-or-later), запозичуються лише опис поведінки й тестові сценарії. Стан апстриму перевірено через GitHub API 2026-11-11.
+Станом на issue #54 у `bsl_native` одинадцять перевірок (`local-tools.md`): вісім базових плюс `ReservedDeclarationName` (#4904), `LatinAndCyrillicSymbolInWord` (#4900) і `UnknownGlobalCall` (#4905). Нижче — оцінка кандидатів з [1c-syntax/bsl-language-server](https://github.com/1c-syntax/bsl-language-server); його код не переноситься (LGPL-3.0-or-later), запозичуються лише опис поведінки й тестові сценарії. Стан апстриму перевірено через GitHub API 2026-11-11.
 
 | Кандидат | Що перевіряє | Стан апстриму | Вердикт для `bsl_native` | Рекомендація |
 |---|---|---|---|---|

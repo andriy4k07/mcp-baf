@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 
 from mcp_baf.bsl_native.lexer import Diagnostic, lex
+from mcp_baf.bsl_native.global_context import GLOBAL_CALLS
 from mcp_baf.bsl_native.parser import ParseFailure, Parser
 
 MAX_SOURCE_BYTES = 2 * 1024 * 1024
@@ -17,6 +18,7 @@ DIAGNOSTIC_CODES = frozenset({
     'UnusedLocalVariable', 'UnreachableCode', 'EmptyExcept',
     'TrailingWhitespace', 'LineLength',
     'ReservedDeclarationName', 'LatinAndCyrillicSymbolInWord',
+    'UnknownGlobalCall',
 })
 
 # Курований перелік імен, які лексер BSL приймає як ідентифікатор, але компілятор
@@ -216,6 +218,29 @@ def _semantic(nodes, conditional, dynamic_eval, dead_lines):
     return diagnostics
 
 
+def _unknown_calls(parser, dead_lines):
+    """Порт 1c-syntax/bsl-language-server#4905 (поведение, не код — LGPL).
+
+    Вызов Имя(...) без получателя должен быть методом этого же модуля или
+    методом глобального контекста. Фрагмент без единого объявления — это кусок
+    тела метода: методы остального модуля нам неизвестны, поэтому молчим.
+    Уровень information: возможен экспортный метод глобального общего модуля.
+    """
+    if not parser.declared:
+        return []
+    return [
+        Diagnostic(
+            'UnknownGlobalCall',
+            f'Метод «{token.text}» не найден в модуле и в глобальном контексте '
+            '(возможно, это экспортный метод глобального общего модуля)',
+            token.line, token.column, 'information')
+        for token in parser.bare_calls
+        if token.text.casefold() not in parser.declared
+        and token.text.casefold() not in GLOBAL_CALLS
+        and token.line not in dead_lines
+    ]
+
+
 def _inspect(source):
     if not source.strip():
         raise ValueError('src должен содержать текст BSL, а не пустую строку')
@@ -235,7 +260,9 @@ def _inspect(source):
         else:
             conditional = any(t.kind == 'directive' and re.match(r'#\s*(если|if)\b', t.text, re.I) for t in tokens)
             dynamic_eval = any(t.kind == 'identifier' and t.text.casefold() in {'вычислить', 'eval'} for t in tokens)
-            diagnostics.extend(_semantic(nodes, conditional, dynamic_eval, _preprocessor_dead_lines(tokens)))
+            dead_lines = _preprocessor_dead_lines(tokens)
+            diagnostics.extend(_semantic(nodes, conditional, dynamic_eval, dead_lines))
+            diagnostics.extend(_unknown_calls(parser, dead_lines))
         diagnostics.extend(parser.diagnostics)
     # Строковые литералы, включая продолжения, должны сохраняться побайтно.
     protected = set()

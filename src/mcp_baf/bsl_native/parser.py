@@ -58,6 +58,9 @@ class Parser:
         self.indent_events = []
         # Строки, с которых начинаются операторы: остальные — продолжения.
         self.statement_lines = set()
+        # Вызовы вида Имя(...) без получателя и имена объявленных методов фрагмента.
+        self.bare_calls = []
+        self.declared = set()
 
     @property
     def current(self):
@@ -235,6 +238,7 @@ class Parser:
         if kind not in {'procedure','function'}:
             raise ParseFailure(token, 'После Асинх ожидается процедура или функция')
         name = self.take('identifier')
+        self.declared.add(name.text.casefold())
         self.take('(')
         parameters = []
         if self.current.kind != ')':
@@ -307,6 +311,8 @@ class Parser:
                         raise ParseFailure(member, 'Ожидается имя свойства или метода')
                     node = Node('member', node.token, reads=node.reads)
                 elif self.current.kind == '(':
+                    if node.kind == 'identifier':
+                        self.bare_calls.append(node.token)
                     reads = self.arguments()
                     # Простое имя вызываемого метода не является чтением локальной переменной.
                     node = Node('call', node.token, reads=([] if node.kind == 'identifier' else node.reads) + reads)
