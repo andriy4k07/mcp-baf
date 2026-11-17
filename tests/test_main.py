@@ -356,3 +356,42 @@ def test_install_dump_resolve_password_once(monkeypatch, tmp_path):
     monkeypatch.setenv("mcp_baf_DB_PASSWORD", "pw")
     calls, code = _run_main(monkeypatch, tmp_path, "--install", "db", "--dump", "/out")
     assert [c[1]["db_password"] for c in calls] == ["pw", "pw"]
+
+
+# ── Origin/Host з дужками: перевірку робить SDK (точний збіг зі списком) ──
+
+_BAD_ORIGINS = [
+    "https://[::1", "https://::1:8001", "https://[::1]x:8001", "https://[::1]:abc",
+    "https://[::1]:99999", "https://[fe80::1%25eth0]:8001", "https://[]:8001",
+    "https://[127.0.0.1]:8001", "https://[localhost]:8001",
+    "https://[::1]",  # без порту: свідоме рішення (403), виняток лише для 80/443
+    "http://[::1]:8001",  # схема не збігається зі схемою сервіса
+]
+
+
+@pytest.mark.parametrize("origin", ["https://[::1]:8001"])
+def test_bracketed_origin_valid_loopback_accepted(origin):
+    from mcp.server.transport_security import TransportSecurityMiddleware
+
+    assert TransportSecurityMiddleware(_settings())._validate_origin(origin) is True
+
+
+@pytest.mark.parametrize("origin", _BAD_ORIGINS)
+def test_bracketed_origin_invalid_rejected(origin):
+    from mcp.server.transport_security import TransportSecurityMiddleware
+
+    assert TransportSecurityMiddleware(_settings())._validate_origin(origin) is False
+
+
+@pytest.mark.parametrize("host", ["[::1]:8001", "[::1]:9000"])
+def test_bracketed_host_valid_accepted(host):
+    from mcp.server.transport_security import TransportSecurityMiddleware
+
+    assert TransportSecurityMiddleware(_settings())._validate_host(host) is True
+
+
+@pytest.mark.parametrize("host", ["[::1", "::1", "[::1]x:8001", "[]:8001", "[127.0.0.1]:8001", "[localhost]:8001"])
+def test_bracketed_host_invalid_rejected(host):
+    from mcp.server.transport_security import TransportSecurityMiddleware
+
+    assert TransportSecurityMiddleware(_settings())._validate_host(host) is False
