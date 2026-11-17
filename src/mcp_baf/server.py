@@ -7,6 +7,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from mcp.server.caching import CacheHint
 from mcp.server.mcpserver import MCPServer
 
 from mcp_baf_audit import AuditLog
@@ -139,6 +140,9 @@ def create_server(config: Config) -> MCPServer:
         audit=audit,
         instructions=_INSTRUCTIONS,
         lifespan=lifespan,
+        # Подсказка клиентам (2026-07-28): список зависит от прав пользователя 1С
+        # (private) и от кэша /capabilities на 30 с (см. access.py).
+        cache_hints={"tools/list": CacheHint(ttl_ms=30_000, scope="private")},
     )
 
     # Стабильный порядок регистрации; локальные инструменты не требуют базы.
