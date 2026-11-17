@@ -54,6 +54,8 @@ DUMP_DIR_NAMES["CommonModules"] = "ОбщийМодуль"
 DUMP_DIR_NAMES["CommonForms"] = "ОбщаяФорма"
 DUMP_DIR_NAMES["CommonCommands"] = "ОбщаяКоманда"
 DUMP_DIR_NAMES["DocumentJournals"] = "ЖурналДокументов"
+DUMP_DIR_NAMES["HTTPServices"] = "HTTPСервис"
+DUMP_DIR_NAMES["WebServices"] = "WebСервис"
 
 # Имя BSL-файла -> суффикс типа модуля. Ключ — голое имя файла, поэтому
 # запись покрывает и XML-формат (.../Ext/<File>.bsl), и EDT (.../<File>.bsl).
@@ -142,8 +144,8 @@ def _base_config_module_name(parts: list[str]) -> str:
     if suffix is None:
         suffix = file_name.removesuffix(".bsl")
 
-    # У общих модулей Module.bsl — это "Модуль", а не "МодульФормы".
-    if category == "CommonModules" and file_name == "Module.bsl":
+    # У общих модулей и HTTP/Web-сервисов Module.bsl — это "Модуль", а не "МодульФормы".
+    if category in ("CommonModules", "HTTPServices", "WebServices") and file_name == "Module.bsl":
         if "Forms" not in parts:
             suffix = "Модуль"
 
