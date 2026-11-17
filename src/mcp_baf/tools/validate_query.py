@@ -13,9 +13,13 @@ from mcp_baf.client import OneCClient
 from mcp_baf.pii import audit_text
 from mcp_baf.tools.common import traced_text
 from mcp_baf.tools.query import query_keyword
+from mcp_baf.tools.query_hints import access_checker, advise_query, error_hints, format_advice
 
 
 def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
+    hint_cache: dict[str, Any] = {}
+    can = access_checker(mcp)
+
     @mcp.tool(
         name="validate_query",
         title="Проверка синтаксиса запроса",
@@ -23,7 +27,7 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
             "Проверить синтаксис запроса 1С без выполнения — найдёт ошибки "
             "в ВЫБРАТЬ/SELECT. Всегда вызывай перед execute_query. "
             "Проверяется синтаксис и допустимость типа запроса (только чтение); "
-            "существование таблиц и полей гарантирует только execute_query."
+            "как правило находит несуществующие таблицы и поля и подсказывает близкие имена."
         ),
         annotations=ToolAnnotations(read_only_hint=True),
     )
@@ -40,7 +44,16 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter) -> None:
             if query_keyword(query) not in {"ВЫБРАТЬ", "SELECT"}:
                 raise ValueError("только SELECT/ВЫБРАТЬ запросы разрешены")
             result = await client.post("/validate-query", {"query": query})
-            return format_validate_result(result)
+            text = format_validate_result(result)
+            if not result.get("valid"):
+                hint = await error_hints(
+                    client, hint_cache, query, " ".join(map(str, result.get("errors") or [])), can
+                )
+                if hint:
+                    text += "\n" + hint + "\n"
+            # Советник ничего не блокирует и не обращается к 1С.
+            advice = format_advice(advise_query(query))
+            return text + ("\n" + advice if advice else "")
 
         return await traced_text(
             audit, "validate_query", run, args={"query": audit_text(query)}
@@ -51,8 +64,8 @@ def format_validate_result(r: dict[str, Any]) -> str:
     if r.get("valid"):
         return (
             "## Результат проверки\n\n✅ Запрос корректен.\n\n"
-            "> Проверен только синтаксис и тип запроса (чтение). Существование "
-            "таблиц и полей подтверждает лишь execute_query.\n"
+            "> Проверен синтаксис и тип запроса (чтение); полную проверку "
+            "даёт только execute_query.\n"
         )
 
     lines = ["## Результат проверки", "", "❌ Запрос содержит ошибки:", ""]
