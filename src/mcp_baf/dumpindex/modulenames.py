@@ -98,7 +98,7 @@ def resolve_module_name(rel_path: str, ext_roots: dict[str, str] | None = None) 
     основной конфигурации. Если префикс не найден или после него осталось
     меньше двух сегментов — обычное поведение bsl_path_to_module_name.
     """
-    parts = nfc(rel_path).replace("\\", "/").split("/")
+    parts = _strip_edt_src(nfc(rel_path).replace("\\", "/").split("/"))
     if parts[0] != EXTENSION_DIR_NAME and ext_roots:
         for depth in range(len(parts) - 1, 0, -1):
             ext_name = ext_roots.get("/".join(parts[:depth]))
@@ -108,6 +108,12 @@ def resolve_module_name(rel_path: str, ext_roots: dict[str, str] | None = None) 
                     return f"ext.{ext_name}." + _base_config_module_name(rest)
                 break
     return bsl_path_to_module_name(rel_path)
+
+
+def _strip_edt_src(parts: list[str]) -> list[str]:
+    """Для корня EDT-проекта (--dump <project>) отбрасывает ведущий src/:
+    EDT кладёт категории в <project>/src/<Категория>/<Объект>/<Модуль>.bsl."""
+    return parts[1:] if parts[0] == "src" and len(parts) > 2 else parts
 
 
 def bsl_path_to_module_name(rel_path: str) -> str:
@@ -124,7 +130,7 @@ def bsl_path_to_module_name(rel_path: str) -> str:
     путь для файлового ввода-вывода остаётся у вызывающего кода.
     """
     rel_path = nfc(rel_path)
-    parts = rel_path.replace("\\", "/").split("/")
+    parts = _strip_edt_src(rel_path.replace("\\", "/").split("/"))
     if len(parts) < 2:
         return rel_path
 

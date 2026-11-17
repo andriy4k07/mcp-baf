@@ -129,7 +129,11 @@ def find_form_files(
             f"invalid object name {object_name!r}: contains path traversal characters"
         )
 
+    # Designer: <dump>/<Категория>/...; EDT: <project>/src/<Категория>/...
+    # (--dump может указывать и на корень проекта, и на его src/).
     forms_dir = os.path.join(dump_dir, dir_name, object_name, "Forms")
+    if not os.path.isdir(forms_dir):
+        forms_dir = os.path.join(dump_dir, "src", dir_name, object_name, "Forms")
     try:
         entries = os.listdir(forms_dir)
     except FileNotFoundError:
@@ -139,6 +143,8 @@ def find_form_files(
     result = {}
     for entry in entries:
         form_xml = os.path.join(forms_dir, entry, "Ext", "Form.xml")
+        if not os.path.isfile(form_xml):
+            form_xml = os.path.join(forms_dir, entry, "Form.form")  # EDT
         # Симлинки наружу dump-корня не читаем.
         if os.path.isfile(form_xml) and os.path.realpath(form_xml).startswith(root):
             # Ключ — NFC-имя формы (macOS отдаёт listdir в NFD, а form_name
@@ -157,8 +163,82 @@ def find_form_files(
 
 
 def parse_form_xml(path: str) -> FormInfo:
-    """Разбирает Form.xml и извлекает элементы, команды и обработчики."""
-    return _parse_form_root(parse_file(path))
+    """Разбирает Form.xml (Designer) или Form.form (EDT): элементы, команды, обработчики."""
+    root = parse_file(path)
+    if path.endswith(".form"):
+        return _parse_edt_form(root)
+    return _parse_form_root(root)
+
+
+# Типы элементов EDT (xsi:type) без собственного <type>: сам xsi:type и есть тип.
+_EDT_XSI = "{http://www.w3.org/2001/XMLSchema-instance}type"
+
+
+def _edt_text(elem: ET.Element, tag: str) -> str:
+    for c in elem:
+        if _local(c) == tag:
+            return (c.text or "").strip()
+    return ""
+
+
+def _edt_title(elem: ET.Element) -> str:
+    # <title><key>ru</key><value>Текст</value></title>
+    for c in elem:
+        if _local(c) == "title":
+            return _edt_text(c, "value")
+    return ""
+
+
+def _edt_handlers(elem: ET.Element) -> list[FormHandlerInfo]:
+    return [
+        FormHandlerInfo(event=_edt_text(c, "event"), handler=_edt_text(c, "name"))
+        for c in elem
+        if _local(c) == "handlers" and _edt_text(c, "event") and _edt_text(c, "name")
+    ]
+
+
+def _edt_items(container: ET.Element) -> list[FormElementInfo]:
+    """Плоский список элементов EDT-формы: <items> рекурсивно, включая autoCommandBar."""
+    out: list[FormElementInfo] = []
+    for c in container:
+        local = _local(c)
+        if local == "autoCommandBar":
+            out.extend(_edt_items(c))
+        elif local == "items":
+            xsi = (c.get(_EDT_XSI) or "").rsplit(":", 1)[-1].removeprefix("Form")
+            kind = _edt_text(c, "type") or xsi
+            dp = ""
+            for d in c:
+                if _local(d) == "dataPath":
+                    dp = _edt_text(d, "segments")
+            out.append(FormElementInfo(
+                name=_edt_text(c, "name"), type=kind,
+                title=_edt_title(c), data_path=dp, events=_edt_handlers(c),
+            ))
+            out.extend(_edt_items(c))
+    return out
+
+
+def _parse_edt_form(root: ET.Element) -> FormInfo:
+    """Минимальный разбор EDT Form.form (формат g5.1c.ru/v8/dt/form).
+
+    shortcut: проверено только на синтетической форме по схеме EDT, не на
+    реальном дампе; незнакомые теги игнорируются.
+    """
+    form = FormInfo(title=_edt_title(root), handlers=_edt_handlers(root))
+    try:
+        form.elements = _edt_items(root)
+    except RecursionError:
+        raise UnsafeXML("форма слишком глубоко вложена, разбор не поддерживается") from None
+    for c in root:
+        if _local(c) == "formCommands":
+            action = ""
+            for a in c:
+                if _local(a) == "action":
+                    action = next(
+                        (_edt_text(h, "name") for h in a if _local(h) == "handler"), "")
+            form.commands.append(FormCommandInfo(name=_edt_text(c, "name"), action=action))
+    return form
 
 
 def parse_form_xml_data(data: bytes | str) -> FormInfo:
