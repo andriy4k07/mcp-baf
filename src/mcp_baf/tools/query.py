@@ -10,7 +10,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from mcp_baf_audit import AuditWriter
-from mcp_baf.client import OneCClient
+from mcp_baf.client import OneCClient, OneCError
 from mcp_baf.pii import MASKING_NOTE, audit_text, mask_pii_result
 from mcp_baf.tools.common import (
     clamp_limit, escape_pipe, format_cell, traced_text, truncate_output,
@@ -95,7 +95,17 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter,
             if parameters:
                 body["parameters"] = parameters
 
-            result = await client.post("/query", body)
+            try:
+                result = await client.post("/query", body)
+            except OneCError as exc:
+                # Расширение отдаёт обобщённый query_error без имени таблицы/поля;
+                # при --mask-pii код ошибки скрыт, остаётся только статус 400.
+                if "query_error" in str(exc) or "status 400" in str(exc):
+                    raise OneCError(
+                        f"{exc}\nВызовите validate_query — он покажет, какая "
+                        "таблица/поле не найдены, с подсказками."
+                    ) from exc
+                raise
             return truncate_output(format_query_result(
                 mask_pii_result(result, query) if mask_pii else result, offset
             ))
