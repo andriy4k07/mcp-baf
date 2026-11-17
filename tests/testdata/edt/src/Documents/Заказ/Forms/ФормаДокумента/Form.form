@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form:Form xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:form="http://g5.1c.ru/v8/dt/form">
+  <title><key>ru</key><value>Заказ</value></title>
+  <items xsi:type="form:FormGroup">
+    <name>Шапка</name>
+    <type>UsualGroup</type>
+    <items xsi:type="form:FormField">
+      <name>Контрагент</name>
+      <title><key>ru</key><value>Покупець</value></title>
+      <type>InputField</type>
+      <dataPath><segments>Объект.Контрагент</segments></dataPath>
+      <handlers><event>OnChange</event><name>КонтрагентПриИзменении</name></handlers>
+    </items>
+  </items>
+  <items xsi:type="form:Table">
+    <name>Товары</name>
+    <autoCommandBar><name>ТоварыПанель</name>
+      <items xsi:type="form:Button"><name>ТоварыДобавить</name></items>
+    </autoCommandBar>
+  </items>
+  <handlers><event>OnOpen</event><name>ПриОткрытии</name></handlers>
+  <formCommands>
+    <name>Заполнить</name>
+    <action xsi:type="form:FormCommandHandlerContainer"><handler><name>ЗаполнитьВыполнить</name></handler></action>
+  </formCommands>
+</form:Form>
