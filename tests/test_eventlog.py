@@ -95,3 +95,14 @@ def test_event_log_400_from_extension_becomes_tool_error(tmp_path):
     eventlog.register(server, client, AuditLog(str(tmp_path)))
     with pytest.raises(ToolError, match="start_date"):
         asyncio.run(server.call_tool("get_event_log", {"start_date": "01.03.2026"}))
+
+
+def test_event_log_truncated_gives_cursor_for_next_page():
+    out = format_event_log({"events": [{"date": "2026-03-01T10:00:00"}], "found": 5, "truncated": True,
+                            "next_end_date": "2026-03-01T10:00:00"})
+    assert "end_date=\"2026-03-01T10:00:00\"" in out and "есть более ранние" in out
+
+
+def test_event_log_truncated_without_cursor_advises_narrowing():
+    out = format_event_log({"events": [{"date": "d"}], "truncated": True})
+    assert "сузьте" in out

@@ -70,8 +70,10 @@ def test_object_attributes_carry_structured_type_description():
     helper = function_body(source, "Процедура ДобавитьОписаниеТипа(Описание, ТипОписания)")
     assert 'Описание.Вставить("type_names", ИменаТипов);' in helper
     assert "Метаданные.НайтиПоТипу(Тип)" in helper and ".ПолноеИмя()" in helper
-    assert 'Описание.Вставить("length", ТипОписания.ДлинаСтроки);' in helper
-    assert 'Описание.Вставить("precision", ТипОписания.Точность);' in helper
+    assert 'Описание.Вставить("length", ТипОписания.КвалификаторыСтроки.Длина);' in helper
+    assert 'Описание.Вставить("precision", ТипОписания.КвалификаторыЧисла.Разрядность);' in helper
+    # У ОписаниеТипов нет ДлинаСтроки/Точность/Масштаб: обращение даёт 500 (live 0.7.1).
+    assert "ТипОписания.ДлинаСтроки" not in helper and "ТипОписания.Точность" not in helper
     body = body_of(source, "ОбъектGET")
     # Реквизиты шапки, реквизиты ТЧ, измерения и ресурсы — все четыре места.
     assert body.count("ДобавитьОписаниеТипа(") == 5  # + тип константы
@@ -235,3 +237,9 @@ def test_eventlog_empty_body_means_empty_params_and_bad_limit_is_400():
     # Нечисловой/неположительный limit — 400, а не молчаливый дефолт.
     assert 'ТипЗнч(Параметры.limit) <> Тип("Число")' in body
     assert '"limit: ожидается положительное число", "", "invalid_param"' in body
+
+
+def test_eventlog_cursor_refs_limit_reasons_and_enum_variable():
+    text = MODULE.read_text(encoding="utf-8-sig")
+    assert "\"next_end_date\"" in text and "limit_reasons" in text
+    assert "ЗначенияПеречисления = Новый Массив" in text
