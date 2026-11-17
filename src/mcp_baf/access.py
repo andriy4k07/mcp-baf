@@ -154,6 +154,11 @@ class AccessMCP(MCPServer):
             self._expires = time.monotonic() + (30 if self._allowed else 5)
             return self._allowed, self._access_error
 
+    async def has_method(self, method: str) -> bool:
+        """Есть ли у пользователя HTTP-метод (кэш /capabilities); для необязательных подсказок."""
+        allowed, _ = await self._capabilities()
+        return method in allowed
+
     async def list_tools(self):
         tools = await super().list_tools()
         allowed, _ = await self._capabilities()
