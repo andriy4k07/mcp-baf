@@ -22,6 +22,17 @@ from mcp_baf.dumpindex.modulenames import (
         ("Documents/Док/Forms/ФормаДок/Ext/Module.bsl", "Документ.Док.Форма.ФормаДок.МодульФормы"),
         # CommonModules: Module.bsl — это "Модуль", не "МодульФормы".
         ("CommonModules/ОбщийМодуль1/Ext/Module.bsl", "ОбщийМодуль.ОбщийМодуль1.Модуль"),
+        # HTTP/Web-сервисы: Module.bsl — "Модуль".
+        ("HTTPServices/Chatbot/Ext/Module.bsl", "HTTPСервис.Chatbot.Модуль"),
+        ("WebServices/X/Ext/Module.bsl", "WebСервис.X.Модуль"),
+        (
+            "Расширения/TestExt/HTTPServices/MCPService/Ext/Module.bsl",
+            "ext.TestExt.HTTPСервис.MCPService.Модуль",
+        ),
+        (
+            "Расширения/TestExt/WebServices/X/Ext/Module.bsl",
+            "ext.TestExt.WebСервис.X.Модуль",
+        ),
         # Расширения получают префикс ext.<имя>.
         (
             "Расширения/TestExt/CommonModules/CM1/Ext/Module.bsl",
