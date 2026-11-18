@@ -59,4 +59,4 @@
 ## Версія
 
 Актуальна версія пакета — `0.4.1` (див. [pyproject.toml](../pyproject.toml)),
-версія розширення 1С — `0.7.2` (`server.py:EXPECTED_EXTENSION_VERSION`).
+версія розширення 1С — `0.7.3` (`server.py:EXPECTED_EXTENSION_VERSION`).
