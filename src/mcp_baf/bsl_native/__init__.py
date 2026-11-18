@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 
 from mcp_baf.bsl_native.lexer import Diagnostic, lex
-from mcp_baf.bsl_native.global_context import GLOBAL_CALLS
+from mcp_baf.bsl_native.global_context import GLOBAL_CALLS, METADATA_TYPE_PREFIXES
 from mcp_baf.bsl_native.parser import ParseFailure, Parser
 
 MAX_SOURCE_BYTES = 2 * 1024 * 1024
@@ -18,7 +18,7 @@ DIAGNOSTIC_CODES = frozenset({
     'UnusedLocalVariable', 'UnreachableCode', 'EmptyExcept',
     'TrailingWhitespace', 'LineLength',
     'ReservedDeclarationName', 'LatinAndCyrillicSymbolInWord',
-    'UnknownGlobalCall',
+    'UnknownGlobalCall', 'UnknownTypeName',
 })
 
 # Курований перелік імен, які лексер BSL приймає як ідентифікатор, але компілятор
@@ -241,6 +241,43 @@ def _unknown_calls(parser, dead_lines):
     ]
 
 
+_DOTTED_TYPE = re.compile(r'(\w+)\.\w+')
+
+
+def _unknown_types(tokens, dead_lines):
+    """Проверка #131: только префикс составного имени типа Префикс.Имя.
+
+    Надёжного списка простых имён платформенных типов в данных репозитория нет
+    (справочник функций содержит лишь часть конструкторов), поэтому
+    `Новый Тип` (парсер не принимает `Новый А.Б`) и `Тип("Тип")` без точки
+    не проверяются. Имя после точки —
+    имя объекта конфигурации, его не проверяем никогда.
+    """
+    result = []
+    code = [t for t in tokens if t.kind not in {'comment', 'eof'}]
+    for i, token in enumerate(code):
+        if token.line in dead_lines:
+            continue
+        if (token.kind == 'identifier' and token.text.casefold() in {'тип', 'type'}
+              and (i == 0 or code[i - 1].text != '.')
+              and i + 2 < len(code) and code[i + 1].text == '(' and code[i + 2].kind == 'string'
+              and (i + 3 >= len(code) or code[i + 3].text == ')')):
+            literal = code[i + 2].text
+            match = _DOTTED_TYPE.fullmatch(literal[1:-1]) if literal[:1] == literal[-1:] == '"' and '\n' not in literal else None
+            if not match:
+                continue
+            prefix, at = match[1], code[i + 2]
+        else:
+            continue
+        if not prefix.casefold().startswith(METADATA_TYPE_PREFIXES):
+            result.append(Diagnostic(
+                'UnknownTypeName',
+                f'Префикс типа «{prefix}» не похож на тип метаданных платформы '
+                '(СправочникСсылка, ДокументОбъект, РегистрСведенийМенеджер, ...)',
+                at.line, at.column, 'information'))
+    return result
+
+
 def _inspect(source):
     if not source.strip():
         raise ValueError('src должен содержать текст BSL, а не пустую строку')
@@ -263,6 +300,7 @@ def _inspect(source):
             dead_lines = _preprocessor_dead_lines(tokens)
             diagnostics.extend(_semantic(nodes, conditional, dynamic_eval, dead_lines))
             diagnostics.extend(_unknown_calls(parser, dead_lines))
+            diagnostics.extend(_unknown_types(tokens, dead_lines))
         diagnostics.extend(parser.diagnostics)
     # Строковые литералы, включая продолжения, должны сохраняться побайтно.
     protected = set()

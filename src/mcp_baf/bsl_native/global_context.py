@@ -191,3 +191,29 @@ GLOBAL_CALLS = frozenset(
     {name.casefold() for entry in _EXTRA for name in entry.split('/')}
     | {f[k].casefold() for f in BUILTIN_FUNCTIONS for k in ('name', 'name_en') if f.get(k) and '.' not in f[k]}
 )
+
+
+# Базовые виды метаданных (ru+en), с которых начинается составное имя типа:
+# СправочникСсылка.Имя, DocumentObject.Имя, РегистрСведенийКлючЗаписи.Имя и т.д.
+# Сопоставление по началу слова (casefold), чтобы покрыть все суффиксы
+# (Ссылка/Объект/Менеджер/Выборка/Список/НаборЗаписей/...). Список щедрый:
+# ложное срабатывание хуже пропуска.
+METADATA_TYPE_PREFIXES = tuple(
+    name.casefold() for name in (
+        'Справочник', 'Документ', 'Перечисление', 'ПланВидовХарактеристик',
+        'ПланСчетов', 'ПланВидовРасчета', 'ПланОбмена', 'БизнесПроцесс',
+        'Задача', 'РегистрСведений', 'РегистрНакопления', 'РегистрБухгалтерии',
+        'РегистрРасчета', 'ВнешняяОбработка', 'ВнешнийОтчет', 'Отчет',
+        'Обработка', 'ЖурналДокументов', 'Константа', 'КритерийОтбора',
+        'ТочкаМаршрута', 'ВнешнийИсточникДанных', 'ОпределяемыйТип',
+        'ОбщаяФорма', 'Форма', 'ДанныеФормы', 'ХранилищеНастроек',
+        'Последовательность',
+        'Catalog', 'Document', 'Enum', 'ChartOf', 'BusinessProcess', 'Task',
+        'InformationRegister', 'AccumulationRegister', 'AccountingRegister',
+        'CalculationRegister', 'ExternalDataProcessor', 'ExternalReport',
+        'Report', 'DataProcessor', 'DocumentJournal', 'Constant',
+        'SelectionCriteria', 'BusinessProcessRoutePoint', 'ExternalDataSource',
+        'DefinedType', 'CommonForm', 'Form', 'FormData', 'SettingsStorage',
+        'ExchangePlan', 'Sequence',
+    )
+)
