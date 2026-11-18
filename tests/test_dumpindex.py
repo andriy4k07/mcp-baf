@@ -4,7 +4,7 @@ import codecs
 
 import pytest
 
-from mcp_baf.dumpindex import DumpIndex, SearchParams
+from mcp_baf.dumpindex import DumpIndex, Match, SearchParams
 
 BUILD_TIMEOUT = 30
 
@@ -325,6 +325,16 @@ def test_warm_cache_rebuilds_when_ext_roots_change(tmp_path):
         assert matches[0].module == "ext.Расш.ОбщийМодуль.М.Модуль"
     finally:
         idx.close()
+
+
+@pytest.mark.parametrize(("snippet", "fence_size"), [("// обычный код", 3), ("// ``` и `````", 6)])
+def test_search_result_fence_is_longer_than_backticks_in_snippet(snippet, fence_size):
+    from mcp_baf.tools.search_code import format_search_result
+
+    match = Match(module="ОбщийМодуль.Тест.Модуль", line=1, context=snippet)
+    out = format_search_result([match], 1, "тест", "exact")
+    fence = "`" * fence_size
+    assert out.splitlines()[3:6] == [f"{fence}bsl", snippet, fence]
 
 
 def test_partial_results_kept_on_budget_exhaustion(tmp_path, monkeypatch):
