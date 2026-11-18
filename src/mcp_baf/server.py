@@ -154,7 +154,7 @@ def create_server(config: Config) -> MCPServer:
     # dump-директория позволяет form-инструменту обогащать ответ из Form.xml.
     form.register(mcp, client, audit, config.dump_dir, config.mask_pii)
     validate_query.register(mcp, client, audit)
-    eventlog.register(mcp, client, audit, config.mask_pii)
+    eventlog.register(mcp, client, audit, config.mask_pii, config.techlog_dir)
     configuration_info.register(mcp, client, audit)
     bsl_help.register(mcp, audit)
     objects.register(mcp, client, audit, config.mask_pii)
