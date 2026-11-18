@@ -191,3 +191,40 @@ def test_rights_kinds_match_bsl_metadata_map():
 def test_references_incomplete_names_the_limit():
     text = objects.format_references(dict(hits=[], truncated=True, limit_reasons=["limit_per_meta", "timeout_budget_sec"]))
     assert "limit_per_meta" in text and "timeout_budget_sec" in text and "limit_hits" not in text
+
+
+def test_rights_as_user_preview_shows_rls_and_roles(tmp_path):
+    server, client, requests = setup_tools(tmp_path, dict(
+        rights=[dict(right='Чтение', subject='Ivanov', allowed=True, rls=True),
+                dict(right='Проведение', subject='Ivanov', allowed=False, rls=None)],
+        notes=['Предпросмотр по API прав платформы'], user_roles=['Продавець', 'Менеджер'],
+    ))
+    text = call(server, 'get_metadata_rights', metadata_object='Документ.Продажа', user_name='Ivanov')
+    assert '| Право | Пользователь / роль | Доступ | RLS |' in text
+    assert '| Чтение | Ivanov | да | есть ограничение |' in text
+    assert '| Проведение | Ivanov | нет | неизвестно |' in text
+    assert '`Продавець`, `Менеджер`' in text and 'Предпросмотр' in text
+    assert json.loads(requests[0].content)['user_name'] == 'Ivanov'
+    asyncio.run(client.aclose())
+
+
+def test_rights_without_user_has_no_rls_column(tmp_path):
+    server, client, _ = setup_tools(tmp_path, dict(rights=[dict(right='Чтение', subject='Текущий', allowed=True)], notes=[]))
+    text = call(server, 'get_metadata_rights', metadata_object='Документ.Продажа')
+    assert 'RLS |' not in text and 'Роли пользователя' not in text
+    asyncio.run(client.aclose())
+
+
+def test_rights_unknown_user_404_no_table(tmp_path):
+    server, client, _ = setup_tools(tmp_path, dict(error='Пользователь информационной базы не найден', code='user_not_found'), status=404)
+    with pytest.raises(Exception, match='не найден'):
+        call(server, 'get_metadata_rights', metadata_object='Документ.Продажа', user_name='Nobody')
+    asyncio.run(client.aclose())
+
+
+def test_rights_user_name_must_be_string(tmp_path):
+    server, client, requests = setup_tools(tmp_path, dict(rights=[], notes=[]))
+    with pytest.raises(Exception):
+        call(server, 'get_metadata_rights', metadata_object='Документ.Продажа', user_name=5)
+    assert not requests
+    asyncio.run(client.aclose())

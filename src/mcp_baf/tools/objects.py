@@ -159,7 +159,7 @@ def register(mcp, client, audit, mask_pii: bool = False):
             return f"## Объект\n\n[{label}]({output_link})\n\nТип: `{_required_str(r, 'kind', 'get_object_link')}`\nGUID: `{_required_str(r, 'ref', 'get_object_link')}`"
         return await traced_text(audit, "get_object_link", run, args={"mode": mode, "ref": ref, "kind": kind})
 
-    @mcp.tool(description="Права объекта метаданных для текущего HTTP-пользователя; user_name и roles требуют административных прав. metadata_object — Тип.Имя, тип принимается в английской (Catalog, Document) или русской (Справочник, Документ) форме. rights — имена прав платформы, пустой список использует типовые права объекта. Проверка RLS не выполняется. Недоступная проверка не означает отсутствие права.", annotations=ToolAnnotations(read_only_hint=True))
+    @mcp.tool(description="Права объекта метаданных для текущего HTTP-пользователя; user_name — предпросмотр эффективных прав и наличия RLS для пользователя ИБ (плюс имена его ролей) по API прав платформы, без выполнения запросов от его имени; user_name и roles требуют административных прав. metadata_object — Тип.Имя, тип принимается в английской (Catalog, Document) или русской (Справочник, Документ) форме. rights — имена прав платформы, пустой список использует типовые права объекта. Проверка RLS не выполняется. Недоступная проверка не означает отсутствие права.", annotations=ToolAnnotations(read_only_hint=True))
     async def get_metadata_rights(metadata_object: str, user_name: str = "", rights: list[str] | None = None, roles: list[str] | None = None) -> str:
         async def run():
             parts = metadata_object.split(".")
@@ -168,11 +168,19 @@ def register(mcp, client, audit, mask_pii: bool = False):
             if parts[0] not in METADATA_RIGHTS_KINDS:
                 raise ValueError("metadata_object: неизвестный тип; принимаются английские (Catalog, Document) и русские (Справочник, Документ) имена")
             r = await client.post("/metadata-rights", dict(metadata_object=metadata_object, user_name=user_name, rights=rights or [], roles=roles or []))
-            lines = ["## Права метаданных", "", "RLS-ограничения не анализируются.", "", "| Право | Пользователь / роль | Доступ |", "|---|---|---|"]
+            # Колонка RLS появляется только в предпросмотре «от имени user_name».
+            preview = any("rls" in row for row in r.get("rights", []))
+            lines = ["## Права метаданных", "", "RLS-ограничения не анализируются.", "", "| Право | Пользователь / роль | Доступ |" + (" RLS |" if preview else ""), "|---|---|---|" + ("---|" if preview else "")]
             for row in r.get("rights", []):
                 allowed = row.get("allowed")
                 value = "да" if allowed is True else "нет" if allowed is False else "проверка недоступна"
-                lines.append(f"| {escape_pipe(str(row.get('right', '')))} | {escape_pipe(str(row.get('subject', '')))} | {value} |")
+                rls = ""
+                if preview:
+                    flag = row.get("rls")
+                    rls = " " + ("есть ограничение" if flag is True else "нет" if flag is False else "неизвестно") + " |"
+                lines.append(f"| {escape_pipe(str(row.get('right', '')))} | {escape_pipe(str(row.get('subject', '')))} | {value} |{rls}")
+            if r.get("user_roles"):
+                lines.append("\nРоли пользователя: " + ", ".join(f"`{escape_pipe(str(x))}`" for x in r["user_roles"]))
             lines += [f"\n> {escape_pipe(n)}" for n in r.get("notes", [])]
             return "\n".join(lines)
         return await traced_text(audit, "get_metadata_rights", run, args={"metadata_object": metadata_object, "user_name": user_name, "rights": rights, "roles": roles})
