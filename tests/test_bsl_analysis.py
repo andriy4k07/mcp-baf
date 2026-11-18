@@ -510,3 +510,14 @@ def test_unknown_type_name_negative():
 def test_unknown_type_name_skips_dead_branch():
     src = 'Процедура А()\n#Если Ложь Тогда\n\tХ = Тип("Левый.Тип");\n#КонецЕсли\nКонецПроцедуры'
     assert _types(src) == []
+
+
+def test_plain_type_names_with_help(monkeypatch):
+    import mcp_baf.bsl_native as native
+    types = frozenset({'массив', 'array'})
+    src = 'Процедура П()\n А = Тип("Строка");\n Б = Тип("Нечто");\n В = Новый Массив;\n Г = Новый Нечто(1);\n Д = Новый("Нечто");\nКонецПроцедуры\n'
+    flagged = lambda s, k: [(d['line'], d['message']) for d in analyze(s, k) if d['code'] == 'UnknownTypeName']
+    assert flagged(src, types) == []  # меньше MIN_KNOWN_TYPES: проверка выключена
+    monkeypatch.setattr(native, 'MIN_KNOWN_TYPES', 2)
+    assert [line for line, _ in flagged(src, types)] == [3, 5]
+    assert flagged(src, None) == [] and flagged(src, frozenset()) == []

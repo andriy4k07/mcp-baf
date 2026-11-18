@@ -79,6 +79,11 @@ class Config:
     # Путь к выгрузке конфигурации (DumpConfigToFiles); включает search_code.
     dump_dir: str = ""
     help_dir: str = ""
+    # Гибридный поиск (BM25 + векторы); пустой embed_url = выключено.
+    embed_url: str = ""
+    embed_model: str = "qwen3-embedding"
+    rerank_url: str = ""
+    rerank_model: str = "qwen3-reranker"
     # Каталог технологического журнала 1С (локальный диск); включает
     # source="techlog" в get_event_log.
     techlog_dir: str = ""
@@ -243,6 +248,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--base", default="", help="Base URL of 1C HTTP service")
     parser.add_argument("--user", default="", help="1C HTTP service user")
     parser.add_argument("--help-dir", default="", help="Directory with platform .hbk help files")
+    parser.add_argument("--embed-url", default="", help="Embeddings endpoint (OpenAI /v1/embeddings); enables search_code mode=hybrid (needs mcp-baf[rag]). Code is sent to this server")
+    parser.add_argument("--embed-model", default="", help="Embedding model name (default qwen3-embedding)")
+    parser.add_argument("--rerank-url", default="", help="Reranker endpoint (/v1/rerank) for hybrid search; optional")
+    parser.add_argument("--rerank-model", default="", help="Reranker model name (default qwen3-reranker)")
     parser.add_argument(
         "--pass", "--password", dest="password", default="",
         help="1C HTTP service password (env mcp_baf_PASSWORD / "
@@ -503,6 +512,10 @@ def load_config(args: argparse.Namespace) -> Config:
         retry_non_idempotent=_env_bool("mcp_baf_RETRY_NON_IDEMPOTENT"),
         dump_dir=os.environ.get("mcp_baf_DUMP_DIR", ""),
         help_dir=os.environ.get("mcp_baf_HELP_DIR", ""),
+        embed_url=os.environ.get("mcp_baf_EMBED_URL", ""),
+        embed_model=os.environ.get("mcp_baf_EMBED_MODEL", "") or "qwen3-embedding",
+        rerank_url=os.environ.get("mcp_baf_RERANK_URL", ""),
+        rerank_model=os.environ.get("mcp_baf_RERANK_MODEL", "") or "qwen3-reranker",
         techlog_dir=os.environ.get("mcp_baf_TECHLOG_DIR", ""),
         audit_max_size_mib=_env_int(
             "mcp_baf_AUDIT_MAX_SIZE", DEFAULT_AUDIT_MAX_SIZE_MIB
@@ -533,6 +546,10 @@ def load_config(args: argparse.Namespace) -> Config:
     if args.dump:
         cfg.dump_dir = args.dump
     cfg.help_dir = args.help_dir or cfg.help_dir
+    cfg.embed_url = args.embed_url or cfg.embed_url
+    cfg.embed_model = args.embed_model or cfg.embed_model
+    cfg.rerank_url = args.rerank_url or cfg.rerank_url
+    cfg.rerank_model = args.rerank_model or cfg.rerank_model
     cfg.techlog_dir = args.techlog_dir or cfg.techlog_dir
     if cfg.techlog_dir and not os.path.isdir(cfg.techlog_dir):
         raise ConfigError(f"--techlog-dir: каталог не існує: {cfg.techlog_dir}")

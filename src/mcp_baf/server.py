@@ -107,6 +107,10 @@ def create_server(config: Config) -> MCPServer:
             cache_dir=config.cache_dir,
             reindex=config.reindex,
             show_progress=config.show_progress,
+            embed_url=config.embed_url,
+            embed_model=config.embed_model,
+            rerank_url=config.rerank_url,
+            rerank_model=config.rerank_model,
         )
 
     @asynccontextmanager
@@ -161,7 +165,7 @@ def create_server(config: Config) -> MCPServer:
     objects.register(mcp, client, audit, config.mask_pii)
     if help_index is not None:
         platform_help.register(mcp, help_index, audit)
-    bsl_analysis.register(mcp, audit)
+    bsl_analysis.register(mcp, audit, help_index)
     prompts.register(mcp)
 
     # Схемы инструментов чистятся в AccessMCP.list_tools (публичный метод SDK,

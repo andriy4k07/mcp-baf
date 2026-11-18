@@ -235,3 +235,25 @@ def test_stale_help_build_removed_and_close_has_timeout(tmp_path):
     assert not stale.exists() and fresh.exists()
     index.close()
     index.close()  # повторный close не падает и не виснет
+
+
+def test_bom_title_and_type_names(tmp_path):
+    bom = '﻿'
+    page = lambda title: bom + f'<html><body><h1 class="V8SH_pagetitle">{title}</h1><p>текст</p></body></html>'
+    assert parse_page(page('Массив (Array)'), 'a.html')[0] == 'Массив (Array)'
+    root = tmp_path / '8.3.14'
+    root.mkdir()
+    (root / 'shcntx_ru.hbk').write_bytes(make_hbk({
+        'objects/catalog1/catalog2/Array.html': page('Массив (Array)'),
+        'objects/catalog1/catalog2/Array/methods/Add.html': page('Добавить (Add)'),
+        'objects/catalog1/catalog3/MetadataObject.html': page('ОбъектМетаданных: Форма (MetadataObject: Form)'),
+        'objects/Global context/Foo.html': page('Глобал (Foo)'),
+        'objects/catalog1/catalog2.html': page('Раздел (Section)'),
+    }))
+    index = HelpIndex(str(root), str(tmp_path / 'cache'))
+    assert index.wait_ready(5) and index.error is None
+    try:
+        assert index.type_names() == {'массив', 'array', 'объектметаданных', 'metadataobject'}
+        assert index.get('Массив')[0]['title'] == 'Массив (Array)'
+    finally:
+        index.close()
