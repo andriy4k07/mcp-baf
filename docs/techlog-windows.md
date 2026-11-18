@@ -48,8 +48,11 @@ mcp-baf --install-service --base http://localhost/baf/hs/mcp-baf --transport htt
 `mcp_baf_HTTP_TOKEN`, `--pass`, `--http-token`). Вона пише
 `<cache-dir>\run-mcp-baf.cmd` (усі `mcp_baf_*` змінні сесії + команда запуску;
 вивід — у `server-console.log`), створює завдання `mcp-baf` (SYSTEM, при старті
-ОС) і запускає його. Перевірити: `schtasks /query /tn mcp-baf`. Зупинити:
-`mcp-baf --stop --cache-dir C:\mcp-baf\cache` або `schtasks /end /tn mcp-baf`.
+ОС) і запускає його. Перевірити: `mcp-baf --status`; журнал служби —
+`mcp-baf --logs` (`server` — помилки, `audit` — виклики й відмови 1С; Ctrl+C —
+вихід). Зупинити: `mcp-baf --stop` або `schtasks /end /tn mcp-baf`. Після
+`--install-service` ці команди самі знаходять каталог служби, `--cache-dir` не потрібен.
+Шпаргалка зі змінними для служби — наприкінці `mcp-baf --help`.
 Видалити: `mcp-baf --uninstall-service`. Без `--tls-cert/--tls-key` створюється
 локальний CA в `<cache-dir>\tls\` (його сертифікат потрібно довірити клієнтам);
 для спільного використання краще вказати свій сертифікат.

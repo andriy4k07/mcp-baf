@@ -160,6 +160,10 @@ def main() -> None:
 
     if args.stop:
         sys.exit(service.stop(args.cache_dir))
+    if args.status:
+        sys.exit(service.status(args.cache_dir))
+    if args.logs:
+        sys.exit(service.logs(args.logs, args.cache_dir))
     if args.uninstall_service:
         sys.exit(service.uninstall_service())
     try:

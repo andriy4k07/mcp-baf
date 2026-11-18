@@ -54,7 +54,7 @@
 - `--reindex`, `--debug`, `--quiet`, `--verbose` задаються **тільки** прапором
   CLI — окремої змінної оточення саме під ці прапори немає (у `--quiet` є
   окремий, не однойменний, env-перемикач `mcp_baf_NO_TTY` — див. нижче).
-- `--stop`, `--install-service`, `--uninstall-service` — **тільки CLI**
+- `--stop`, `--status`, `--logs`, `--install-service`, `--uninstall-service` — **тільки CLI**
   (зупинка за `<cache-dir>/mcp-baf.pid` і служба Windows,
   див. [techlog-windows.md](techlog-windows.md)).
 - Усі прапори режиму встановлення (`--install`, `--lang`, `--server`,
