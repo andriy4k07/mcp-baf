@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import sys
 from dataclasses import dataclass
@@ -146,24 +147,29 @@ def _env_int_nonneg(name: str, default: int) -> int:
 
 
 def _env_float(name: str, default: float) -> float:
-    """Читает неотрицательное число из переменной окружения."""
+    """Читает конечное неотрицательное число из переменной окружения."""
     value = os.environ.get(name, "").strip()
     try:
         n = float(value)
     except ValueError:
         return default
-    return n if n >= 0 else default
+    return n if math.isfinite(n) and n >= 0 else default
 
 
 _TRUE = ("1", "true", "yes", "on")
+_FALSE = ("0", "false", "no", "off")
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
-    """Читает булев флаг из переменной окружения (1/true/yes/on)."""
-    value = os.environ.get(name)
-    if value is None or not value.strip():
+    """Читает булев флаг из переменной окружения."""
+    value = os.environ.get(name, "").strip().lower()
+    if not value:
         return default
-    return value.strip().lower() in _TRUE
+    if value in _TRUE:
+        return True
+    if value in _FALSE:
+        return False
+    raise ConfigError(f"{name}: ожидается 1/true/yes/on или 0/false/no/off")
 
 
 def _env_secret(name: str) -> str:

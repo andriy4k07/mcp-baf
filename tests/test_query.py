@@ -141,6 +141,13 @@ def test_escape_pipe_escapes_backslash_first():
     assert format_cell("x\\|y") == "x\\\\\\|y"
 
 
+def test_query_column_heading_stays_on_one_line():
+    out = query.format_query_result(
+        {"columns": ["a\r\nb\rc\nd|e"], "rows": [["value"]]},
+    )
+    assert "| a b c d\\|e |" in out.splitlines()
+
+
 def test_long_cell_is_capped_with_marker():
     assert format_cell("б" * MAX_CELL_CHARS) == "б" * MAX_CELL_CHARS
     assert format_cell("б" * (MAX_CELL_CHARS + 500)) == "б" * MAX_CELL_CHARS + "…"

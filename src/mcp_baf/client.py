@@ -18,6 +18,7 @@ if TYPE_CHECKING:  # тип только для подсказок — без о
     from mcp_baf_audit import AuditWriter
 
 _MIB = 1 << 20
+_MAX_RETRY_BACKOFF = 30
 
 # Клиенту показываем лишь короткий фрагмент тела ошибки 1С: полный ответ
 # может содержать данные базы (ПДн, тексты документов) и не нужен агенту.
@@ -191,6 +192,7 @@ class OneCClient:
         # В аудит уходит только тип ошибки (и статус), но не её текст.
         state: dict[str, Any] = {"status": None, "bytes": 0, "error_kind": None}
         attempts = 0
+        retry_delay = min(self._retry_backoff, _MAX_RETRY_BACKOFF)
         # Дедлайн — на весь вызов: все попытки и backoff вместе. Read-таймаут
         # httpx считается на чанк, так что «капающий» ответ пережил бы любой
         # retry-цикл; request_deadline ставит потолок. 0 — без дедлайна.
@@ -212,8 +214,8 @@ class OneCClient:
                             # итог последней попытки.
                             if attempts > retries:
                                 raise
-                            # Экспоненциальный backoff: backoff, 2*backoff, 4*backoff...
-                            await asyncio.sleep(self._retry_backoff * (2 ** (attempts - 1)))
+                            await asyncio.sleep(retry_delay)
+                            retry_delay = min(retry_delay * 2, _MAX_RETRY_BACKOFF)
                         except OneCError:
                             raise
                 except asyncio.CancelledError:

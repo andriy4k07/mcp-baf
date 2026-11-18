@@ -87,7 +87,7 @@ def format_references(result: dict, mask_pii: bool = False) -> str:
             cells = [str(h.get(k, "")) for k in ("found_in_object", "path", "match_kind")]
             if mask_pii:
                 cells[0] = mask_pii_text(cells[0])
-            lines.append("| " + " | ".join(escape_pipe(c).replace("\n", " ") for c in cells) + " |")
+            lines.append("| " + " | ".join(escape_pipe(c) for c in cells) + " |")
     if not groups:
         lines.append("Совпадений в проверенных областях не найдено.")
     if result.get("timeout_exceeded") or result.get("truncated") or result.get("skipped_names"):

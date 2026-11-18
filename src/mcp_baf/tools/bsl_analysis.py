@@ -22,7 +22,7 @@ def register(mcp, audit):
             hits = [d for d in diagnostics if d["level"] in selected and (not diagnostic_codes or d["code"] in diagnostic_codes)]
             lines = [f"## BSL: {len(hits)} диагностик по фильтрам (всего {len(diagnostics)})", "", "> Базовые проверки фрагмента на Python; отсутствие диагностик не подтверждает компиляцию на платформе.", "", "| Строка:колонка | Уровень | Код | Сообщение |", "|---|---|---|---|"]
             for d in hits[:limit]:
-                lines.append(f"| {d['line']}:{d['column']} | {d['level']} | {escape_pipe(d['code'])} | {escape_pipe(d['message']).replace(chr(10), ' ')} |")
+                lines.append(f"| {d['line']}:{d['column']} | {d['level']} | {escape_pipe(d['code'])} | {escape_pipe(d['message'])} |")
             if len(hits) > limit:
                 lines.append(f"\n> Показаны первые {limit} диагностик.")
             return "\n".join(lines)
