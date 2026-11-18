@@ -12,7 +12,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 from mcp_baf_audit import AuditWriter, get_trace_id, new_trace_id, set_trace_id
 
-from mcp_baf.client import OneCClient
+from mcp_baf.client import OneCClient, OneCError
 from mcp_baf.tools.common import CLIENT_VISIBLE_ERRORS, traced_text
 
 # Ключи соответствуют GET /capabilities; локальные инструменты здесь отсутствуют.
@@ -49,6 +49,34 @@ def capabilities_failure_reason(exc: BaseException) -> str:
     """
     match = _REASON_RE.search(str(exc))
     return match.group(1) if match else ""
+
+
+_STATUS_RE = re.compile(r"^1C returned status (\d+)")
+_STATUS_CAUSES = {
+    401: "невірний логін/пароль HTTP-користувача",
+    404: "немає HTTP-сервісу/розширення за --base",
+}
+
+
+def capabilities_failure_cause(exc: BaseException) -> str:
+    """Короткая безопасная причина сбоя `/capabilities` для агента.
+
+    Транспортный текст уже прошёл scrub_error_detail в клиенте; для HTTP-статуса
+    берём только код: тело ответа 1С может содержать данные базы.
+    """
+    text = str(exc)
+    if isinstance(exc, TimeoutError) and not text:
+        return "таймаут ответа 1С (15 с)"
+    if not isinstance(exc, OneCError):
+        return ""
+    if match := _STATUS_RE.match(text):
+        status = int(match.group(1))
+        hint = _STATUS_CAUSES.get(status)
+        return f"HTTP {status}" + (f" ({hint})" if hint else "")
+    prefix = "executing request to 1C: "
+    if text.startswith(prefix):
+        return text[len(prefix):][:150]
+    return ""
 
 
 def strip_schema_titles(schema: dict) -> None:
@@ -147,6 +175,10 @@ class AccessMCP(MCPServer):
                     "права HTTP-пользователя и установите расширение 0.6.0 или новее."
                     + (f" Причина 1С: {reason_code}." if reason_code else "")
                 )
+                if cause := capabilities_failure_cause(exc):
+                    self._access_error += f" Причина: {cause}."
+                if self.techlog_offline and not reason_code:
+                    self._access_error += ' Доступно без 1С: get_event_log(source="techlog").'
                 # Причину отказа нельзя терять: без неё в аудите «нет связи»,
                 # «нет расширения» и «нет права» выглядят одинаково. Пишем класс
                 # и первые 300 символов ошибки клиента (URL и пароль в него не
