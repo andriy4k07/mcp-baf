@@ -37,6 +37,8 @@
   кеш і NFC-нормалізація на macOS.
 - **[Логування та аудит](logging-and-audit.md)** — `audit.log` (JSONL, бізнес-події)
   та `server.log` (операційний), подія `one_c.http`, наскрізний `trace_id`, ротація.
+- **[Техжурнал і служба Windows](techlog-windows.md)** — `logcfg.xml`, служба на
+  сервері 1С (`--install-service`, `--status`, `--logs`), клієнти, типові помилки.
 - **[Розробка](development.md)** — тести, структура проєкту, згенерований код,
   правило синхронізації версій розширення, робочий процес.
 - **[Сумісність](compatibility.md)** — AI-клієнти, операційні системи, версії
@@ -52,6 +54,7 @@
 | При зміні `extension_src/` бампати **і** версію розширення, **і** `EXPECTED_EXTENSION_VERSION` | [development.md](development.md) |
 | HTTP-сервіси 1С на macOS не підтримуються (сам пакет і `--install` — працюють) | [compatibility.md](compatibility.md) |
 | Мінімальна версія платформи 1С — **8.3.10** | [compatibility.md](compatibility.md) |
+| Служба Windows бачить секрети лише з файлів (`*_FILE`); видно лише `get_event_log` — служба не авторизується в 1С | [techlog-windows.md](techlog-windows.md) |
 
 ## Версія
 
