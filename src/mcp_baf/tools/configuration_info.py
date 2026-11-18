@@ -51,7 +51,7 @@ def format_configuration_info(info: dict[str, Any]) -> str:
         if value:
             # Значения приходят из конфигурации: экранируем трубу и переводы строк,
             # иначе одна ячейка ломает всю markdown-таблицу.
-            cell = escape_pipe(str(value)).replace("\r", " ").replace("\n", " ")
+            cell = escape_pipe(str(value))
             lines.append(f"| {escape_pipe(key)} | {cell} |")
 
     add_row("Конфигурация", info.get("name", ""))
