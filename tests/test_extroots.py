@@ -264,3 +264,45 @@ def test_symlinked_manifest_outside_dump_refused(tmp_path):
     ext_dir.mkdir(parents=True)
     (ext_dir / "Configuration.xml").symlink_to(outside)
     assert discover_extension_roots(str(dump)) == {}
+
+
+# ── EDT-проекты (.mdo) ──
+# shortcut: фикстуры синтетические, по памяти о формате EDT; сверить с реальной выгрузкой.
+MDO_EXT = """<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:Configuration xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" uuid="a1" name="{name}">
+  <configurationExtensionPurpose>AddOn</configurationExtensionPurpose>
+  <namePrefix>Рс_</namePrefix>
+</mdclass:Configuration>
+"""
+MDO_MAIN = """<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:Configuration xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" uuid="a0" name="{name}">
+  <defaultRunMode>ManagedApplication</defaultRunMode>
+</mdclass:Configuration>
+"""
+
+
+def mk_edt(root, rel_dir, tmpl, name="X"):
+    mk(root, f"{rel_dir}/DT-INF/PROJECT.PMF", "Runtime-Version: 8.3.24\n")
+    mk(root, f"{rel_dir}/src/Configuration/Configuration.mdo", tmpl.format(name=name))
+
+
+def test_edt_wrapper_with_config_and_extension(tmp_path):
+    mk_edt(tmp_path, "cfg", MDO_MAIN, name="БАС")
+    mk_edt(tmp_path, "ext", MDO_EXT, name="Расш")
+    roots = discover_extension_roots(str(tmp_path))
+    assert roots == {"ext": "Расш", "cfg": ""}
+    assert resolve_module_name("ext/src/Documents/Док/ObjectModule.bsl", roots) == \
+        "ext.Расш.Документ.Док.МодульОбъекта"
+    assert resolve_module_name("cfg/src/Catalogs/Товары/ObjectModule.bsl", roots) == \
+        "Справочник.Товары.МодульОбъекта"
+
+
+def test_edt_nested_two_levels(tmp_path):
+    mk_edt(tmp_path, "wrap/ext", MDO_EXT, name="Расш")
+    assert discover_extension_roots(str(tmp_path)) == {"wrap/ext": "Расш"}
+
+
+def test_edt_project_root_itself_not_scanned(tmp_path):
+    mk_edt(tmp_path, ".", MDO_MAIN, name="БАС")
+    mk(tmp_path, "src/Catalogs/Товары/ObjectModule.bsl")
+    assert discover_extension_roots(str(tmp_path)) == {}
