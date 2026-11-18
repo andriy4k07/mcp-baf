@@ -18,6 +18,7 @@ import time
 from mcp_baf.dumpindex.modulenames import nfc
 
 INDEX_DB_NAME = "index.db"
+VECTORS_DB_NAME = "vectors.db"
 
 
 def user_cache_dir() -> str:
@@ -43,6 +44,10 @@ def cache_path(dump_dir: str, cache_dir: str = "") -> str:
 
 def index_db_path(dump_dir: str, cache_dir: str = "") -> str:
     return os.path.join(cache_path(dump_dir, cache_dir), INDEX_DB_NAME)
+
+
+def vectors_db_path(dump_dir: str, cache_dir: str = "") -> str:
+    return os.path.join(cache_path(dump_dir, cache_dir), VECTORS_DB_NAME)
 
 
 def remove_stale(prefix: str, max_age: float) -> None:

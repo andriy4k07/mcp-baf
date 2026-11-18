@@ -22,8 +22,11 @@ from mcp_baf.dumpindex.synonyms import build_synonym_map
 from mcp_baf.helpindex.hbk import read_pages
 
 SECTIONS = ("functions", "types", "operators", "vtables", "skd")
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 BLOCK_TAGS = {"p", "div", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6", "pre", "table", "ul", "ol", "dt", "dd"}
+# Сегменты пути, после которых страница описывает член типа, а не сам тип.
+MEMBER_SEGMENTS = {"methods", "properties", "events", "ctors", "formparams", "fields", "params"}
+TYPE_TITLE = re.compile(r"(\w+) \((\w+)\)")
 # Части CamelCase-имени: СтрНайти → Стр, Найти; HTTPСоединение → HTTP, Соединение.
 NAME_PARTS = re.compile(r"[A-ZА-ЯЁІЇЄҐ]+(?![a-zа-яёіїєґ])|[A-ZА-ЯЁІЇЄҐ][a-zа-яёіїєґ\d]+")
 
@@ -71,7 +74,8 @@ class PageParser(HTMLParser):
 
 def parse_page(html: str, path: str) -> tuple[str, str, str, str]:
     parser = PageParser()
-    parser.feed(html)
+    # BOM перед <html> в реальных HBK иначе становится «заголовком» страницы.
+    parser.feed(html.lstrip("\ufeff"))
     content = "\n".join(x.strip() for x in "".join(parser.text).splitlines() if x.strip())
     title = " ".join(parser.title).strip() or (content.splitlines() or [Path(path).stem])[0]
     # Сохраняем обе языковые формы из заголовка; имена методов с типом не сокращаем.
@@ -105,6 +109,7 @@ class HelpIndex:
         self._lock = threading.Lock()
         self._connection = None
         self.error: Exception | None = None
+        self._type_names = None
         self._thread = threading.Thread(target=self._build, args=(reindex,), daemon=True)
         self._thread.start()
 
@@ -223,6 +228,23 @@ class HelpIndex:
             cursor = self._connection.execute("SELECT * FROM pages WHERE (name_key=? OR instr(' ' || aliases || ' ', ' ' || ? || ' ')>0) AND (?='' OR source=?) ORDER BY source LIMIT 20", (normalize(name), normalize(name), source, source))
             names = [d[0] for d in cursor.description]
             return [dict(zip(names, row)) for row in cursor.fetchall()]
+
+    def type_names(self) -> frozenset:
+        """Имена типов контекста (ru и en, casefold); пусто, пока индекс не готов."""
+        if not self._ready.is_set() or self.error or self._connection is None:
+            return frozenset()
+        with self._lock:
+            if self._type_names is None and self._connection is not None:
+                names = set()
+                for source, title in self._connection.execute("SELECT source, title FROM pages WHERE source LIKE '%::objects/%'"):
+                    parts = source.split("::", 1)[1].split("/")
+                    if (len(parts) > 2 and not MEMBER_SEGMENTS & set(parts) and parts[1] != "Global context"
+                            and not re.fullmatch(r"catalog\d+\.html", parts[-1])):
+                        # «ОбъектМетаданных: Форма (MetadataObject: Form)» — тип назван до двоеточия.
+                        names |= {normalize(n) for m in TYPE_TITLE.findall(title) for n in m}
+                        names |= {normalize(n) for n in re.findall(r"(?:^|\()(\w+):", title)}
+                self._type_names = frozenset(names)
+            return self._type_names or frozenset()
 
     def close(self):
         self._stop.set()

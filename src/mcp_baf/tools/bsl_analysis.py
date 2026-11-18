@@ -11,14 +11,14 @@ from mcp_baf.bsl_native import analyze, format_source
 from mcp_baf.tools.common import escape_pipe, traced_text, truncate_output
 
 
-def register(mcp, audit):
-    @mcp.tool(description="Базовый анализ текста BSL встроенным Python-анализатором: ParseError, DuplicateParameter, DuplicateVariable, UnusedLocalVariable, UnreachableCode, EmptyExcept, TrailingWhitespace, LineLength, ReservedDeclarationName, LatinAndCyrillicSymbolInWord, UnknownGlobalCall (information: вызов без получателя, не найденный в фрагменте и глобальном контексте), UnknownTypeName (information: Тип(Префикс.Имя) с неизвестным префиксом вида метаданных). src — код, не путь. levels: error, warning, information, hint; diagnostic_codes — фильтр кодов. Это ограниченные проверки фрагмента, не компилятор и не полный BSL Language Server; условия препроцессора вычисляются лишь частично: ветви #Если с ложным или невычислимым условием не дают ReservedDeclarationName. Файлы пользователя не изменяются.", annotations=ToolAnnotations(read_only_hint=True))
+def register(mcp, audit, help_index=None):
+    @mcp.tool(description="Базовый анализ текста BSL встроенным Python-анализатором: ParseError, DuplicateParameter, DuplicateVariable, UnusedLocalVariable, UnreachableCode, EmptyExcept, TrailingWhitespace, LineLength, ReservedDeclarationName, LatinAndCyrillicSymbolInWord, UnknownGlobalCall (information: вызов без получателя, не найденный в фрагменте и глобальном контексте), UnknownTypeName (information: Тип(Префикс.Имя) с неизвестным префиксом вида метаданных; при --help-dir также простые Тип(«X») и Новый X, отсутствующие в справке платформы). src — код, не путь. levels: error, warning, information, hint; diagnostic_codes — фильтр кодов. Это ограниченные проверки фрагмента, не компилятор и не полный BSL Language Server; условия препроцессора вычисляются лишь частично: ветви #Если с ложным или невычислимым условием не дают ReservedDeclarationName. Файлы пользователя не изменяются.", annotations=ToolAnnotations(read_only_hint=True))
     async def bsl_analyze(src: str, levels: list[Literal["error", "warning", "information", "hint"]] | None = None, diagnostic_codes: list[str] | None = None, limit: Annotated[int, Field(ge=1, le=500)] = 50) -> str:
         async def run():
             selected = ["error", "warning"] if levels is None else levels
             if not selected:
                 raise ValueError("levels: error, warning, information, hint; список не может быть пустым")
-            diagnostics = await asyncio.to_thread(analyze, src)
+            diagnostics = await asyncio.to_thread(analyze, src, help_index.type_names() if help_index else None)
             hits = [d for d in diagnostics if d["level"] in selected and (not diagnostic_codes or d["code"] in diagnostic_codes)]
             lines = [f"## BSL: {len(hits)} диагностик по фильтрам (всего {len(diagnostics)})", "", "> Базовые проверки фрагмента на Python; отсутствие диагностик не подтверждает компиляцию на платформе.", "", "| Строка:колонка | Уровень | Код | Сообщение |", "|---|---|---|---|"]
             for d in hits[:limit]:

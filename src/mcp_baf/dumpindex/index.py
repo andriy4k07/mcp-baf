@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 
 import regex  # PyPI: поддерживает timeout= прямо внутри поиска (защита от ReDoS)
 
-from mcp_baf.dumpindex.cache import index_db_path, remove_stale
+from mcp_baf.dumpindex.cache import index_db_path, remove_stale, vectors_db_path
 from mcp_baf.dumpindex.dcs import extract_dcs_text, is_dcs_candidate, ROOT_PROBE, usage_pattern
 from mcp_baf.dumpindex.extroots import discover_extension_roots
 from mcp_baf.dumpindex.modulenames import (
@@ -103,6 +103,10 @@ STALE_BUILD_AGE = 600.0
 # Сколько модулей читается и вставляется за один проход полной сборки.
 BUILD_BATCH = 500
 _MAX_BSL_BYTES = 8 << 20
+# hybrid: сколько кандидатов берётся из BM25 и из векторов, и сколько уходит в реранкер.
+HYBRID_TOP = 50
+RERANK_TOP = 30
+HYBRID_CONTEXT = 5
 # Сколько модулей regex/exact-скан забирает из SQLite за одно взятие _db_lock.
 SCAN_BATCH = 100
 
@@ -111,6 +115,7 @@ class Matches(list):
     """Список совпадений; `truncated` — скан прерван по бюджету времени."""
 
     truncated: bool = False
+    note: str = ""  # пояснение для клиента (например, векторный индекс ещё строится)
 
 
 @dataclass
@@ -164,6 +169,10 @@ class DumpIndex:
         reindex: bool = False,
         use_cache: bool = True,
         show_progress: bool = False,
+        embed_url: str = "",
+        embed_model: str = "qwen3-embedding",
+        rerank_url: str = "",
+        rerank_model: str = "qwen3-reranker",
     ) -> None:
         self._dir = dump_dir
         self._db_path = index_db_path(dump_dir, cache_dir) if use_cache else ""
@@ -181,6 +190,21 @@ class DumpIndex:
         # rel_dir -> имя расширения из вложенного Configuration.xml;
         # заполняется в _build перед выводом ключей (см. dumpindex.extroots).
         self._ext_roots: dict[str, str] = {}
+        self._rerank_url = rerank_url
+        self._rerank_model = rerank_model
+        self._vectors = None
+        if embed_url:
+            from mcp_baf.dumpindex.vectors import VectorIndex  # numpy нужен только здесь
+
+            self._vectors = VectorIndex(
+                embed_url, embed_model,
+                vectors_db_path(dump_dir, cache_dir) if use_cache else "",
+            )
+            if use_cache:
+                os.makedirs(os.path.dirname(self._vectors._db_path), exist_ok=True)
+            threading.Thread(
+                target=self._build_vectors, name="dump-vector-build", daemon=True
+            ).start()
         self._thread = threading.Thread(
             target=self._build, name="dump-index-build", daemon=True
         )
@@ -226,6 +250,42 @@ class DumpIndex:
                     self._close_db()
         except Exception as exc:  # noqa: BLE001 — ошибка отдаётся из search()
             self._build_error = exc
+
+    def _build_vectors(self) -> None:
+        """Векторный индекс строится после готовности FTS: читает модули пачками."""
+        while not self._ready.wait(1.0):
+            if self._closed or self._build_error is not None:
+                return
+
+        def batches():
+            last = 0
+            while not self._closed:
+                with self._db_lock:
+                    rows = self._require_db().execute(
+                        "SELECT id, name, category, module, content FROM docs "
+                        "WHERE id > ? ORDER BY id LIMIT ?", (last, SCAN_BATCH),
+                    ).fetchall()
+                if not rows:
+                    return
+                last = rows[-1][0]
+                yield rows
+
+        self._vectors.build(batches(), lambda: self._closed)
+
+    def wait_vectors(self, timeout: float | None = None) -> bool:
+        """Ждёт готовности векторного индекса; False — не включён, ошибка или таймаут."""
+        vi = self._vectors
+        if vi is None:
+            return False
+        deadline = None if timeout is None else time.monotonic() + timeout
+        # ready ставится только при успехе: ошибку сборки ловим опросом, а не ждём таймаут.
+        while not vi.ready.wait(1.0):
+            if vi.error is not None or (deadline is not None and time.monotonic() >= deadline):
+                return False
+        return True
+
+    def has_vectors(self) -> bool:
+        return self._vectors is not None
 
     def _build_under_lock(self) -> None:
         # Лок на весь цикл open/build: два процесса (сервер + дашборд)
@@ -682,6 +742,10 @@ class DumpIndex:
 
         if params.mode == "smart":
             return self._search_smart(params)
+        if params.mode == "hybrid":
+            if self._vectors is None:
+                raise ValueError("hybrid mode is disabled: start with --embed-url")
+            return self._search_hybrid(params)
         if params.mode == "regex":
             pattern = _compile_user_regex(params.query)
             return self._search_line_by_line(
@@ -804,6 +868,79 @@ class DumpIndex:
             )
 
         return matches, total
+
+    def _search_hybrid(self, params: SearchParams) -> tuple[list[Match], int]:
+        """BM25 + векторы -> RRF по чанкам-методам -> (опционально) реранкер."""
+        from mcp_baf.dumpindex import vectors as vx
+
+        vi = self._vectors
+        bm25 = self._search_smart(
+            SearchParams(params.query, params.category, params.module, "smart", HYBRID_TOP)
+        )[0]
+        if not vi.ready.is_set():
+            out = Matches(bm25[:params.limit])
+            out.note = (
+                f"векторный индекс недоступен: {vi.error}" if vi.error
+                else f"векторный индекс строится: {vi.done}/{vi.total}; показан только BM25"
+            )
+            return out, len(bm25)
+
+        # Кандидат: ключ = (модуль, начало метода) либо (модуль, строка) вне методов.
+        cands: dict[tuple, Match] = {}
+        bm25_keys = []
+        for m in bm25:
+            ci = vi.chunk_at(m.module, m.line)
+            key = (m.module, vi.chunks[ci].start) if ci is not None else (m.module, m.line)
+            if key not in cands:
+                bm25_keys.append(key)
+                cands[key] = m
+        vec_keys = []
+        for ci in vi.search(params.query, HYBRID_TOP, params.category, params.module):
+            c = vi.chunks[ci]
+            key = (c.module, c.start)
+            vec_keys.append(key)
+            if key not in cands:
+                cands[key] = Match(c.module, c.start, "", 0.0)
+        fused = vx.rrf_fuse([bm25_keys, vec_keys])
+
+        top = fused[:RERANK_TOP if self._rerank_url else params.limit]
+        content_cache: dict[str, str] = {}
+
+        def source(module: str) -> str:
+            if module not in content_cache:
+                with self._db_lock:
+                    row = self._require_db().execute(
+                        "SELECT content FROM docs WHERE name = ?", (module,)
+                    ).fetchone()
+                content_cache[module] = row[0] if row else ""
+            return content_cache[module]
+
+        def text_of(key: tuple) -> str:
+            m = cands[key]
+            for start, _, text in vx.chunk_module(key[0], source(key[0])):
+                if start == key[1]:
+                    return text
+            return m.context or key[0]
+
+        for key, score in top:
+            m = cands[key]
+            if not m.context:
+                m.context = _extract_context(source(key[0]).split("\n"), m.line - 1, HYBRID_CONTEXT)
+            m.score = score
+        final = [cands[k] for k, _ in top]
+        if self._rerank_url and final:
+            try:
+                scores = vx.rerank_scores(
+                    self._rerank_url, self._rerank_model, params.query,
+                    [text_of(k) for k, _ in top],
+                )
+                order = sorted(range(len(final)), key=lambda i: -scores[i])
+                for i in order:
+                    final[i].score = scores[i]
+                final = [final[i] for i in order]
+            except Exception as exc:  # noqa: BLE001 — реранкер необязателен, остаёмся на RRF
+                logger.warning("Rerank failed, using RRF order: %s", exc)
+        return Matches(final[:params.limit]), len(fused)
 
     def _search_line_by_line(
         self,
