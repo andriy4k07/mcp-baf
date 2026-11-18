@@ -138,6 +138,7 @@ def create_server(config: Config) -> MCPServer:
         version=__version__,
         access_client=client,
         audit=audit,
+        techlog_offline=bool(config.techlog_dir),
         instructions=_INSTRUCTIONS,
         lifespan=lifespan,
         # Подсказка клиентам (2026-07-28): список зависит от прав пользователя 1С
