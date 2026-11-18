@@ -97,6 +97,7 @@ LOCKED_RETRIES = 3
 STALE_BUILD_AGE = 600.0
 # Сколько модулей читается и вставляется за один проход полной сборки.
 BUILD_BATCH = 500
+_MAX_BSL_BYTES = 8 << 20
 # Сколько модулей regex/exact-скан забирает из SQLite за одно взятие _db_lock.
 SCAN_BATCH = 100
 
@@ -325,6 +326,9 @@ class DumpIndex:
                     st = os.stat(abs_path)
                 except OSError:
                     continue
+                if st.st_size > _MAX_BSL_BYTES:
+                    logger.warning("Пропущен BSL-файл больше 8 MiB: %s", abs_path)
+                    continue
                 rel = os.path.relpath(abs_path, self._dir).replace("\\", "/")
                 files[rel] = _FileState(
                     abs_path=abs_path,
@@ -336,11 +340,15 @@ class DumpIndex:
     @staticmethod
     def _read_content(abs_path: str) -> str | None:
         try:
-            # utf-8-sig срезает BOM, который 1С ставит в начало файла.
-            with open(abs_path, encoding="utf-8-sig", errors="replace") as f:
-                return f.read()
+            # Файл мог вырасти после _walk_files, поэтому ограничиваем само чтение.
+            with open(abs_path, "rb") as f:
+                data = f.read(_MAX_BSL_BYTES + 1)
         except OSError:
             return None  # нечитаемые файлы пропускаются
+        if len(data) > _MAX_BSL_BYTES:
+            logger.warning("Пропущен BSL-файл больше 8 MiB: %s", abs_path)
+            return None
+        return data.decode("utf-8-sig", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
 
     def _populate(self, db: sqlite3.Connection) -> None:
         """Создаёт схему и наполняет базу пачками по BUILD_BATCH модулей.
