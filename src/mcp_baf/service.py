@@ -205,7 +205,10 @@ def start_key_listener(on_background) -> None:
 def spawn_detached(cache_dir: str) -> subprocess.Popen:
     """Запускает отсоединённую копию сервера с теми же аргументами."""
     log_path = os.path.join(cache_dir, CONSOLE_LOG_NAME)
-    flags = (subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    # Не DETACHED_PROCESS: python.exe из venv — лаунчер, его дочерний интерпретатор
+    # без консоли получил бы новое окно. CREATE_NO_WINDOW даёт скрытую консоль,
+    # которую наследуют оба процесса; закрытие исходного окна их не задевает.
+    flags = (subprocess.CREATE_NEW_PROCESS_GROUP
              | subprocess.CREATE_NO_WINDOW) if os.name == "nt" else 0
     with open(log_path, "ab") as log:
         return subprocess.Popen(
@@ -213,6 +216,23 @@ def spawn_detached(cache_dir: str) -> subprocess.Popen:
             stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
             creationflags=flags, close_fds=True,
             env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+
+
+def wait_child_pid(cache_dir: str, fallback: int, timeout: float = 10.0) -> int:
+    """PID настоящего интерпретатора из PID-файла фоновой копии.
+
+    Popen.pid на Windows — лаунчер venv, а --stop работает по PID-файлу;
+    ждём, пока копия его запишет, чтобы показать тот же PID.
+    """
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        pid = _read_pid(cache_dir)
+        if pid and pid != os.getpid():
+            return pid
+        time.sleep(0.2)
+    return fallback
 
 
 # ── Служба Windows (Планировщик заданий) ──

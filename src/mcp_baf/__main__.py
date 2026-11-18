@@ -431,7 +431,7 @@ def _run_http(server, config: Config, tls: tuple[str, str] | None) -> None:
         service.remove_pid(cache_dir)
     if background:
         child = service.spawn_detached(cache_dir)
-        print(f"Сервер працює у фоні, PID {child.pid}\n"
+        print(f"Сервер працює у фоні, PID {service.wait_child_pid(cache_dir, child.pid)}\n"
               f"Журнал: {os.path.join(cache_dir, service.CONSOLE_LOG_NAME)}\n"
               "Зупинити: mcp-baf --stop")
 
