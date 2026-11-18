@@ -51,6 +51,10 @@ _STATUS_HINTS = {
     404: "объект или форма не найдены",
     500: "внутренний сбой расширения 1С: смотрите журнал регистрации",
 }
+# Точнее статуса: код ошибки расширения (безопасный идентификатор, виден и при
+# --mask-pii, когда сам текст ошибки 1С скрыт).
+_CODE_HINTS = {"user_not_found": "пользователь информационной базы не найден"}
+_ERROR_CODE_RE = re.compile(r'"error_code"\s*:\s*"(\w+)"')
 
 # Транспортные ошибки, после которых запрос заведомо не дошёл до 1С. ReadTimeout
 # сюда не входит: 1С могла принять запрос и считать его до 300 с, повтор утроил бы
@@ -276,12 +280,12 @@ class OneCClient:
                         head.extend(chunk)
                         if len(head) >= 4096:
                             break
-                    detail = self._safe_error_detail(
-                        head[:4096].decode("utf-8", "replace"), endpoint=endpoint,
-                    )
+                    head_text = head[:4096].decode("utf-8", "replace")
+                    detail = self._safe_error_detail(head_text, endpoint=endpoint)
+                    code = _ERROR_CODE_RE.search(head_text)
                     state["error_kind"] = f"http_{resp.status_code}"
                     message = f"1C returned status {resp.status_code}: {detail}"
-                    hint = _STATUS_HINTS.get(resp.status_code)
+                    hint = (code and _CODE_HINTS.get(code.group(1))) or _STATUS_HINTS.get(resp.status_code)
                     if hint:
                         message = f"{message} ({hint})"
                     if resp.status_code in _RETRYABLE_STATUSES:
