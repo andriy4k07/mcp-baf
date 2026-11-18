@@ -873,3 +873,15 @@ def test_install_logcfg_manual_when_not_admin_or_not_windows(
     assert not os.path.exists(os.path.join(os.path.dirname(exe), "conf", "logcfg.xml"))
     out = capsys.readouterr().out
     assert "logcfg.xml" in out and '<property name="all"/>' in out
+
+
+def test_install_logcfg_same_ignoring_whitespace(tmp_path, monkeypatch):
+    _as_admin(monkeypatch)
+    exe = _logcfg_platform(tmp_path)
+    conf = os.path.join(os.path.dirname(exe), "conf")
+    os.makedirs(conf)
+    tj = str(tmp_path / "tj")
+    text = installer.build_logcfg(tj)
+    with open(os.path.join(conf, "logcfg.xml"), "w", encoding="utf-8-sig") as f:
+        f.write(text.replace("\n", "\r\n    ").rstrip() + "\r\n\r\n")
+    assert installer.install_logcfg(exe, tj) == "exists-same"
