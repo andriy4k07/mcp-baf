@@ -79,6 +79,9 @@ class Config:
     # Путь к выгрузке конфигурации (DumpConfigToFiles); включает search_code.
     dump_dir: str = ""
     help_dir: str = ""
+    # Каталог технологического журнала 1С (локальный диск); включает
+    # source="techlog" в get_event_log.
+    techlog_dir: str = ""
     # Каталог кэша индекса и логов (по умолчанию платформенный кэш).
     cache_dir: str = ""
     # Принудительная пересборка кэша индекса.
@@ -195,10 +198,47 @@ def _env_secret(name: str) -> str:
         ) from None
 
 
+# Подсказка в конце --help: что нужно для службы Windows (для не-админов).
+_SERVICE_HELP = r"""
+Швидкий старт служби Windows (PowerShell від імені адміністратора):
+
+  1) Секрети — у файли, не в командний рядок:
+       Set-Content -Path C:\mcp-baf\token.txt    -Value "<довгий токен>" -NoNewline
+       Set-Content -Path C:\mcp-baf\password.txt -Value "<пароль 1С>"    -NoNewline
+
+  2) Змінні середовища (служба запам'ятає їх при встановленні):
+       $env:mcp_baf_USER            = "<користувач 1С>"
+       $env:mcp_baf_PASSWORD_FILE   = "C:\mcp-baf\password.txt"
+       $env:mcp_baf_HTTP_TOKEN_FILE = "C:\mcp-baf\token.txt"
+
+  3) Встановити й запустити:
+       mcp-baf --install-service --base http://localhost/<база>/hs/mcp-baf
+               --transport https --http-host 0.0.0.0 --http-allowed-hosts <IP сервера>:*
+               --techlog-dir D:\LOG_1C --mask-pii
+
+  Програма ставиться у %ProgramFiles%\mcp-baf (власний venv), дані й журнали —
+  у %ProgramData%\mcp-baf (або --cache-dir). Каталог, звідки запущено команду,
+  більше не потрібен. Оновлення: повторити --install-service з оновленого джерела.
+
+Керування:
+  mcp-baf --status              стан служби й сервера, де журнали
+  mcp-baf --logs [console|server|audit]
+                                журнал (console — вивід служби; server — помилки;
+                                audit — виклики й відмови 1С), Ctrl+C — вихід
+  mcp-baf --stop                зупинити сервер
+  mcp-baf --uninstall-service   видалити службу
+  У консолі запущеного сервера: d — перевести у фон.
+
+Детально: docs/techlog-windows.md
+"""
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="mcp-baf",
         description="MCP server for 1C:Enterprise HTTP service",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_SERVICE_HELP,
     )
     parser.add_argument("--base", default="", help="Base URL of 1C HTTP service")
     parser.add_argument("--user", default="", help="1C HTTP service user")
@@ -222,6 +262,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
              "comma-separated list of names; omitted - main configuration only",
     )
     parser.add_argument(
+        "--techlog-dir", default="", metavar="DIR",
+        help="Directory of the 1C technological log (env mcp_baf_TECHLOG_DIR): "
+             "enables get_event_log source=techlog. With --install on Windows "
+             "(as Administrator) also installs logcfg.xml writing the log there.",
+    )
+    parser.add_argument(
         "--cache-dir", default="",
         help="Directory for index cache and logs (default: platform cache dir)",
     )
@@ -243,6 +289,30 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--verbose", action="store_true",
         help="Force progress output to stderr even when stdin is a pipe "
              "(useful for MCP client debugging). Overridden by --quiet.",
+    )
+    parser.add_argument(
+        "--stop", action="store_true",
+        help="Stop the running network-transport server (PID from "
+             "<cache-dir>/mcp-baf.pid) and exit",
+    )
+    parser.add_argument(
+        "--install-service", action="store_true",
+        help="Windows, as Administrator: register the server (all other flags) "
+             "as scheduled task 'mcp-baf' running as SYSTEM and start it",
+    )
+    parser.add_argument(
+        "--uninstall-service", action="store_true",
+        help="Windows, as Administrator: stop and remove task 'mcp-baf'",
+    )
+    parser.add_argument(
+        "--status", action="store_true",
+        help="Show service/server state and where the logs are, then exit",
+    )
+    parser.add_argument(
+        "--logs", nargs="?", const="console", default="",
+        choices=["console", "server", "audit"],
+        help="Show the last 50 lines of a log (default: console) and follow it "
+             "in a terminal; Ctrl+C to exit",
     )
     # Режим установки расширения.
     parser.add_argument(
@@ -433,6 +503,7 @@ def load_config(args: argparse.Namespace) -> Config:
         retry_non_idempotent=_env_bool("mcp_baf_RETRY_NON_IDEMPOTENT"),
         dump_dir=os.environ.get("mcp_baf_DUMP_DIR", ""),
         help_dir=os.environ.get("mcp_baf_HELP_DIR", ""),
+        techlog_dir=os.environ.get("mcp_baf_TECHLOG_DIR", ""),
         audit_max_size_mib=_env_int(
             "mcp_baf_AUDIT_MAX_SIZE", DEFAULT_AUDIT_MAX_SIZE_MIB
         ),
@@ -462,6 +533,9 @@ def load_config(args: argparse.Namespace) -> Config:
     if args.dump:
         cfg.dump_dir = args.dump
     cfg.help_dir = args.help_dir or cfg.help_dir
+    cfg.techlog_dir = args.techlog_dir or cfg.techlog_dir
+    if cfg.techlog_dir and not os.path.isdir(cfg.techlog_dir):
+        raise ConfigError(f"--techlog-dir: каталог не існує: {cfg.techlog_dir}")
     if args.max_response_size > 0:
         cfg.max_response_size_mib = args.max_response_size
     if args.request_timeout > 0:

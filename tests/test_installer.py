@@ -806,3 +806,82 @@ def test_dump_named_extension_dir_cleaned(monkeypatch, tmp_path):
     monkeypatch.setattr(installer, "_run_designer", fake)
     installer.dump("db", str(out), extensions=["Ext1"], platform_exe="1cv8")
     assert not stale.exists()
+
+
+# --- logcfg.xml технологического журнала ---
+
+def _logcfg_platform(tmp_path):
+    bin_dir = tmp_path / "1cv8" / "8.3.18" / "bin"
+    bin_dir.mkdir(parents=True)
+    return str(bin_dir / "1cv8.exe")
+
+
+def _as_admin(monkeypatch, admin=True, windows=True):
+    monkeypatch.setattr(installer, "_is_windows", lambda: windows)
+    monkeypatch.setattr(installer, "_is_admin", lambda: admin)
+
+
+def test_build_logcfg_escapes_and_limits_events():
+    xml = installer.build_logcfg('C:\\tj&"x')
+    assert 'location="C:\\tj&amp;&quot;x"' in xml
+    for name in ("TLOCK", "TTIMEOUT", "TDEADLOCK", "EXCP"):
+        assert f'value="{name}"' in xml
+    assert '<property name="all"/>' in xml and xml.count("<event>") == 4
+
+
+def test_logcfg_conf_dir_default_and_conf_location(tmp_path):
+    exe = _logcfg_platform(tmp_path)
+    default = os.path.join(os.path.dirname(exe), "conf")
+    assert installer.logcfg_conf_dir(exe) == default
+    os.makedirs(default)
+    with open(os.path.join(default, "conf.cfg"), "w", encoding="utf-8-sig") as f:
+        f.write("a=1\nconfLocation=D:\\1c\\conf\n")
+    assert installer.logcfg_conf_dir(exe) == "D:\\1c\\conf"
+
+
+def test_install_logcfg_as_admin_writes_and_creates_dir(tmp_path, monkeypatch, capsys):
+    _as_admin(monkeypatch)
+    exe = _logcfg_platform(tmp_path)
+    tj = tmp_path / "tj"
+    assert installer.install_logcfg(exe, str(tj)) == "written"
+    target = os.path.join(os.path.dirname(exe), "conf", "logcfg.xml")
+    assert open(target, encoding="utf-8").read() == installer.build_logcfg(str(tj))
+    assert tj.is_dir() and "раз в минуту" in capsys.readouterr().out
+    assert installer.install_logcfg(exe, str(tj)) == "exists-same"
+
+
+def test_install_logcfg_existing_differs_is_not_overwritten(tmp_path, monkeypatch, capsys):
+    _as_admin(monkeypatch)
+    exe = _logcfg_platform(tmp_path)
+    conf = os.path.join(os.path.dirname(exe), "conf")
+    os.makedirs(conf)
+    target = os.path.join(conf, "logcfg.xml")
+    with open(target, "w") as f:
+        f.write("<config/>\n")
+    assert installer.install_logcfg(exe, str(tmp_path / "tj")) == "exists-differs"
+    assert open(target).read() == "<config/>\n"
+    out = capsys.readouterr().out
+    assert "NOT overwritten" in out and "+++ proposed logcfg.xml" in out
+
+
+@pytest.mark.parametrize("admin,windows", [(False, True), (True, False)])
+def test_install_logcfg_manual_when_not_admin_or_not_windows(
+        tmp_path, monkeypatch, capsys, admin, windows):
+    _as_admin(monkeypatch, admin, windows)
+    exe = _logcfg_platform(tmp_path)
+    assert installer.install_logcfg(exe, str(tmp_path / "tj")) == "manual"
+    assert not os.path.exists(os.path.join(os.path.dirname(exe), "conf", "logcfg.xml"))
+    out = capsys.readouterr().out
+    assert "logcfg.xml" in out and '<property name="all"/>' in out
+
+
+def test_install_logcfg_same_ignoring_whitespace(tmp_path, monkeypatch):
+    _as_admin(monkeypatch)
+    exe = _logcfg_platform(tmp_path)
+    conf = os.path.join(os.path.dirname(exe), "conf")
+    os.makedirs(conf)
+    tj = str(tmp_path / "tj")
+    text = installer.build_logcfg(tj)
+    with open(os.path.join(conf, "logcfg.xml"), "w", encoding="utf-8-sig") as f:
+        f.write(text.replace("\n", "\r\n    ").rstrip() + "\r\n\r\n")
+    assert installer.install_logcfg(exe, tj) == "exists-same"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Annotated, Any, Literal
 
 from mcp.server.mcpserver import MCPServer
@@ -10,6 +11,7 @@ from pydantic import Field
 
 from mcp_baf_audit import AuditWriter
 from mcp_baf.client import OneCClient
+from mcp_baf import techlog
 from mcp_baf.pii import MASKING_NOTE, mask_pii_text
 from mcp_baf.tools.common import clamp_limit, traced_text, truncate_output
 
@@ -19,15 +21,22 @@ MAX_EVENT_LOG_LIMIT = 500
 EventLogLevel = Literal["Ошибка", "Предупреждение", "Информация", "Примечание"]
 
 
+TechlogEvent = Literal["", "TLOCK", "TTIMEOUT", "TDEADLOCK", "EXCP"]
+
+
 def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter,
-             mask_pii: bool = False) -> None:
+             mask_pii: bool = False, techlog_dir: str = "") -> None:
     @mcp.tool(
         name="get_event_log",
         title="Журнал регистрации",
         description=(
             "Прочитать журнал регистрации 1С — лог ошибок, действий пользователей "
             "и системных событий. Фильтрация по дате, уровню важности "
-            "(Ошибка/Предупреждение/Информация) и пользователю. " + MASKING_NOTE
+            "(Ошибка/Предупреждение/Информация) и пользователю. "
+            "source=techlog — сводка технологического журнала (блокировки, "
+            "таймауты, дедлоки, исключения) с локального диска; только при "
+            "запуске с --techlog-dir, окно по умолчанию — последний час. "
+            + MASKING_NOTE
         ),
         annotations=ToolAnnotations(read_only_hint=True),
     )
@@ -52,10 +61,29 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter,
             "Скрыть шум платформы (транзакции, фоновые задания, сеансы); "
             "по умолчанию true"
         ))] = True,
+        source: Annotated[Literal["eventlog", "techlog"], Field(description=(
+            "eventlog — журнал регистрации (по умолчанию); techlog — "
+            "технологический журнал (нужен --techlog-dir; level/user/"
+            "exclude_system игнорируются)"
+        ))] = "eventlog",
+        event: Annotated[TechlogEvent, Field(description=(
+            "Только для source=techlog: ограничить одним событием "
+            "(TLOCK, TTIMEOUT, TDEADLOCK, EXCP); пусто — все"
+        ))] = "",
     ) -> str:
         effective_limit = clamp_limit(
             limit, DEFAULT_EVENT_LOG_LIMIT, MAX_EVENT_LOG_LIMIT
         )
+
+        async def run_techlog() -> str:
+            if not techlog_dir:
+                raise ValueError(
+                    "технологический журнал не настроен: запустите mcp-baf с --techlog-dir"
+                )
+            window = techlog.parse_window(start_date, end_date)
+            res = await asyncio.to_thread(techlog.scan, techlog_dir, *window, event)
+            return truncate_output(techlog.format_techlog(
+                res, effective_limit, mask_pii_text if mask_pii else None))
 
         async def run() -> str:
             body: dict[str, Any] = {"limit": effective_limit, "exclude_system": exclude_system}
@@ -72,8 +100,10 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter,
             return truncate_output(format_event_log(result, mask_pii=mask_pii))
 
         return await traced_text(
-            audit, "get_event_log", run,
+            audit, "get_event_log", run_techlog if source == "techlog" else run,
             args={
+                "source": source,
+                "event": event,
                 "start_date": start_date,
                 "end_date": end_date,
                 "level": level,

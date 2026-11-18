@@ -267,3 +267,31 @@ def test_each_call_gets_own_trace_id(tmp_path):
     # one_c.http несёт id своего вызова: первый — /capabilities и /metadata, второй — /metadata из кэша прав.
     http = [x['trace_id'] for x in events if x['event'] == 'one_c.http']
     assert http == [calls[0], calls[0], calls[1]]
+
+
+@pytest.mark.parametrize('status,body,offline', [
+    (503, {}, True),  # 1С недоступна — техжурнал остаётся
+    (403, {'error': 'denied', 'reason': 'method_use_denied'}, False),  # явный отказ
+])
+def test_techlog_survives_unavailable_1c(tmp_path, status, body, offline):
+    def handler(request):
+        return httpx.Response(status, json=body)
+    client = OneCClient(Config(base_url='http://test'), httpx.MockTransport(handler))
+    server = AccessMCP('test', access_client=client, audit=AuditLog(str(tmp_path)), techlog_offline=True)
+    @server.tool()
+    async def get_event_log(source: str = 'eventlog'):
+        return source
+
+    async def scenario():
+        names = {t.name for t in await server.list_tools()}
+        assert ('get_event_log' in names) is offline
+        if offline:
+            assert await server.call_tool('get_event_log', {'source': 'techlog'})
+        else:
+            with pytest.raises(ToolError):
+                await server.call_tool('get_event_log', {'source': 'techlog'})
+        # Журнал регистрации без 1С не читается ни в каком случае.
+        with pytest.raises(ToolError):
+            await server.call_tool('get_event_log', {'source': 'eventlog'})
+        await client.aclose()
+    asyncio.run(scenario())

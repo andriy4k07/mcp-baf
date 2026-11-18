@@ -136,6 +136,13 @@ def _run_install(args) -> None:
         print(f"Installation error: {exc}", file=sys.stderr)
         sys.exit(1)
     print("Extension installed successfully.")
+    if args.techlog_dir:
+        try:
+            installer.install_logcfg(
+                args.platform or installer.find_platform(), args.techlog_dir)
+        except (installer.InstallError, OSError) as exc:
+            # Расширение уже установлено: logcfg — необязательный шаг.
+            print(f"logcfg.xml step skipped: {exc}", file=sys.stderr)
     if args.dump:
         _run_dump(args, dump_extensions, db_password)
 
@@ -149,11 +156,25 @@ def main() -> None:
     if args.install:
         _run_install(args)
         return
+    from mcp_baf import service
+
+    if args.stop:
+        sys.exit(service.stop(args.cache_dir))
+    if args.status:
+        sys.exit(service.status(args.cache_dir))
+    if args.logs:
+        sys.exit(service.logs(args.logs, args.cache_dir))
+    if args.uninstall_service:
+        sys.exit(service.uninstall_service())
     try:
         config = load_config(args)
     except ConfigError as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         sys.exit(1)
+    if args.install_service:
+        sys.exit(service.install_service(
+            sys.argv[1:], config.cache_dir or os.environ.get("mcp_baf_CACHE_DIR")
+            or service.default_service_data_dir()))
     _setup_logging(config.debug, config.cache_dir)
 
     # Подсистема ПДн (issue #53): стабильный ключ токенов в кэш-каталоге
@@ -365,8 +386,12 @@ def _http_security(config: Config, scheme: str):
 
 def _run_http(server, config: Config, tls: tuple[str, str] | None) -> None:
     """streamable-http (uvicorn) за bearer-слоем; TLS, если передан tls."""
+    import asyncio
+
     import anyio
     import uvicorn
+
+    from mcp_baf import service
 
     app = _BearerAuthASGI(
         server.streamable_http_app(
@@ -378,17 +403,39 @@ def _run_http(server, config: Config, tls: tuple[str, str] | None) -> None:
         config.http_token,
     )
 
-    async def serve() -> None:
-        await uvicorn.Server(uvicorn.Config(
-            app,
-            host=config.http_host,
-            port=config.http_port,
-            log_level="info",
-            ssl_certfile=tls[0] if tls else None,
-            ssl_keyfile=tls[1] if tls else None,
-        )).serve()
+    srv = uvicorn.Server(uvicorn.Config(
+        app,
+        host=config.http_host,
+        port=config.http_port,
+        log_level="info",
+        ssl_certfile=tls[0] if tls else None,
+        ssl_keyfile=tls[1] if tls else None,
+    ))
+    cache_dir = service.resolve_cache_dir(config.cache_dir)
+    background = False
 
-    anyio.run(serve)
+    def go_background() -> None:
+        nonlocal background
+        background = True
+        srv.should_exit = True
+
+    async def serve() -> None:
+        await srv.serve()
+
+    service.write_pid(cache_dir)
+    service.start_key_listener(go_background)
+    try:
+        anyio.run(serve)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass  # Ctrl+C: uvicorn уже остановился штатно
+    finally:
+        service.remove_pid(cache_dir)
+    if background:
+        child = service.spawn_detached(cache_dir)
+        print(f"Сервер працює у фоні, PID {service.wait_child_pid(cache_dir, child.pid)}\n"
+              f"Журнал: {os.path.join(cache_dir, service.CONSOLE_LOG_NAME)}\n"
+              # Явный каталог: без него --stop нашёл бы каталог службы, а не эту копию.
+              f'Зупинити: mcp-baf --stop --cache-dir "{cache_dir}"')
 
 
 if __name__ == "__main__":
