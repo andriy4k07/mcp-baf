@@ -327,6 +327,37 @@ def test_warm_cache_rebuilds_when_ext_roots_change(tmp_path):
         idx.close()
 
 
+def test_oversized_bsl_is_skipped_in_fresh_and_warm_cache(tmp_path, caplog):
+    dump, cache = tmp_path / "dump", tmp_path / "cache"
+    dump.mkdir()
+    small = dump / "Small.bsl"
+    large = dump / "Large.bsl"
+    small.write_text("// Найдено\n", encoding="utf-8")
+    with large.open("wb") as f:
+        f.truncate((8 << 20) + 1)
+
+    params = SearchParams(query="Найдено", mode="smart")
+    idx = DumpIndex(str(dump), cache_dir=str(cache))
+    try:
+        assert idx.wait_ready(BUILD_TIMEOUT), idx.build_error()
+        assert idx.module_count() == 1
+        assert idx.search(params)[1] == 1
+        assert "Large.bsl" in caplog.text
+    finally:
+        idx.close()
+
+    with small.open("r+b") as f:
+        f.truncate((8 << 20) + 1)
+    idx = DumpIndex(str(dump), cache_dir=str(cache))
+    try:
+        assert idx.wait_ready(BUILD_TIMEOUT), idx.build_error()
+        assert idx.module_count() == 0
+        assert idx.search(params)[1] == 0
+        assert "Small.bsl" in caplog.text
+    finally:
+        idx.close()
+
+
 @pytest.mark.parametrize(("snippet", "fence_size"), [("// обычный код", 3), ("// ``` и `````", 6)])
 def test_search_result_fence_is_longer_than_backticks_in_snippet(snippet, fence_size):
     from mcp_baf.tools.search_code import format_search_result
