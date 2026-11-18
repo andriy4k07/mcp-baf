@@ -73,5 +73,10 @@
   "71": "prompts.py",
   "72": "register",
   "73": "_isolate_pii_state",
-  "74": "test_leftover_pid_temp_file_does_not_block_startup"
+  "74": "test_leftover_pid_temp_file_does_not_block_startup",
+  "75": "ConfigError",
+  "76": "_env_float",
+  "77": "_DripStream",
+  "78": "test_preexisting_weak_key_file_perms_are_tightened",
+  "79": "test_masking_note_qualified_for_columnless_tools"
 }

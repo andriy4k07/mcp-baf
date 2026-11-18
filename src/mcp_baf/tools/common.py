@@ -128,9 +128,9 @@ def truncate_output(text: str, limit: int = MAX_TOOL_OUTPUT_CHARS) -> str:
 
 
 def escape_pipe(s: str) -> str:
-    """Экранирует вертикальную черту, чтобы не ломать markdown-таблицы."""
+    """Экранирует вертикальную черту и убирает переводы строк в markdown-таблицах."""
     # Сначала обратный слэш: иначе «\|» из данных превратится в экранированный слэш + голую черту.
-    return s.replace("\\", "\\\\").replace("|", "\\|")
+    return re.sub(r"\r\n|\r|\n", " ", s).replace("\\", "\\\\").replace("|", "\\|")
 
 
 def format_cell(v: Any) -> str:
@@ -154,5 +154,4 @@ def format_cell(v: Any) -> str:
     # Обрезка до экранирования: иначе можно разрезать «\|» и сломать таблицу.
     if len(s) > MAX_CELL_CHARS:
         s = s[:MAX_CELL_CHARS] + "…"
-    # Перевод строки рвёт строку markdown-таблицы
-    return escape_pipe(re.sub(r"\r\n|\r|\n", " ", s))
+    return escape_pipe(s)
