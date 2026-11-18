@@ -107,6 +107,10 @@ def create_server(config: Config) -> MCPServer:
             cache_dir=config.cache_dir,
             reindex=config.reindex,
             show_progress=config.show_progress,
+            embed_url=config.embed_url,
+            embed_model=config.embed_model,
+            rerank_url=config.rerank_url,
+            rerank_model=config.rerank_model,
         )
 
     @asynccontextmanager

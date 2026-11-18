@@ -1,7 +1,5 @@
 """Инструмент search_code: полнотекстовый поиск по коду модулей конфигурации."""
 
-from __future__ import annotations
-
 import asyncio
 import re
 from typing import Annotated, Literal
@@ -22,6 +20,15 @@ MAX_USAGE_LINES = 10  # номеров строк на модуль в режи�
 
 def register(mcp: MCPServer, index: DumpIndex, audit: AuditWriter,
              mask_pii: bool = False) -> None:
+    # hybrid появляется в схеме только при включённых эмбеддингах (--embed-url).
+    has_vectors = index is not None and index.has_vectors()
+    modes = Literal["smart", "regex", "exact", "usages", "hybrid"] if has_vectors \
+        else Literal["smart", "regex", "exact", "usages"]
+    hybrid_help = (
+        " hybrid — BM25 + векторный поиск по смыслу (RRF, при --rerank-url с реранкером): "
+        "запрос можно формулировать естественным языком; результаты — методы."
+    ) if has_vectors else ""
+
     @mcp.tool(
         name="search_code",
         title="Поиск по коду модулей",
@@ -37,7 +44,7 @@ def register(mcp: MCPServer, index: DumpIndex, audit: AuditWriter,
             "модули и схемы компоновки данных (СКД, модуль СхемаКомпоновкиДанных; строки "
             "считаются в тексте запросов схемы), ссылающиеся на объект, со строками и числом ссылок. "
             "Работает по локальной выгрузке конфигурации (DumpConfigToFiles). "
-            "Фильтруй по category и module для сужения результатов. " + MASKING_NOTE
+            "Фильтруй по category и module для сужения результатов." + hybrid_help + " " + MASKING_NOTE
         ),
         annotations=ToolAnnotations(read_only_hint=True),
     )
@@ -61,11 +68,11 @@ def register(mcp: MCPServer, index: DumpIndex, audit: AuditWriter,
             "МодульНабораЗаписей, МодульКоманды, Модуль. Значение чувствительно "
             "к регистру (например, 'МодульОбъекта', не 'модульобъекта')."
         ))] = "",
-        mode: Annotated[Literal["smart", "regex", "exact", "usages"], Field(description=(
+        mode: Annotated[modes, Field(description=(
             "Режим поиска. smart — полнотекстовый с BM25-ранжированием и поддержкой "
             "BSL-синонимов (по умолчанию). regex — регулярное выражение. "
             "exact — точная подстрока. usages — кто ссылается на объект Тип.Имя "
-            "(модули и СКД; ru/en, ед./мн.ч. типа)."
+            "(модули и СКД; ru/en, ед./мн.ч. типа)." + hybrid_help
         ))] = "smart",
     ) -> str:
         effective_limit = clamp_limit(
@@ -99,6 +106,7 @@ def register(mcp: MCPServer, index: DumpIndex, audit: AuditWriter,
             return format_search_result(
                 matches, total, query, mode, mask_pii=mask_pii,
                 truncated=getattr(matches, "truncated", False),
+                note=getattr(matches, "note", ""),
             )
 
         return await traced_text(
@@ -129,7 +137,7 @@ def format_usages(usages: list[Usage], modules: int, hits: int, query: str) -> s
 
 def format_search_result(
     matches: list[Match], total: int, query: str, mode: str,
-    mask_pii: bool = False, truncated: bool = False,
+    mask_pii: bool = False, truncated: bool = False, note: str = "",
 ) -> str:
     """Форматирует результаты поиска; при mask_pii код маскируется по regex.
 
@@ -141,7 +149,7 @@ def format_search_result(
 
     lines = [f'## Результаты поиска "{text(query)}" ({total} совпадений)', ""]
 
-    note = (
+    hybrid_note, note = note, (
         "> Поиск прерван по бюджету времени: результаты неполные, "
         "уточните запрос (category/module) или шаблон."
     )
@@ -150,7 +158,7 @@ def format_search_result(
         return "\n".join(lines) + "\n"
 
     for m in matches:
-        if mode == "smart" and m.score > 0:
+        if mode in ("smart", "hybrid") and m.score > 0:
             lines.append(f"### {m.module} (строка {m.line}, score: {m.score:.3f})")
         else:
             lines.append(f"### {m.module} (строка {m.line})")
@@ -162,6 +170,8 @@ def format_search_result(
 
     if truncated:
         lines.append(note)
+    if hybrid_note:
+        lines.append(f"> {hybrid_note}")
     if total > len(matches):
         lines.append(
             f"> Показано {len(matches)} из {total} совпадений. "
