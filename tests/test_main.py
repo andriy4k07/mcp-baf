@@ -264,6 +264,20 @@ def test_split_host_port():
     assert split_host_port("mcp-baf:") == ("mcp-baf", None)
     assert host_header("mcp-baf", None) == "mcp-baf:*"
     assert host_header("::1", "8001") == "[::1]:8001"
+    assert split_host_port("mcp-baf:*") == ("mcp-baf", "*")
+    assert split_host_port("[::1]:*") == ("::1", "*")
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["[::1", "[::1]x:8001", "[]:8001", "[::1]:abc", "[::1]:99999", "[::1]:0",
+     "mcp-baf:abc", "mcp-baf:0", "mcp-baf:70000", "mcp-baf]", "x[::1]"],
+)
+def test_split_host_port_rejects_malformed(value):
+    from mcp_baf.tls import split_host_port
+
+    with pytest.raises(ValueError):
+        split_host_port(value)
 
 
 def test_dns_rebinding_empty_list_keeps_default_patterns():
