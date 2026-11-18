@@ -30,6 +30,12 @@ TOOL_METHODS = {
 }
 
 
+# Техжурнал читается локально: при недоступной 1С get_event_log остаётся
+# только с source=techlog (диагностика упавшей базы). Явный отказ 1С
+# (есть reason) по-прежнему закрывает инструмент целиком.
+OFFLINE_TOOL, OFFLINE_ARG, OFFLINE_VALUE = "get_event_log", "source", "techlog"
+
+
 # reason из тела ошибки 1С: {"error": ..., "reason": "method_use_denied"}.
 # Клиент отдаёт тело как текст сообщения, поэтому код причины достаём из него.
 _REASON_RE = re.compile(r'"reason"\s*:\s*"([^"]+)"')
@@ -78,8 +84,11 @@ def strip_schema_titles(schema: dict) -> None:
 class AccessMCP(MCPServer):
     """Скрывает недоступные инструменты и проверяет прямые вызовы."""
 
-    def __init__(self, *args, access_client: OneCClient, audit: AuditWriter, **kwargs):
+    def __init__(self, *args, access_client: OneCClient, audit: AuditWriter,
+                 techlog_offline: bool = False, **kwargs):
         self.access_client = access_client
+        self.techlog_offline = techlog_offline
+        self._access_reason = ""
         self.access_audit = audit
         self._allowed: set[str] = set()
         self._expires = 0.0
@@ -128,9 +137,11 @@ class AccessMCP(MCPServer):
                     raise ValueError("invalid capabilities response")
                 self._allowed = set(methods)
                 self._access_error = ""
+                self._access_reason = ""
             except Exception as exc:
                 self._allowed = set()
                 reason_code = capabilities_failure_reason(exc)
+                self._access_reason = reason_code
                 self._access_error = (
                     "Проверка прав /capabilities недоступна. Проверьте подключение, "
                     "права HTTP-пользователя и установите расширение 0.6.0 или новее."
@@ -159,11 +170,19 @@ class AccessMCP(MCPServer):
         allowed, _ = await self._capabilities()
         return method in allowed
 
+    def _offline(self) -> bool:
+        """1С недоступна (не явный отказ), а техжурнал настроен."""
+        return self.techlog_offline and bool(self._access_error) and not self._access_reason
+
     async def list_tools(self):
         tools = await super().list_tools()
         allowed, _ = await self._capabilities()
         self._listed = allowed & set(TOOL_METHODS.values())
-        visible =[t for t in tools if t.name not in TOOL_METHODS or TOOL_METHODS[t.name] in allowed]
+        visible = [
+            t for t in tools
+            if t.name not in TOOL_METHODS or TOOL_METHODS[t.name] in allowed
+            or (t.name == OFFLINE_TOOL and self._offline())
+        ]
         # Схемы чистим здесь, а не через приватный _tool_manager: list_tools —
         # публичный метод SDK и единственный источник payload tools/list.
         # Снимаем deepcopy, потому что вложенные dict'ы MCPTool делят объекты
@@ -191,7 +210,11 @@ class AccessMCP(MCPServer):
             # не выдаём за второй tool.call, отказ пишем без аргументов/данных.
             allowed, error = await self._capabilities()
             await self._notify_if_changed(context)
-            if TOOL_METHODS[name] not in allowed:
+            offline_ok = (
+                name == OFFLINE_TOOL and self._offline()
+                and arguments.get(OFFLINE_ARG) == OFFLINE_VALUE
+            )
+            if TOOL_METHODS[name] not in allowed and not offline_ok:
                 async def denied():
                     raise ToolError(error or "Нет права использования HTTP-метода инструмента.")
                 return await traced_text(self.access_audit, name, denied, args={"access_denied": True})
