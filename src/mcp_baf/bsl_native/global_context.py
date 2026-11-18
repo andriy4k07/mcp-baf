@@ -207,13 +207,13 @@ METADATA_TYPE_PREFIXES = tuple(
         'Обработка', 'ЖурналДокументов', 'Константа', 'КритерийОтбора',
         'ТочкаМаршрута', 'ВнешнийИсточникДанных', 'ОпределяемыйТип',
         'ОбщаяФорма', 'Форма', 'ДанныеФормы', 'ХранилищеНастроек',
-        'Последовательность',
+        'Последовательность', 'Перерасчет',
         'Catalog', 'Document', 'Enum', 'ChartOf', 'BusinessProcess', 'Task',
         'InformationRegister', 'AccumulationRegister', 'AccountingRegister',
         'CalculationRegister', 'ExternalDataProcessor', 'ExternalReport',
         'Report', 'DataProcessor', 'DocumentJournal', 'Constant',
         'SelectionCriteria', 'BusinessProcessRoutePoint', 'ExternalDataSource',
         'DefinedType', 'CommonForm', 'Form', 'FormData', 'SettingsStorage',
-        'ExchangePlan', 'Sequence',
+        'ExchangePlan', 'Sequence', 'Recalculation',
     )
 )
