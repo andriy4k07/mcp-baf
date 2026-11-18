@@ -78,5 +78,15 @@
   "76": "_env_float",
   "77": "_DripStream",
   "78": "test_preexisting_weak_key_file_perms_are_tightened",
-  "79": "test_masking_note_qualified_for_columnless_tools"
+  "79": "test_masking_note_qualified_for_columnless_tools",
+  "80": "parse_platform_version",
+  "81": "newest_platform",
+  "82": "classify_designer_error",
+  "83": "_run_http",
+  "84": "OneCError",
+  "85": "test_query_hints.py",
+  "86": "test_traced.py",
+  "87": "prompts.py",
+  "88": ".__init__",
+  "89": "_DripStream"
 }
