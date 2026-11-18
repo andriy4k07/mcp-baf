@@ -161,7 +161,7 @@ def create_server(config: Config) -> MCPServer:
     objects.register(mcp, client, audit, config.mask_pii)
     if help_index is not None:
         platform_help.register(mcp, help_index, audit)
-    bsl_analysis.register(mcp, audit)
+    bsl_analysis.register(mcp, audit, help_index)
     prompts.register(mcp)
 
     # Схемы инструментов чистятся в AccessMCP.list_tools (публичный метод SDK,
