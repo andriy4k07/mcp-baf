@@ -103,9 +103,10 @@ def resolve_module_name(rel_path: str, ext_roots: dict[str, str] | None = None) 
         for depth in range(len(parts) - 1, 0, -1):
             ext_name = ext_roots.get("/".join(parts[:depth]))
             if ext_name is not None:
-                rest = parts[depth:]
+                rest = _strip_edt_src(parts[depth:])  # EDT-проект: <корень>/src/...
                 if len(rest) >= 2:
-                    return f"ext.{ext_name}." + _base_config_module_name(rest)
+                    prefix = f"ext.{ext_name}." if ext_name else ""  # "" — основная EDT-конфигурация
+                    return prefix + _base_config_module_name(rest)
                 break
     return bsl_path_to_module_name(rel_path)
 
