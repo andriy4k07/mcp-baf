@@ -35,19 +35,34 @@ def split_host_port(value: str) -> tuple[str, str | None]:
 
     IPv6-адреса в Host-заголовку приходить у дужках: `[::1]:8001` -> `("::1", "8001")`;
     `[::1]` -> `("::1", None)`; голий `::1` теж розпізнається як адреса без порту.
+    Порт — число 1–65535 або `*` (шаблон SDK); зайве/бите значення — ValueError.
     """
     value = value.strip()
     if value.startswith("["):
         end = value.find("]")
-        if end != -1:
-            rest = value[end + 1 :]
-            port = rest[1:] if rest.startswith(":") else None
-            return value[1:end], port or None
+        if end == -1:
+            raise ValueError(f"{value!r}: нет закрывающей ']'")
+        name, rest = value[1:end], value[end + 1 :]
+        if not name:
+            raise ValueError(f"{value!r}: пустой адрес в []")
+        if rest and not rest.startswith(":"):
+            raise ValueError(f"{value!r}: после ']' ожидается ':порт' или конец строки")
+        return name, _check_port(value, rest[1:] or None)
+    if "[" in value or "]" in value:
+        raise ValueError(f"{value!r}: скобки допустимы только вокруг IPv6-адреса")
     # Рівно одне двокрапка = IPv4/ім'я з портом; більше — голий IPv6 без порту.
     if value.count(":") == 1:
         name, port = value.rsplit(":", 1)
-        return name, port or None
+        return name, _check_port(value, port or None)
     return value, None
+
+
+def _check_port(value: str, port: str | None) -> str | None:
+    if port is None or port == "*":
+        return port
+    if not (port.isascii() and port.isdigit() and 0 < int(port) <= 65535):
+        raise ValueError(f"{value!r}: порт должен быть числом 1–65535 или '*'")
+    return port
 
 
 def host_name(name: str) -> str:

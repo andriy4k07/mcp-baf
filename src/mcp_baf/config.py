@@ -501,6 +501,7 @@ def load_config(args: argparse.Namespace) -> Config:
     cfg.tls_cert = args.tls_cert or cfg.tls_cert
     cfg.tls_key = args.tls_key or cfg.tls_key
     _check_transport(cfg)
+    _check_allowed_hosts(cfg)
 
     cfg.cache_dir = args.cache_dir or os.environ.get("mcp_baf_CACHE_DIR", "")
     cfg.reindex = args.reindex
@@ -517,6 +518,18 @@ def load_config(args: argparse.Namespace) -> Config:
     cfg.show_progress = show and not args.debug
 
     return cfg
+
+
+def _check_allowed_hosts(cfg: Config) -> None:
+    """Каждый элемент --http-allowed-hosts должен разбираться; иначе отказ старта."""
+    from mcp_baf.tls import split_host_port
+
+    for entry in cfg.http_allowed_hosts.split(","):
+        if entry.strip():
+            try:
+                split_host_port(entry)
+            except ValueError as exc:
+                raise ConfigError(f"--http-allowed-hosts: {exc}") from None
 
 
 def _check_transport(cfg: Config) -> None:
