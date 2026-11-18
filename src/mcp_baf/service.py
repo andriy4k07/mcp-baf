@@ -135,7 +135,8 @@ def spawn_detached(cache_dir: str) -> subprocess.Popen:
         return subprocess.Popen(
             [sys.executable, "-m", "mcp_baf", *sys.argv[1:]],
             stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
-            creationflags=flags, close_fds=True)
+            creationflags=flags, close_fds=True,
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"})
 
 
 # ── Служба Windows (Планировщик заданий) ──
@@ -165,7 +166,9 @@ def _server_args(argv: list[str], cache_dir: str) -> list[str]:
 
 def build_service_cmd(argv: list[str], cache_dir: str, env: dict[str, str]) -> str:
     log = os.path.join(cache_dir, CONSOLE_LOG_NAME)
-    lines = ["@echo off"]
+    # cmd.exe читает .cmd в OEM-кодировке: без chcp 65001 кириллица (mcp_baf_USER)
+    # искажается; PYTHONIOENCODING — чтобы вывод в лог не падал на кириллице.
+    lines = ["@echo off", "chcp 65001 >nul", "set PYTHONIOENCODING=utf-8"]
     for k, v in env.items():
         if k.lower().startswith("mcp_baf_"):
             lines.append(f'set "{k}={v.replace("%", "%%")}"')
