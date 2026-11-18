@@ -75,6 +75,18 @@ def test_event_filter(tmp_path):
     make_log(tmp_path)
     res = techlog.scan(str(tmp_path), datetime(2026, 11, 18, 5), datetime(2026, 11, 18, 5, 59), "EXCP")
     assert res.excp_total == 2 and res.tlock == 0
+    out = techlog.format_techlog(res, 50)
+    assert "EXCP): 2" in out and "TLOCK" not in out and "TDEADLOCK" not in out
+
+
+def test_excp_grouped_without_guids(tmp_path):
+    text = "".join(
+        f"08:0{i}.000001-0,EXCP,2,Descr='Сеанс відсутній ID={g}'\n"
+        for i, g in enumerate(["c27c64aa-946d-49de-ae45-f4d036262b3c",
+                               "49453879-2bb3-45cb-9cc1-56447d41bd06"]))
+    make_log(tmp_path, text=text)
+    res = techlog.scan(str(tmp_path), datetime(2026, 11, 18, 5), datetime(2026, 11, 18, 5, 59))
+    assert res.excp == {"Сеанс відсутній ID=…": 2}
 
 
 def test_mask_applied_to_context(tmp_path):

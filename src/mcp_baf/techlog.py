@@ -46,6 +46,7 @@ class TechlogResult:
     deadlocks: list[dict[str, Any]] = field(default_factory=list)
     excp: Counter = field(default_factory=Counter)
     excp_total: int = 0
+    event: str = ""  # фильтр события: в сводке только его раздел
 
 
 def parse_window(start: str, end: str, now: datetime | None = None) -> tuple[datetime, datetime]:
@@ -155,8 +156,11 @@ def _iter_events(path: str, hour: datetime, budget: list[int]):
             yield cur
 
 
+_GUID = re.compile(r"[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}")
+
+
 def scan(root: str, start: datetime, end: datetime, event: str = "") -> TechlogResult:
-    res = TechlogResult(start, end)
+    res = TechlogResult(start, end, event=event)
     files = _candidate_files(os.path.realpath(root), start, end)
     if len(files) > MAX_FILES:
         res.truncated.append(f"файлов в окне {len(files)}, прочитано {MAX_FILES}")
@@ -203,7 +207,8 @@ def _account(res: TechlogResult, ts: datetime, dur: int, name: str, p: dict[str,
         res.deadlocks.append({**common, "inter": p.get("DeadlockConnectionIntersections", "")})
     else:
         res.excp_total += 1
-        res.excp[p.get("Descr", "")] += 1
+        # GUID сеансов/заданий делают одинаковые ошибки «разными» — группируем без них.
+        res.excp[_GUID.sub("…", p.get("Descr", ""))] += 1
 
 
 def format_techlog(res: TechlogResult, limit: int, mask: Callable[[Any], str] | None = None) -> str:
@@ -226,14 +231,18 @@ def format_techlog(res: TechlogResult, limit: int, mask: Callable[[Any], str] | 
     for t in res.truncated:
         out.append(f"Неполно: {t}. Сузьте окно.")
 
-    out += ["", f"### Блокировки (TLOCK): {res.tlock}"]
-    top = sorted(res.regions.items(), key=lambda kv: -kv[1][1])[:min(limit, 20)]
-    if top:
-        out.append("Области по суммарному ожиданию:")
-        out += [f"- {short(k)}: {v[0]} шт., ожидание {secs(v[1])}, макс. {secs(v[2])}"
-                for k, v in top]
-    else:
-        out.append("Нет данных.")
+    def shown(name: str) -> bool:
+        return not res.event or res.event == name
+
+    if shown("TLOCK"):
+        out += ["", f"### Блокировки (TLOCK): {res.tlock}"]
+        top = sorted(res.regions.items(), key=lambda kv: -kv[1][1])[:min(limit, 20)]
+        if top:
+            out.append("Области по суммарному ожиданию:")
+            out += [f"- {short(k)}: {v[0]} шт., ожидание {secs(v[1])}, макс. {secs(v[2])}"
+                    for k, v in top]
+        else:
+            out.append("Нет данных.")
 
     def listing(title: str, rows: list[dict[str, Any]], detail: Callable[[dict[str, Any]], str]):
         out.extend(["", f"### {title}: {len(rows)}"])
@@ -243,12 +252,14 @@ def format_techlog(res: TechlogResult, limit: int, mask: Callable[[Any], str] | 
         if len(rows) > limit:
             out.append(f"- … показано {limit} из {len(rows)}")
 
-    listing("Дедлоки (TDEADLOCK)", res.deadlocks,
-            lambda r: f"пересечения={short(r['inter'])} контекст={short(r['ctx'])}")
-    listing("Таймауты блокировок (TTIMEOUT)", res.timeouts,
-            lambda r: f"ожидает={short(r['wait'])} области={short(r['regions'])} "
-                      f"контекст={short(r['ctx'])}")
-
-    out += ["", f"### Исключения (EXCP): {res.excp_total}"]
-    out += [f"- {n} x {short(d)}" for d, n in res.excp.most_common(min(limit, 10))]
+    if shown("TDEADLOCK"):
+        listing("Дедлоки (TDEADLOCK)", res.deadlocks,
+                lambda r: f"пересечения={short(r['inter'])} контекст={short(r['ctx'])}")
+    if shown("TTIMEOUT"):
+        listing("Таймауты блокировок (TTIMEOUT)", res.timeouts,
+                lambda r: f"ожидает={short(r['wait'])} области={short(r['regions'])} "
+                          f"контекст={short(r['ctx'])}")
+    if shown("EXCP"):
+        out += ["", f"### Исключения (EXCP): {res.excp_total}"]
+        out += [f"- {n} x {short(d)}" for d, n in res.excp.most_common(min(limit, 10))]
     return "\n".join(out) + "\n"
