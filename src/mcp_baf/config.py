@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import sys
 from dataclasses import dataclass
@@ -146,13 +147,13 @@ def _env_int_nonneg(name: str, default: int) -> int:
 
 
 def _env_float(name: str, default: float) -> float:
-    """Читает неотрицательное число из переменной окружения."""
+    """Читает конечное неотрицательное число из переменной окружения."""
     value = os.environ.get(name, "").strip()
     try:
         n = float(value)
     except ValueError:
         return default
-    return n if n >= 0 else default
+    return n if math.isfinite(n) and n >= 0 else default
 
 
 _TRUE = ("1", "true", "yes", "on")
