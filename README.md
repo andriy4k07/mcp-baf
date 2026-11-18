@@ -163,6 +163,8 @@ claude mcp add mcp-baf \
 | `--techlog-dir` | `mcp_baf_TECHLOG_DIR` | — | Каталог технологічного журналу 1С на локальному диску; вмикає `get_event_log` з `source=techlog`. З `--install` (Windows, адміністратор) ставить `logcfg.xml`. Запуск службою Windows — [docs/techlog-windows.md](docs/techlog-windows.md) |
 | `--help-dir` | `mcp_baf_HELP_DIR` | — | Каталог локальних `.hbk`-файлів довідки платформи; вмикає два інструменти довідки |
 | `--cache-dir` | `mcp_baf_CACHE_DIR` | платформений кеш | Каталог для кешу індексу і логів |
+| `--embed-url` / `--embed-model` | `mcp_baf_EMBED_URL` / `mcp_baf_EMBED_MODEL` | — / `qwen3-embedding` | Ендпоінт ембедингів (OpenAI `/v1/embeddings`): вмикає `search_code mode=hybrid` (BM25 + вектори); потрібен `pip install mcp-baf[rag]`. Код і запити надсилаються на цей сервер. Див. [docs/search-and-index.md](docs/search-and-index.md) |
+| `--rerank-url` / `--rerank-model` | `mcp_baf_RERANK_URL` / `mcp_baf_RERANK_MODEL` | — / `qwen3-reranker` | Опційний реранкер (`/v1/rerank`) для hybrid; при збої — порядок RRF |
 | `--reindex` | — | — | Примусова перебудова пошукового індексу (ігнорує кеш) |
 | `--install` | — | — | Встановити розширення в базу 1С за вказаним шляхом |
 | `--lang` | — | `ua` | Мова синонімів розширення для `--install`: `ua` (українська, за замовчуванням) або `ru` (російська) |
