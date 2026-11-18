@@ -79,6 +79,9 @@ class Config:
     # Путь к выгрузке конфигурации (DumpConfigToFiles); включает search_code.
     dump_dir: str = ""
     help_dir: str = ""
+    # Каталог технологического журнала 1С (локальный диск); включает
+    # source="techlog" в get_event_log.
+    techlog_dir: str = ""
     # Каталог кэша индекса и логов (по умолчанию платформенный кэш).
     cache_dir: str = ""
     # Принудительная пересборка кэша индекса.
@@ -220,6 +223,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="With --install --dump: also export extensions into <dump>/<name>/ "
              "subdirectories - flag alone or 'all' for every extension, or a "
              "comma-separated list of names; omitted - main configuration only",
+    )
+    parser.add_argument(
+        "--techlog-dir", default="", metavar="DIR",
+        help="Directory of the 1C technological log (env mcp_baf_TECHLOG_DIR): "
+             "enables get_event_log source=techlog. With --install on Windows "
+             "(as Administrator) also installs logcfg.xml writing the log there.",
     )
     parser.add_argument(
         "--cache-dir", default="",
@@ -433,6 +442,7 @@ def load_config(args: argparse.Namespace) -> Config:
         retry_non_idempotent=_env_bool("mcp_baf_RETRY_NON_IDEMPOTENT"),
         dump_dir=os.environ.get("mcp_baf_DUMP_DIR", ""),
         help_dir=os.environ.get("mcp_baf_HELP_DIR", ""),
+        techlog_dir=os.environ.get("mcp_baf_TECHLOG_DIR", ""),
         audit_max_size_mib=_env_int(
             "mcp_baf_AUDIT_MAX_SIZE", DEFAULT_AUDIT_MAX_SIZE_MIB
         ),
@@ -462,6 +472,9 @@ def load_config(args: argparse.Namespace) -> Config:
     if args.dump:
         cfg.dump_dir = args.dump
     cfg.help_dir = args.help_dir or cfg.help_dir
+    cfg.techlog_dir = args.techlog_dir or cfg.techlog_dir
+    if cfg.techlog_dir and not os.path.isdir(cfg.techlog_dir):
+        raise ConfigError(f"--techlog-dir: каталог не існує: {cfg.techlog_dir}")
     if args.max_response_size > 0:
         cfg.max_response_size_mib = args.max_response_size
     if args.request_timeout > 0:

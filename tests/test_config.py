@@ -251,3 +251,18 @@ def test_env_secret_file_bom_stripped(monkeypatch, tmp_path):
     monkeypatch.delenv("mcp_baf_PASSWORD", raising=False)
     monkeypatch.setenv("mcp_baf_PASSWORD_FILE", str(f))
     assert _env_secret("mcp_baf_PASSWORD") == "secret"
+
+
+def test_techlog_dir_env_and_cli(monkeypatch, tmp_path):
+    import pytest
+    from mcp_baf.config import ConfigError
+
+    a = tmp_path / "a"
+    b = tmp_path / "b"
+    a.mkdir()
+    b.mkdir()
+    monkeypatch.setenv("mcp_baf_TECHLOG_DIR", str(a))
+    assert load_config(parse_args([])).techlog_dir == str(a)
+    assert load_config(parse_args(["--techlog-dir", str(b)])).techlog_dir == str(b)
+    with pytest.raises(ConfigError, match="techlog-dir"):
+        load_config(parse_args(["--techlog-dir", str(tmp_path / "missing")]))
