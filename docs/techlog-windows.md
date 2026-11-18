@@ -30,23 +30,43 @@ mcp-baf --install "сервер\база" --server --techlog-dir D:\techlog --db
 
 ## 2. Запуск службою (Планувальник завдань)
 
-Токен — у файлі (його прочитає `mcp_baf_HTTP_TOKEN_FILE`; прапора `--http-token-file` немає):
+Секрети — лише у файлах (їх читають `mcp_baf_HTTP_TOKEN_FILE` і
+`mcp_baf_PASSWORD_FILE`; прапора `--http-token-file` немає). Файли й каталоги
+мають бути доступні обліковому запису **SYSTEM**. Від імені адміністратора,
+у тій самій сесії, де задано змінні:
 
 ```bat
-setx /M mcp_baf_HTTP_TOKEN_FILE C:\mcp-baf\token.txt
-setx /M mcp_baf_USER MCP
-setx /M mcp_baf_PASSWORD_FILE C:\mcp-baf\pass.txt
-schtasks /create /tn "mcp-baf" /sc onstart /ru SYSTEM /rl HIGHEST ^
-  /tr "C:\mcp-baf\.venv\Scripts\mcp-baf.exe --base http://localhost/baf/hs/mcp-baf --transport https --http-host 0.0.0.0 --http-port 8001 --http-allowed-hosts srv1c.example.com --techlog-dir D:\techlog --mask-pii --cache-dir C:\mcp-baf\cache"
-schtasks /run /tn "mcp-baf"
+set mcp_baf_HTTP_TOKEN_FILE=C:\mcp-baf\token.txt
+set mcp_baf_USER=MCP
+set mcp_baf_PASSWORD_FILE=C:\mcp-baf\pass.txt
+mcp-baf --install-service --base http://localhost/baf/hs/mcp-baf --transport https ^
+  --http-host 0.0.0.0 --http-port 8001 --http-allowed-hosts srv1c.example.com ^
+  --techlog-dir D:\techlog --mask-pii --cache-dir C:\mcp-baf\cache
 ```
 
-Замість `SYSTEM` можна задати окремого користувача (`/ru DOMAIN\mcpsvc /rp *`),
-який має читати `D:\techlog` і `C:\mcp-baf`. Обмежте доступ до файлів токена й
-пароля. Змінні `setx /M` потрапляють у нові процеси: після їх зміни перезапустіть
-завдання. Без `--tls-cert/--tls-key` створюється локальний CA в `<cache-dir>\tls\`
-(його сертифікат потрібно довірити клієнтам); для спільного використання
-краще вказати свій сертифікат.
+Команда відмовиться, якщо секрет заданий відкрито (`mcp_baf_PASSWORD`,
+`mcp_baf_HTTP_TOKEN`, `--pass`, `--http-token`). Вона пише
+`<cache-dir>\run-mcp-baf.cmd` (усі `mcp_baf_*` змінні сесії + команда запуску;
+вивід — у `server-console.log`), створює завдання `mcp-baf` (SYSTEM, при старті
+ОС) і запускає його. Перевірити: `schtasks /query /tn mcp-baf`. Зупинити:
+`mcp-baf --stop --cache-dir C:\mcp-baf\cache` або `schtasks /end /tn mcp-baf`.
+Видалити: `mcp-baf --uninstall-service`. Без `--tls-cert/--tls-key` створюється
+локальний CA в `<cache-dir>\tls\` (його сертифікат потрібно довірити клієнтам);
+для спільного використання краще вказати свій сертифікат.
+
+Вручну (запасний варіант): `schtasks /create /tn mcp-baf /sc onstart /ru SYSTEM
+/rl HIGHEST /tr "<шлях до .cmd, що викликає mcp-baf>"`; змінні `setx /M` потрапляють
+лише в нові процеси, після зміни перезапустіть завдання.
+
+### Запуск у консолі, фон, зупинка
+
+У консолі Windows сервер друкує підказку: клавіша **d** (або **в** в українській
+розкладці) зупиняє сервер у цьому вікні й запускає його відокремлену копію з тими
+самими аргументами та змінними оточення; **Ctrl+C** зупиняє без traceback.
+Вивід фонової копії — `<cache-dir>\server-console.log`. Сервер із мережевим
+транспортом пише свій PID у `<cache-dir>\mcp-baf.pid` (видаляється при виході);
+`mcp-baf --stop [--cache-dir X]` зупиняє процес за цим файлом (застарілий файл
+просто видаляється).
 
 ## 3. Підключення клієнтів
 
