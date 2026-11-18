@@ -295,3 +295,44 @@ def test_techlog_survives_unavailable_1c(tmp_path, status, body, offline):
             await server.call_tool('get_event_log', {'source': 'eventlog'})
         await client.aclose()
     asyncio.run(scenario())
+
+
+def _denial(tmp_path, handler, techlog_offline=False):
+    client = OneCClient(Config(base_url='http://user:SECRETPW@test'), httpx.MockTransport(handler))
+    server = AccessMCP('test', access_client=client, audit=AuditLog(str(tmp_path)), techlog_offline=techlog_offline)
+
+    @server.tool()
+    async def execute_query(query: str):
+        raise AssertionError('must not execute')
+
+    async def scenario():
+        with pytest.raises(ToolError) as info:
+            await server.call_tool('execute_query', {'query': 'ВЫБРАТЬ 1'})
+        await client.aclose()
+        return str(info.value)
+    return asyncio.run(scenario())
+
+
+def test_denial_contains_transport_cause_without_secrets(tmp_path):
+    def refuse(request):
+        raise httpx.ConnectError('[Errno 61] Connection refused')
+    msg = _denial(tmp_path, refuse)
+    assert 'Connection refused' in msg
+    assert 'Доступно без 1С' not in msg
+    assert 'SECRETPW' not in msg and 'SECRETPW' not in (tmp_path / 'audit.log').read_text()
+
+
+@pytest.mark.parametrize('status,hint', [(401, 'логін/пароль'), (404, '--base'), (500, 'HTTP 500')])
+def test_denial_contains_status_hint_not_body(tmp_path, status, hint):
+    msg = _denial(tmp_path, lambda r: httpx.Response(status, text='BODYSECRET'))
+    assert f'HTTP {status}' in msg and hint in msg
+    assert 'BODYSECRET' not in msg
+
+
+def test_denial_offline_hint_only_with_techlog(tmp_path):
+    def refuse(request):
+        raise httpx.ConnectError('Connection refused')
+    assert 'get_event_log(source="techlog")' in _denial(tmp_path, refuse, techlog_offline=True)
+    # Явный отказ 1С (reason) — техжурнал не предлагаем.
+    deny = lambda r: httpx.Response(403, json={'error': 'x', 'reason': 'method_use_denied'})
+    assert 'techlog' not in _denial(tmp_path, deny, techlog_offline=True)
