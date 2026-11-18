@@ -903,3 +903,106 @@ def strip_unsupported_elements(ext_dir: str) -> None:
                 os.path.join(root, name),
                 lambda c: _INTERNAL_INFO_RE.sub("", c),
             )
+
+
+# --- logcfg.xml технологического журнала --------------------------------
+
+LOGCFG_EVENTS = ("TLOCK", "TTIMEOUT", "TDEADLOCK", "EXCP")
+
+_LOGCFG_TEMPLATE = (
+    '<?xml version="1.0" encoding="UTF-8"?>\n'
+    '<config xmlns="http://v8.1c.ru/v8/tech-log">\n'
+    '  <log location={location} history="72">\n'
+    '{events}'
+    '    <property name="all"/>\n'
+    '  </log>\n'
+    '</config>\n'
+)
+_CONF_LOCATION_RE = re.compile(r"^\s*ConfLocation\s*=\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
+
+
+def build_logcfg(techlog_dir: str) -> str:
+    """Содержимое logcfg.xml: только TLOCK/TTIMEOUT/TDEADLOCK/EXCP, все свойства."""
+    from xml.sax.saxutils import escape
+
+    events = "".join(
+        f'    <event><eq property="name" value="{name}"/></event>\n'
+        for name in LOGCFG_EVENTS
+    )
+    return _LOGCFG_TEMPLATE.format(location='"' + escape(techlog_dir, {'"': "&quot;"}) + '"', events=events)
+
+
+def logcfg_conf_dir(platform_exe: str) -> str:
+    """Каталог conf платформы: bin\\conf, либо ConfLocation из bin\\conf\\conf.cfg.
+
+    shortcut: правило взято из документации 1С (conf.cfg в bin\\conf, ключ
+    ConfLocation переопределяет каталог); общий <каталог установки>\\conf не
+    проверяется, подтвердить на живом сервере.
+    """
+    conf_dir = os.path.join(os.path.dirname(platform_exe), "conf")
+    cfg = os.path.join(conf_dir, "conf.cfg")
+    try:
+        with open(cfg, encoding="utf-8-sig", errors="replace") as f:
+            m = _CONF_LOCATION_RE.search(f.read())
+    except OSError:
+        return conf_dir
+    return m.group(1).strip('"') if m else conf_dir
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
+def _is_admin() -> bool:
+    try:
+        import ctypes
+
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())  # type: ignore[attr-defined]
+    except (AttributeError, OSError):
+        return False
+
+
+def install_logcfg(platform_exe: str, techlog_dir: str) -> str:
+    """Кладёт logcfg.xml в conf платформы; возвращает статус (для тестов).
+
+    Статусы: written / exists-same / exists-differs / manual. Существующий
+    файл не перезаписывается никогда; без прав администратора или не на
+    Windows ничего не пишется, печатается путь и содержимое для ручной установки.
+    """
+    import difflib
+
+    techlog_dir = os.path.abspath(techlog_dir)
+    content = build_logcfg(techlog_dir)
+    target = os.path.join(logcfg_conf_dir(platform_exe), "logcfg.xml")
+    reread = "Платформа перечитывает logcfg.xml примерно раз в минуту, перезапуск не нужен."
+
+    if os.path.exists(target):
+        with open(target, encoding="utf-8-sig", errors="replace") as f:
+            old = f.read()
+        if old.replace("\r\n", "\n").strip() == content.strip():
+            print(f"logcfg.xml already installed: {target}")
+            return "exists-same"
+        diff = "".join(difflib.unified_diff(
+            old.replace("\r\n", "\n").splitlines(True), content.splitlines(True),
+            "existing logcfg.xml", "proposed logcfg.xml"))
+        print(f"logcfg.xml exists and differs, NOT overwritten: {target}\n{diff}"
+              "Replace it manually (merge the <log> section) if the tech log "
+              f"should go to {techlog_dir}.")
+        return "exists-differs"
+
+    if _is_windows() and _is_admin():
+        try:
+            os.makedirs(techlog_dir, exist_ok=True)
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with open(target, "x", encoding="utf-8", newline="\n") as f:
+                f.write(content)
+        except OSError as exc:
+            print(f"Could not write logcfg.xml ({exc}); install it manually.")
+        else:
+            print(f"logcfg.xml installed: {target}\n{reread}")
+            return "written"
+    else:
+        print("Not running as Administrator on Windows: logcfg.xml was NOT written.")
+    print(f"Create {target} manually with this content:\n{content}"
+          f"(and create the directory {techlog_dir})\n{reread}")
+    return "manual"
