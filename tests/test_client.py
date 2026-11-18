@@ -416,7 +416,13 @@ def test_non_idempotent_retried_only_with_explicit_flag(tmp_path):
     asyncio.run(client.aclose())
 
 
-def test_retry_backoff_is_exponential(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    ("backoff", "expected_delays"),
+    [(0.25, [0.25, 0.5, 1.0]), (20, [20, 30, 30]), (60, [30, 30, 30])],
+)
+def test_retry_backoff_is_exponential_and_capped(
+    tmp_path, monkeypatch, backoff, expected_delays,
+):
     delays = []
 
     async def fake_sleep(delay):
@@ -425,11 +431,11 @@ def test_retry_backoff_is_exponential(tmp_path, monkeypatch):
     monkeypatch.setattr("mcp_baf.client.asyncio.sleep", fake_sleep)
     seen = []
     handler = _flaky_handler([httpx.ConnectError("down")], seen)
-    client = _client(tmp_path, handler, retry_attempts=2, retry_backoff=0.25)
+    client = _client(tmp_path, handler, retry_attempts=3, retry_backoff=backoff)
 
     with pytest.raises(OneCError):
         asyncio.run(client.get("/version"))
-    assert delays == [0.25, 0.5]
+    assert delays == expected_delays
     asyncio.run(client.aclose())
 
 
