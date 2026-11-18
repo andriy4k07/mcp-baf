@@ -198,10 +198,43 @@ def _env_secret(name: str) -> str:
         ) from None
 
 
+# Подсказка в конце --help: что нужно для службы Windows (для не-админов).
+_SERVICE_HELP = r"""
+Швидкий старт служби Windows (PowerShell від імені адміністратора):
+
+  1) Секрети — у файли, не в командний рядок:
+       Set-Content -Path C:\mcp-baf\token.txt    -Value "<довгий токен>" -NoNewline
+       Set-Content -Path C:\mcp-baf\password.txt -Value "<пароль 1С>"    -NoNewline
+
+  2) Змінні середовища (служба запам'ятає їх при встановленні):
+       $env:mcp_baf_USER            = "<користувач 1С>"
+       $env:mcp_baf_PASSWORD_FILE   = "C:\mcp-baf\password.txt"
+       $env:mcp_baf_HTTP_TOKEN_FILE = "C:\mcp-baf\token.txt"
+
+  3) Встановити й запустити:
+       mcp-baf --install-service --base http://localhost/<база>/hs/mcp-baf
+               --transport https --http-host 0.0.0.0 --http-allowed-hosts <IP сервера>:*
+               --techlog-dir D:\LOG_1C --mask-pii --cache-dir C:\mcp-baf\cache
+
+Керування:
+  mcp-baf --status              стан служби й сервера, де журнали
+  mcp-baf --logs [console|server|audit]
+                                журнал (console — вивід служби; server — помилки;
+                                audit — виклики й відмови 1С), Ctrl+C — вихід
+  mcp-baf --stop                зупинити сервер
+  mcp-baf --uninstall-service   видалити службу
+  У консолі запущеного сервера: d — перевести у фон.
+
+Детально: docs/techlog-windows.md
+"""
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="mcp-baf",
         description="MCP server for 1C:Enterprise HTTP service",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_SERVICE_HELP,
     )
     parser.add_argument("--base", default="", help="Base URL of 1C HTTP service")
     parser.add_argument("--user", default="", help="1C HTTP service user")
@@ -266,6 +299,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--uninstall-service", action="store_true",
         help="Windows, as Administrator: stop and remove task 'mcp-baf'",
+    )
+    parser.add_argument(
+        "--status", action="store_true",
+        help="Show service/server state and where the logs are, then exit",
+    )
+    parser.add_argument(
+        "--logs", nargs="?", const="console", default="",
+        choices=["console", "server", "audit"],
+        help="Show the last 50 lines of a log (default: console) and follow it "
+             "in a terminal; Ctrl+C to exit",
     )
     # Режим установки расширения.
     parser.add_argument(

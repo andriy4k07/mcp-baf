@@ -117,3 +117,32 @@ def test_uninstall_service_ignores_not_found(monkeypatch, capsys):
     monkeypatch.setattr(service, "_schtasks", lambda *a: calls.append(a) or bad)
     assert service.uninstall_service() == 0
     assert [c[0] for c in calls] == ["/end", "/delete"]
+
+
+def test_find_cache_dir_from_scheduled_task(monkeypatch, tmp_path):
+    xml = '<Exec><Command>"C:\\mcp-baf\\cache\\run-mcp-baf.cmd"</Command></Exec>'
+    monkeypatch.setattr(service.os, "name", "nt")
+    monkeypatch.delenv("mcp_baf_CACHE_DIR", raising=False)
+    monkeypatch.setattr(service, "_schtasks", lambda *a: SimpleNamespace(returncode=0, stdout=xml))
+    monkeypatch.setattr(service.os.path, "dirname", lambda p: p.rsplit("\\", 1)[0])
+    assert service.find_cache_dir() == "C:\\mcp-baf\\cache"
+    # Явный --cache-dir важнее службы.
+    assert service.find_cache_dir(str(tmp_path)) == str(tmp_path)
+
+
+def test_status_reports_server_and_logs(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(service.os, "name", "posix")
+    assert service.status(str(tmp_path)) == 1
+    assert "не запущено" in capsys.readouterr().out
+    service.write_pid(str(tmp_path))
+    (tmp_path / "audit.log").write_text("x\n")
+    assert service.status(str(tmp_path)) == 0
+    out = capsys.readouterr().out
+    assert f"PID {os.getpid()}" in out and "mcp-baf --logs audit" in out
+
+
+def test_logs_tail_without_follow(tmp_path, capsys):
+    assert service.logs("console", str(tmp_path), follow=False) == 1
+    (tmp_path / "server-console.log").write_text("".join(f"l{i}\n" for i in range(60)), encoding="utf-8")
+    assert service.logs("console", str(tmp_path), lines=3, follow=False) == 0
+    assert capsys.readouterr().out == "l57\nl58\nl59\n"

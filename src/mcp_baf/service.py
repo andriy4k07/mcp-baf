@@ -26,6 +26,30 @@ def resolve_cache_dir(cache_dir: str = "") -> str:
     return cache_dir or os.environ.get("mcp_baf_CACHE_DIR", "") or default_cache_dir("mcp-baf")
 
 
+# Журналы, которые показывает --logs (имя -> файл в кэш-каталоге).
+LOG_FILES = {"console": CONSOLE_LOG_NAME, "server": "server.log", "audit": "audit.log"}
+_TASK_CMD_RE = re.compile(r'<Command>(?:&quot;|")?([^<"&]*run-mcp-baf\.cmd)')
+
+
+def service_cache_dir() -> str:
+    """Кэш-каталог службы из задания планировщика ('' — службы нет)."""
+    if os.name != "nt":
+        return ""
+    out = _schtasks("/query", "/tn", TASK_NAME, "/xml")
+    m = _TASK_CMD_RE.search(out.stdout) if out.returncode == 0 else None
+    return os.path.dirname(m.group(1)) if m else ""
+
+
+def find_cache_dir(cache_dir: str = "") -> str:
+    """Явный --cache-dir/env > каталог установленной службы > умолчание.
+
+    Чтобы --stop/--status/--logs работали без --cache-dir после --install-service.
+    """
+    if cache_dir or os.environ.get("mcp_baf_CACHE_DIR"):
+        return resolve_cache_dir(cache_dir)
+    return service_cache_dir() or resolve_cache_dir()
+
+
 def _pid_path(cache_dir: str) -> str:
     return os.path.join(cache_dir, PID_NAME)
 
@@ -74,7 +98,7 @@ def _is_ours(pid: int) -> bool:
 
 def stop(cache_dir: str = "") -> int:
     """mcp-baf --stop: возвращает код выхода."""
-    cache_dir = resolve_cache_dir(cache_dir)
+    cache_dir = find_cache_dir(cache_dir)
     pid = _read_pid(cache_dir)
     if pid is None:
         print(f"PID-файл не знайдено ({_pid_path(cache_dir)}): сервер не запущено "
@@ -95,6 +119,58 @@ def stop(cache_dir: str = "") -> int:
         pass
     print(f"Сервер (PID {pid}) зупинено.")
     return 0
+
+
+def status(cache_dir: str = "") -> int:
+    """mcp-baf --status: служба, процесс, где лежат журналы. 0 — сервер работает."""
+    cache_dir = find_cache_dir(cache_dir)
+    if os.name == "nt":
+        q = _schtasks("/query", "/tn", TASK_NAME, "/fo", "LIST")
+        state = re.search(r"^Status:\s*(.+)$", q.stdout, re.M)
+        if q.returncode:
+            print(f"Служба: не встановлена (mcp-baf --install-service)")
+        else:
+            print(f"Служба: встановлена, стан: {state.group(1).strip() if state else '?'}")
+    pid = _read_pid(cache_dir)
+    alive = pid is not None and _is_ours(pid)
+    print(f"Сервер: {f'працює, PID {pid}' if alive else 'не запущено'}")
+    print(f"Каталог: {cache_dir}")
+    for name, file in LOG_FILES.items():
+        path = os.path.join(cache_dir, file)
+        if os.path.exists(path):
+            print(f"Журнал {name}: {path}  (mcp-baf --logs {name})")
+    return 0 if alive else 1
+
+
+def logs(name: str = "console", cache_dir: str = "", lines: int = 50,
+         follow: bool | None = None) -> int:
+    """mcp-baf --logs [console|server|audit]: хвост журнала; в консоли — следит (Ctrl+C)."""
+    import time
+
+    path = os.path.join(find_cache_dir(cache_dir), LOG_FILES[name])
+    if not os.path.exists(path):
+        print(f"Журналу ще немає: {path}", file=sys.stderr)
+        return 1
+    if follow is None:
+        follow = sys.stdout.isatty()
+    sys.stdout.reconfigure(errors="backslashreplace")
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in f.readlines()[-lines:]:
+            print(line, end="")
+        if not follow:
+            return 0
+        print(f"--- {path}: стежу за новими рядками, Ctrl+C — вихід ---", flush=True)
+        try:
+            while True:
+                line = f.readline()
+                if line:
+                    print(line, end="", flush=True)
+                    continue
+                if os.path.getsize(path) < f.tell():
+                    f.seek(0)  # ротация журнала — читаем новый файл сначала
+                time.sleep(0.5)
+        except KeyboardInterrupt:
+            return 0
 
 
 # ── Фон по клавише d (консоль Windows) ──
