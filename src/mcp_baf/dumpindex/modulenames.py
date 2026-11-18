@@ -56,6 +56,7 @@ DUMP_DIR_NAMES["CommonCommands"] = "ОбщаяКоманда"
 DUMP_DIR_NAMES["DocumentJournals"] = "ЖурналДокументов"
 DUMP_DIR_NAMES["HTTPServices"] = "HTTPСервис"
 DUMP_DIR_NAMES["WebServices"] = "WebСервис"
+DUMP_DIR_NAMES["CommonTemplates"] = "ОбщийМакет"
 
 # Имя BSL-файла -> суффикс типа модуля. Ключ — голое имя файла, поэтому
 # запись покрывает и XML-формат (.../Ext/<File>.bsl), и EDT (.../<File>.bsl).
@@ -66,6 +67,8 @@ MODULE_NAME_SUFFIXES = {
     "RecordSetModule.bsl": "МодульНабораЗаписей",
     "CommandModule.bsl": "МодульКоманды",
     "ValueManagerModule.bsl": "МодульМенеджераЗначения",
+    # Не BSL: Template.xml со схемой компоновки данных (см. dumpindex.dcs).
+    "Template.xml": "СхемаКомпоновкиДанных",
 }
 
 # Поддиректория dump -> русский сегмент имени дочернего объекта
@@ -73,6 +76,7 @@ MODULE_NAME_SUFFIXES = {
 SUBDIR_SEGMENT_NAMES = {
     "Forms": "Форма",
     "Commands": "Команда",
+    "Templates": "Макет",
 }
 
 # Корневая директория расширений конфигурации.
