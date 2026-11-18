@@ -433,7 +433,8 @@ def _run_http(server, config: Config, tls: tuple[str, str] | None) -> None:
         child = service.spawn_detached(cache_dir)
         print(f"Сервер працює у фоні, PID {service.wait_child_pid(cache_dir, child.pid)}\n"
               f"Журнал: {os.path.join(cache_dir, service.CONSOLE_LOG_NAME)}\n"
-              "Зупинити: mcp-baf --stop")
+              # Явный каталог: без него --stop нашёл бы каталог службы, а не эту копию.
+              f'Зупинити: mcp-baf --stop --cache-dir "{cache_dir}"')
 
 
 if __name__ == "__main__":
