@@ -979,7 +979,8 @@ def install_logcfg(platform_exe: str, techlog_dir: str) -> str:
     if os.path.exists(target):
         with open(target, encoding="utf-8-sig", errors="replace") as f:
             old = f.read()
-        if old.replace("\r\n", "\n").strip() == content.strip():
+        # Отступы и перевод строки в конце не важны: сравниваем без пробелов.
+        if "".join(old.split()) == "".join(content.split()):
             print(f"logcfg.xml already installed: {target}")
             return "exists-same"
         diff = "".join(difflib.unified_diff(
