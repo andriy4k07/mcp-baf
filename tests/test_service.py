@@ -96,18 +96,85 @@ def test_install_service_requires_admin(tmp_path, monkeypatch):
     assert service.uninstall_service() == 1
 
 
-def test_install_service_schtasks(tmp_path, monkeypatch):
+def _fake_install(tmp_path, monkeypatch, pip_rc=0):
+    """Окружение установки: ProgramFiles/ProgramData в tmp, subprocess и schtasks — заглушки."""
     _win_admin(monkeypatch)
-    calls = []
+    monkeypatch.setenv("ProgramFiles", str(tmp_path / "pf"))
+    monkeypatch.setenv("ProgramData", str(tmp_path / "pd"))
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    monkeypatch.setattr(service, "_current_pip_spec", lambda: "/src/mcp-baf")
+    sched, runs = [], []
     ok = SimpleNamespace(returncode=0, stdout="", stderr="")
-    monkeypatch.setattr(service, "_schtasks", lambda *a: calls.append(a) or ok)
-    assert service.install_service(["--install-service", "--transport", "https"],
-                                   str(tmp_path)) == 0
-    cmd_path = str(tmp_path / "run-mcp-baf.cmd")
-    assert os.path.exists(cmd_path)
-    assert calls[0] == ("/create", "/tn", "mcp-baf", "/sc", "onstart", "/ru", "SYSTEM",
-                        "/rl", "HIGHEST", "/f", "/tr", f'"{cmd_path}"')
-    assert calls[1] == ("/run", "/tn", "mcp-baf")
+    monkeypatch.setattr(service, "_schtasks", lambda *a: sched.append(a) or ok)
+
+    def run(argv, **kw):
+        runs.append(argv)
+        return SimpleNamespace(returncode=pip_rc if "pip" in argv else 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    return sched, runs
+
+
+def test_pip_spec():
+    v = "1.2"
+    assert service.pip_spec(None, v) == "mcp-baf==1.2"
+    assert service.pip_spec("not json", v) == "mcp-baf==1.2"
+    local = service.pip_spec('{"url": "file:///tmp/mcp-baf", "dir_info": {}}', v)
+    assert local == "/tmp/mcp-baf"
+    git = '{"url": "https://h/r.git", "vcs_info": {"vcs": "git", "commit_id": "abc"}}'
+    assert service.pip_spec(git, v) == "git+https://h/r.git@abc"
+    assert service.pip_spec('{"url": "https://h/p.whl", "archive_info": {}}', v) == "https://h/p.whl"
+
+
+def test_install_service_schtasks(tmp_path, monkeypatch):
+    sched, runs = _fake_install(tmp_path, monkeypatch)
+    data = str(tmp_path / "pd" / "mcp-baf")
+    assert service.install_service(["--install-service", "--transport", "https"], data) == 0
+    venv_py = os.path.join(str(tmp_path / "pf" / "mcp-baf"), "venv", "Scripts", "python.exe")
+    base = getattr(sys, "_base_executable", sys.executable)
+    assert runs[0][0] == "icacls" and runs[0][1] == data
+    assert runs[0][2:] == ["/inheritance:r", "/grant:r", "*S-1-5-18:(OI)(CI)F",
+                           "*S-1-5-32-544:(OI)(CI)F"]
+    assert runs[1] == [base, "-m", "venv", os.path.dirname(os.path.dirname(venv_py))]
+    assert runs[2] == [venv_py, "-m", "pip", "install", "--upgrade", "/src/mcp-baf"]
+    cmd_path = os.path.join(data, "run-mcp-baf.cmd")
+    assert venv_py in open(cmd_path, encoding="utf-8").read()
+    creates = [c for c in sched if c[0] == "/create"]
+    assert creates[0] == ("/create", "/tn", "mcp-baf", "/sc", "onstart", "/ru", "SYSTEM",
+                          "/rl", "HIGHEST", "/f", "/tr", f'"{cmd_path}"')
+    assert sched[-1] == ("/run", "/tn", "mcp-baf")
+
+
+def test_install_service_reuses_venv(tmp_path, monkeypatch):
+    _, runs = _fake_install(tmp_path, monkeypatch)
+    py = tmp_path / "pf" / "mcp-baf" / "venv" / "Scripts" / "python.exe"
+    py.parent.mkdir(parents=True)
+    py.write_text("")
+    assert service.install_service([], str(tmp_path / "pd" / "mcp-baf")) == 0
+    assert not any(r[1:3] == ["-m", "venv"] for r in runs)
+
+
+def test_install_service_pip_failure_aborts(tmp_path, monkeypatch):
+    sched, _ = _fake_install(tmp_path, monkeypatch, pip_rc=1)
+    data = tmp_path / "pd" / "mcp-baf"
+    assert service.install_service([], str(data)) == 1
+    assert not any(c[0] in ("/create", "/run") for c in sched)
+    assert not (data / "run-mcp-baf.cmd").exists()
+
+
+def test_uninstall_service_removes_app_keeps_data(tmp_path, monkeypatch, capsys):
+    _win_admin(monkeypatch)
+    monkeypatch.setenv("ProgramFiles", str(tmp_path / "pf"))
+    app = tmp_path / "pf" / "mcp-baf" / "venv"
+    app.mkdir(parents=True)
+    data = tmp_path / "pd"
+    data.mkdir()
+    ok = SimpleNamespace(returncode=0, stdout="", stderr="")
+    monkeypatch.setattr(service, "_schtasks", lambda *a: ok)
+    monkeypatch.setattr(service, "service_cache_dir", lambda: str(data))
+    assert service.uninstall_service() == 0
+    assert not (tmp_path / "pf" / "mcp-baf").exists() and data.exists()
+    assert str(data) in capsys.readouterr().out
 
 
 def test_uninstall_service_ignores_not_found(monkeypatch, capsys):
