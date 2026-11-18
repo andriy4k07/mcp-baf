@@ -190,6 +190,18 @@ def test_retry_defaults(clean_env):
     assert cfg.retry_non_idempotent is False
 
 
+@pytest.mark.parametrize(("value", "expected"), [(" ON ", True), ("off", False), ("", False)])
+def test_mask_pii_boolean_env(clean_env, value, expected):
+    clean_env.setenv("mcp_baf_MASK_PII", value)
+    assert load_config(parse_args([])).mask_pii is expected
+
+
+def test_invalid_mask_pii_boolean_env_is_rejected(clean_env):
+    clean_env.setenv("mcp_baf_MASK_PII", "enabled")
+    with pytest.raises(ConfigError, match="mcp_baf_MASK_PII"):
+        load_config(parse_args([]))
+
+
 def test_retry_env_and_cli(clean_env):
     clean_env.setenv("mcp_baf_RETRY_ATTEMPTS", "5")
     clean_env.setenv("mcp_baf_RETRY_BACKOFF", "0.25")
