@@ -28,6 +28,7 @@ import os
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 
+from mcp_baf.dumpindex.extroots import discover_extension_roots
 from mcp_baf.dumpindex.modulenames import OBJECT_TYPE_TO_DUMP_DIR, nfc
 from mcp_baf.dumpindex.xmlguard import UnsafeXML, parse_bytes, parse_file
 
@@ -112,44 +113,29 @@ def display_type(element_type: str) -> str:
     return ELEMENT_TYPE_DISPLAY_NAME.get(element_type, element_type)
 
 
-def find_form_files(
-    dump_dir: str, object_type: str, object_name: str
-) -> dict[str, str]:
-    """Находит все Form.xml объекта в dump-выгрузке.
-
-    Возвращает словарь имя формы -> абсолютный путь к файлу.
-    Пустой словарь — у объекта нет директории Forms (это не ошибка).
-    """
-    dir_name = OBJECT_TYPE_TO_DUMP_DIR.get(object_type)
-    if dir_name is None:
-        raise ValueError(f"unknown object type {object_type!r} for dump lookup")
-
-    if ".." in object_name or "/" in object_name or "\\" in object_name:
-        raise ValueError(
-            f"invalid object name {object_name!r}: contains path traversal characters"
-        )
-
-    # Designer: <dump>/<Категория>/...; EDT: <project>/src/<Категория>/...
-    # (--dump может указывать и на корень проекта, и на его src/).
-    forms_dir = os.path.join(dump_dir, dir_name, object_name, "Forms")
-    if not os.path.isdir(forms_dir):
-        forms_dir = os.path.join(dump_dir, "src", dir_name, object_name, "Forms")
-    try:
-        entries = os.listdir(forms_dir)
-    except FileNotFoundError:
-        return {}
-
-    root = os.path.realpath(dump_dir) + os.sep
-    result = {}
+def _forms_in(base: str, dir_name: str, object_name: str, common: bool) -> dict[str, str]:
+    """Формы объекта в одном корне выгрузки: Designer, EDT, EDT с src/ внутри base."""
+    root = os.path.realpath(base) + os.sep
+    result: dict[str, str] = {}
+    for prefix in ("", "src"):
+        obj_dir = os.path.join(base, prefix, dir_name, object_name)
+        # Общая форма — сама объект: <CommonForms>/<Имя>/Form.form, без каталога Forms.
+        forms_dir = obj_dir if common else os.path.join(obj_dir, "Forms")
+        if os.path.isdir(forms_dir):
+            break
+    else:
+        return result
+    entries = [""] if common else os.listdir(forms_dir)
     for entry in entries:
-        form_xml = os.path.join(forms_dir, entry, "Ext", "Form.xml")
+        form_dir = os.path.join(forms_dir, entry)
+        form_xml = os.path.join(form_dir, "Ext", "Form.xml")
         if not os.path.isfile(form_xml):
-            form_xml = os.path.join(forms_dir, entry, "Form.form")  # EDT
-        # Симлинки наружу dump-корня не читаем.
+            form_xml = os.path.join(form_dir, "Form.form")  # EDT
+        # Симлинки наружу корня выгрузки не читаем.
         if os.path.isfile(form_xml) and os.path.realpath(form_xml).startswith(root):
             # Ключ — NFC-имя формы (macOS отдаёт listdir в NFD, а form_name
             # из запроса приходит в NFC); путь хранит сырое имя с диска.
-            key = nfc(entry)
+            key = nfc(entry or object_name)
             if key in result and result[key] != form_xml:
                 # Два разных файла с диска сошлись в одно NFC-имя: отдать
                 # один «первому попавшемуся» значит молча показать чужую
@@ -159,6 +145,38 @@ def find_form_files(
                     f"{result[key]!r} and {form_xml!r} normalize to {key!r}"
                 )
             result[key] = form_xml
+    return result
+
+
+def find_form_files(
+    dump_dir: str, object_type: str, object_name: str
+) -> dict[str, str]:
+    """Находит все формы объекта (Form.xml / Form.form) в dump-выгрузке.
+
+    Возвращает словарь имя формы -> абсолютный путь к файлу.
+    Пустой словарь — у объекта нет директории Forms (это не ошибка).
+    Формы вложенных проектов (расширения, EDT-проекты в обёртке) получают
+    ключ ``ext.<имя>.<форма>`` как у модулей; основная EDT-конфигурация
+    в обёртке — без префикса. Формы корня --dump приоритетнее вложенных.
+    ``CommonForm``: object_name — имя общей формы, ключ — то же имя.
+    """
+    common = object_type == "CommonForm"
+    dir_name = "CommonForms" if common else OBJECT_TYPE_TO_DUMP_DIR.get(object_type)
+    if dir_name is None:
+        raise ValueError(f"unknown object type {object_type!r} for dump lookup")
+
+    if ".." in object_name or "/" in object_name or "\\" in object_name:
+        raise ValueError(
+            f"invalid object name {object_name!r}: contains path traversal characters"
+        )
+
+    result = _forms_in(dump_dir, dir_name, object_name, common)
+    # shortcut: вложенные проекты ищутся каждый вызов (манифесты читаются заново,
+    # бюджет extroots ограничивает стоимость); кэшировать, если станет медленно.
+    for rel, ext_name in discover_extension_roots(dump_dir).items():
+        prefix = f"ext.{ext_name}." if ext_name else ""
+        for form, path in _forms_in(os.path.join(dump_dir, rel), dir_name, object_name, common).items():
+            result.setdefault(prefix + form, path)
     return result
 
 

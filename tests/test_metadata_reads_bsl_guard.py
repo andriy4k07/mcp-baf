@@ -217,3 +217,12 @@ def test_input_errors_are_400_before_internal_try():
     # Неизвестный тип метаданных (Неопределено из ЕстьПравоЧтения) — 400, а не крах.
     for handler in ("НавигацияPOST", "СсылкиPOST"):
         assert "Если ПраваЧтения = Неопределено" in body_of(src, handler), handler
+
+
+def test_metadata_rights_as_user_preview_contract():
+    body = body_of(source(), "ПраваМетаданныхPOST")
+    assert 'ОтветОшибка(404, "Пользователь информационной базы не найден", "", "user_not_found")' in body
+    assert 'ПараметрыДоступа(Право, Мета, "", Пользователь).ОграничениеУсловием' in body
+    assert "Пользователь.Роли" in body and "Роль.Имя" in body
+    # RLS-проверка защищена Попыткой: не все права поддерживаются ПараметрыДоступа.
+    assert body.index("Попытка\n                            РЛС =") < body.index("ПараметрыДоступа(")

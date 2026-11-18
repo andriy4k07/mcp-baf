@@ -31,6 +31,8 @@ import tempfile
 from collections.abc import Callable, Iterable
 from typing import Any
 
+from mcp_baf.pii_lineage import column_sources
+
 # Подстроки имён колонок с персональными данными (сравнение без регистра).
 # shortcut: ПІБ у полі Наименование (фізособи-контрагенти) не маскується —
 # лише за назвою колонки; розширити, якщо агент виводить Наименование фізосіб
@@ -396,10 +398,15 @@ def mask_pii_result(r: dict[str, Any], query: str | None = None) -> dict[str, An
     """
     columns = r.get("columns") or []
     aliases = _pii_aliases(query) if query else set()
+    lineage = column_sources(query) if query else None
+    if lineage is None or len(lineage) != len(columns):
+        lineage = [frozenset()] * len(columns)  # позиции не сошлись — как раньше
+    # Происхождение (#127) только добавляет маскирование к правилам по имени.
     sensitive = [
         _is_pii_name(str(c).rsplit(".", 1)[-1])
         or str(c).rsplit(".", 1)[-1].lower() in aliases
-        for c in columns
+        or any(_is_pii_name(w) for w in src)
+        for c, src in zip(columns, lineage)
     ]
 
     def mask(i: int, v: Any) -> Any:

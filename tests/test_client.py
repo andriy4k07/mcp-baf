@@ -494,3 +494,28 @@ def test_external_cancel_propagates_and_is_logged(tmp_path):
     assert e["ok"] is False
     assert e["error"] == "timeout"
     assert e["payload"]["error_kind"] == "timeout"
+
+
+def test_error_code_hint_survives_mask_pii(tmp_path):
+    import asyncio
+    import httpx
+    from mcp_baf.client import OneCClient, OneCError
+    from mcp_baf.config import Config
+
+    body = {"error": "Пользователь информационной базы не найден", "error_code": "user_not_found"}
+    client = OneCClient(Config(base_url="http://test", mask_pii=True),
+                        httpx.MockTransport(lambda r: httpx.Response(404, json=body)))
+
+    async def scenario():
+        try:
+            await client.post("/metadata-rights", {})
+        finally:
+            await client.aclose()
+
+    try:
+        asyncio.run(scenario())
+    except OneCError as exc:
+        assert "пользователь информационной базы не найден" in str(exc)
+        assert "объект или форма" not in str(exc)
+    else:
+        raise AssertionError("expected OneCError")

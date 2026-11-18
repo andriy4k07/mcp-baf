@@ -25,6 +25,7 @@ from mcp_baf.dumpindex.modulenames import OBJECT_TYPE_TO_DUMP_DIR, nfc
 from mcp_baf.pii import MASKING_NOTE, mask_pii_text
 from mcp_baf.tools.common import (
     escape_pipe, object_path_segments, traced_text, truncate_output,
+    validate_metadata_name,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,23 +64,30 @@ def register(
             raise ValueError("object_type and object_name are required")
 
         async def run() -> str:
-            # Оба сегмента подставляются в URL: белый список типов + имя по регексу.
-            url_type, url_name = object_path_segments(
-                object_type, object_name, OBJECT_TYPE_TO_DUMP_DIR
-            )
-            # HTTP-endpoint отдаёт имя и заголовок формы (синоним из конфигурации).
-            # form_name уходит query-параметром form: без него 1С молча отдавала
-            # основную форму, и клиент получал структуру не той формы.
-            endpoint = f"/form/{url_type}/{url_name}"
-            if form_name:
-                endpoint += f"?form={quote(form_name, safe='')}"
             form: dict[str, Any] = {}
             http_error: Exception | None = None
             dump_note = ""
-            try:
-                form = await client.get(endpoint)
-            except OneCError as exc:
-                http_error = exc
+            if object_type == "CommonForm":
+                # Общие формы HTTP-сервис не отдаёт: только из dump.
+                validate_metadata_name(object_name, "object_name")
+                if not dump_dir:
+                    raise ValueError("object_type=CommonForm доступен только при запуске с --dump")
+                http_error = OneCError("общие формы читаются только из dump")
+            else:
+                # Оба сегмента подставляются в URL: белый список типов + имя по регексу.
+                url_type, url_name = object_path_segments(
+                    object_type, object_name, OBJECT_TYPE_TO_DUMP_DIR
+                )
+                # HTTP-endpoint отдаёт имя и заголовок формы (синоним из конфигурации).
+                # form_name уходит query-параметром form: без него 1С молча отдавала
+                # основную форму, и клиент получал структуру не той формы.
+                endpoint = f"/form/{url_type}/{url_name}"
+                if form_name:
+                    endpoint += f"?form={quote(form_name, safe='')}"
+                try:
+                    form = await client.get(endpoint)
+                except OneCError as exc:
+                    http_error = exc
 
             if dump_dir:
                 try:

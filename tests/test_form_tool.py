@@ -110,3 +110,41 @@ def test_header_and_elements_describe_the_same_form(tmp_path, form_name, http_na
     assert f"# Форма: {header}\n" in text
     assert "**Заголовок:** " + ("Список" if header == "ФормаСписку" else "Документ") in text
     assert field in text and other not in text
+
+
+def test_common_form_read_from_dump_without_http(tmp_path):
+    dump = tmp_path / "dump"
+    xml = dump / "CommonForms" / "Вопрос" / "Ext" / "Form.xml"
+    xml.parent.mkdir(parents=True)
+    xml.write_text("<Form><ChildItems/></Form>", encoding="utf-8")
+    requests = []
+    transport = httpx.MockTransport(lambda r: requests.append(r) or httpx.Response(500))
+    audit = AuditLog(str(tmp_path / "audit"))
+    client = OneCClient(Config(base_url="http://test"), transport, audit=audit)
+    mcp = MCPServer("test")
+    form.register(mcp, client, audit, dump_dir=str(dump))
+
+    async def scenario():
+        try:
+            return await mcp.call_tool("get_form_structure", {"object_type": "CommonForm", "object_name": "Вопрос"})
+        finally:
+            await client.aclose()
+
+    assert asyncio.run(scenario())
+    assert requests == []  # общие формы в 1С не запрашиваются
+
+
+def test_common_form_requires_dump(tmp_path):
+    audit = AuditLog(str(tmp_path / "audit"))
+    client = OneCClient(Config(base_url="http://test"), httpx.MockTransport(lambda r: httpx.Response(500)), audit=audit)
+    mcp = MCPServer("test")
+    form.register(mcp, client, audit)
+
+    async def scenario():
+        try:
+            await mcp.call_tool("get_form_structure", {"object_type": "CommonForm", "object_name": "Вопрос"})
+        finally:
+            await client.aclose()
+
+    with pytest.raises(ToolError, match="--dump"):
+        asyncio.run(scenario())
