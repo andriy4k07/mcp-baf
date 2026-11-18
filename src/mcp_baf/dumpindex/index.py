@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 import regex  # PyPI: поддерживает timeout= прямо внутри поиска (защита от ReDoS)
 
 from mcp_baf.dumpindex.cache import index_db_path, remove_stale
+from mcp_baf.dumpindex.dcs import extract_dcs_text, is_dcs_candidate, ROOT_PROBE, usage_pattern
 from mcp_baf.dumpindex.extroots import discover_extension_roots
 from mcp_baf.dumpindex.modulenames import (
     nfc,
@@ -56,7 +57,9 @@ logger = logging.getLogger(__name__)
 # v6: EDT-проект (корень или src/) даёт те же имена, что и src/.
 # v7: EDT-проекты (Configuration.mdo) в обёртке — расширения получают ext.<имя>,
 # основная конфигурация теряет src/ (ключи модулей меняются).
-SCHEMA_VERSION = 7
+# v8: Template.xml схем компоновки данных индексируются как модули
+# СхемаКомпоновкиДанных (имена Отчет.X.Макет.Y..., ОбщийМакет.Y...).
+SCHEMA_VERSION = 8
 
 # Сколько секунд close() ждёт завершения потока-строителя индекса перед
 # закрытием соединения. close() обязана закрыть SQLite-соединение, только
@@ -118,6 +121,14 @@ class Match:
     line: int     # номер строки (с 1)
     context: str  # строки вокруг совпадения
     score: float = 0.0  # релевантность BM25 (только режим smart)
+
+
+@dataclass
+class Usage:
+    """Ссылки на объект в одном модуле/СКД: номера строк (для СКД — в тексте запросов)."""
+
+    module: str
+    lines: list[int]
 
 
 @dataclass
@@ -319,9 +330,9 @@ class DumpIndex:
         files: dict[str, _FileState] = {}
         for root, _dirs, names in os.walk(self._dir):
             for file_name in names:
-                if not file_name.lower().endswith(".bsl"):
-                    continue
                 abs_path = os.path.join(root, file_name)
+                if not (file_name.lower().endswith(".bsl") or _is_template_xml(abs_path)):
+                    continue
                 if os.path.islink(abs_path):
                     continue  # симлинк может вести за пределы dump-корня
                 try:
@@ -329,6 +340,8 @@ class DumpIndex:
                 except OSError:
                     continue
                 if st.st_size > _MAX_BSL_BYTES:
+                    if file_name.lower().endswith(".xml"):
+                        continue  # огромные макеты таблиц — не СКД, молча пропускаем
                     logger.warning("Пропущен BSL-файл больше 8 MiB: %s", abs_path)
                     continue
                 rel = os.path.relpath(abs_path, self._dir).replace("\\", "/")
@@ -344,12 +357,19 @@ class DumpIndex:
         try:
             # Файл мог вырасти после _walk_files, поэтому ограничиваем само чтение.
             with open(abs_path, "rb") as f:
+                is_xml = abs_path.endswith(".xml")
+                # Template.xml: не-СКД (макеты таблиц, двоичные) отсекаются по началу файла.
+                if is_xml and not is_dcs_candidate(f.read(ROOT_PROBE)):
+                    return None
+                f.seek(0)
                 data = f.read(_MAX_BSL_BYTES + 1)
         except OSError:
             return None  # нечитаемые файлы пропускаются
         if len(data) > _MAX_BSL_BYTES:
             logger.warning("Пропущен BSL-файл больше 8 MiB: %s", abs_path)
             return None
+        if is_xml:
+            return extract_dcs_text(data)
         return data.decode("utf-8-sig", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
 
     def _populate(self, db: sqlite3.Connection) -> None:
@@ -679,6 +699,42 @@ class DumpIndex:
             )
         raise ValueError(f"unknown search mode: {params.mode!r}")
 
+    def find_usages(
+        self, query: str, limit: int = 50, category: str = "", module: str = "",
+    ) -> tuple[list[Usage], int, int]:
+        """Модули и СКД, ссылающиеся на объект `Тип.Имя` (ru/en, ед./мн.ч. типа).
+
+        Возвращает (usages по убыванию числа ссылок, всего модулей, всего ссылок).
+        """
+        if not self._ready.is_set():
+            if self._build_error is not None:
+                raise RuntimeError(f"index build failed: {self._build_error}")
+            raise RuntimeError("search index is building, please retry")
+        limit = min(limit if limit > 0 else 50, 500)
+        pattern, name = usage_pattern(nfc(query))
+        # FTS быстро отсекает модули без имени объекта; точное совпадение — regex ниже.
+        fts = " AND ".join(f'"{t}"' for t in _TOKEN_RE.findall(name.lower()))
+        with self._db_lock:
+            ids = [r[0] for r in self._require_db().execute(
+                "SELECT d.id FROM fts JOIN docs d ON d.id = fts.rowid WHERE fts MATCH :q "
+                "AND (:c = '' OR d.category = :c) AND (:m = '' OR d.module = :m)",
+                {"q": fts, "c": nfc(category), "m": nfc(module)},
+            )]
+        usages: list[Usage] = []
+        for start in range(0, len(ids), SCAN_BATCH):
+            batch = ids[start:start + SCAN_BATCH]
+            with self._db_lock:
+                rows = self._require_db().execute(
+                    "SELECT name, content FROM docs WHERE id IN (%s)" % ",".join("?" * len(batch)),
+                    batch,
+                ).fetchall()
+            for doc_name, content in rows:
+                lines = [i + 1 for i, ln in enumerate(content.split("\n")) if pattern.search(ln)]
+                if lines:
+                    usages.append(Usage(doc_name, lines))
+        usages.sort(key=lambda u: (-len(u.lines), u.module))
+        return usages[:limit], len(usages), sum(len(u.lines) for u in usages)
+
     def _search_smart(self, params: SearchParams) -> tuple[list[Match], int]:
         """Полнотекстовый поиск с BM25-ранжированием через FTS5."""
         tokens = _TOKEN_RE.findall(params.query.lower())
@@ -831,6 +887,12 @@ class DumpIndex:
         if self._db is None:
             raise RuntimeError("index closed")
         return self._db
+
+
+def _is_template_xml(abs_path: str) -> bool:
+    """`.../Templates/<Макет>/Ext/Template.xml` или `CommonTemplates/<Макет>/Ext/Template.xml`."""
+    parts = abs_path.replace("\\", "/").split("/")
+    return len(parts) >= 4 and parts[-1] == "Template.xml" and parts[-4] in ("Templates", "CommonTemplates")
 
 
 def _compile_user_regex(pattern: str) -> regex.Pattern[str]:

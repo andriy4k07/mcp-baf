@@ -11,12 +11,13 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from mcp_baf_audit import AuditWriter
-from mcp_baf.dumpindex import DumpIndex, Match, SearchParams
+from mcp_baf.dumpindex import DumpIndex, Match, SearchParams, Usage
 from mcp_baf.pii import MASKING_NOTE, audit_text, mask_pii_text
 from mcp_baf.tools.common import clamp_limit, traced_text
 
 DEFAULT_SEARCH_LIMIT = 50
 MAX_SEARCH_LIMIT = 500
+MAX_USAGE_LINES = 10  # номеров строк на модуль в режиме usages
 
 
 def register(mcp: MCPServer, index: DumpIndex, audit: AuditWriter,
@@ -31,6 +32,10 @@ def register(mcp: MCPServer, index: DumpIndex, audit: AuditWriter,
             "Фильтрация по типу метаданных (category) и типу модуля (module). "
             "BSL-синонимы: поиск по английским именам находит русские и наоборот "
             "(StrFind -> СтрНайти, Procedure -> Процедура). "
+            "Режим usages — обратные зависимости: query вида Тип.Имя "
+            "(РегистрНакопления.ТоварыНаСкладах, AccumulationRegisters.Имя) возвращает "
+            "модули и схемы компоновки данных (СКД, модуль СхемаКомпоновкиДанных; строки "
+            "считаются в тексте запросов схемы), ссылающиеся на объект, со строками и числом ссылок. "
             "Работает по локальной выгрузке конфигурации (DumpConfigToFiles). "
             "Фильтруй по category и module для сужения результатов. " + MASKING_NOTE
         ),
@@ -56,10 +61,11 @@ def register(mcp: MCPServer, index: DumpIndex, audit: AuditWriter,
             "МодульНабораЗаписей, МодульКоманды, Модуль. Значение чувствительно "
             "к регистру (например, 'МодульОбъекта', не 'модульобъекта')."
         ))] = "",
-        mode: Annotated[Literal["smart", "regex", "exact"], Field(description=(
+        mode: Annotated[Literal["smart", "regex", "exact", "usages"], Field(description=(
             "Режим поиска. smart — полнотекстовый с BM25-ранжированием и поддержкой "
             "BSL-синонимов (по умолчанию). regex — регулярное выражение. "
-            "exact — точная подстрока."
+            "exact — точная подстрока. usages — кто ссылается на объект Тип.Имя "
+            "(модули и СКД; ru/en, ед./мн.ч. типа)."
         ))] = "smart",
     ) -> str:
         effective_limit = clamp_limit(
@@ -69,6 +75,11 @@ def register(mcp: MCPServer, index: DumpIndex, audit: AuditWriter,
         async def run() -> str:
             if not query:
                 raise ValueError("query is required")
+            if mode == "usages":
+                found, modules, hits = await asyncio.to_thread(
+                    index.find_usages, query, effective_limit, category, module
+                )
+                return format_usages(found, modules, hits, query)
             params = SearchParams(
                 query=query,
                 category=category,
@@ -100,6 +111,20 @@ def register(mcp: MCPServer, index: DumpIndex, audit: AuditWriter,
                 "limit": effective_limit,
             },
         )
+
+
+def format_usages(usages: list[Usage], modules: int, hits: int, query: str) -> str:
+    """Сгруппированный список модулей/СКД со строками и числом ссылок."""
+    lines = [f'## Использования "{query}": {modules} модулей, {hits} ссылок', ""]
+    if not usages:
+        lines.append("Ссылок не найдено.")
+    for u in usages:
+        shown = ", ".join(map(str, u.lines[:MAX_USAGE_LINES]))
+        more = f" и ещё {len(u.lines) - MAX_USAGE_LINES}" if len(u.lines) > MAX_USAGE_LINES else ""
+        lines.append(f"- {u.module} — {len(u.lines)} (строки {shown}{more})")
+    if modules > len(usages):
+        lines.append(f"\n> Показано {len(usages)} из {modules} модулей. Увеличьте limit.")
+    return "\n".join(lines) + "\n"
 
 
 def format_search_result(
