@@ -146,3 +146,11 @@ def test_logs_tail_without_follow(tmp_path, capsys):
     (tmp_path / "server-console.log").write_text("".join(f"l{i}\n" for i in range(60)), encoding="utf-8")
     assert service.logs("console", str(tmp_path), lines=3, follow=False) == 0
     assert capsys.readouterr().out == "l57\nl58\nl59\n"
+
+
+def test_wait_child_pid(tmp_path):
+    # Свой PID в файле — ещё не копия: по таймауту возвращается PID из Popen.
+    service.write_pid(str(tmp_path))
+    assert service.wait_child_pid(str(tmp_path), 42, timeout=0.3) == 42
+    (tmp_path / service.PID_NAME).write_text("777")
+    assert service.wait_child_pid(str(tmp_path), 42) == 777
