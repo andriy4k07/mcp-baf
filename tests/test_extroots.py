@@ -2,7 +2,7 @@
 
 import pytest
 
-from mcp_baf.dumpindex import extroots
+from mcp_baf.dumpindex import extroots, formparser
 from mcp_baf.dumpindex.extroots import discover_extension_roots
 from mcp_baf.dumpindex.modulenames import bsl_path_to_module_name, resolve_module_name
 from mcp_baf.dumpindex.xmlguard import UnsafeXML
@@ -306,3 +306,17 @@ def test_edt_project_root_itself_not_scanned(tmp_path):
     mk_edt(tmp_path, ".", MDO_MAIN, name="БАС")
     mk(tmp_path, "src/Catalogs/Товары/ObjectModule.bsl")
     assert discover_extension_roots(str(tmp_path)) == {}
+
+
+# shortcut: EDT-раскладка форм синтетическая (по памяти о формате), сверить с реальной выгрузкой.
+def test_find_form_files_nested_edt_projects(tmp_path):
+    mk_edt(tmp_path, "cfg", MDO_MAIN, name="БАС")
+    mk_edt(tmp_path, "ext", MDO_EXT, name="Расш")
+    mk(tmp_path, "cfg/src/Documents/Док/Forms/Осн/Form.form", "<Form/>")
+    mk(tmp_path, "ext/src/Documents/Док/Forms/Расш1/Form.form", "<Form/>")
+    mk(tmp_path, "ext/src/CommonForms/Общая/Form.form", "<Form/>")
+    files = formparser.find_form_files(str(tmp_path), "Document", "Док")
+    assert set(files) == {"Осн", "ext.Расш.Расш1"}
+    common = formparser.find_form_files(str(tmp_path), "CommonForm", "Общая")
+    assert list(common) == ["ext.Расш.Общая"]
+    assert formparser.find_form_files(str(tmp_path), "CommonForm", "Нет") == {}
