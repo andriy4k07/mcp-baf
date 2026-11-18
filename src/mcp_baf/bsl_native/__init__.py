@@ -244,15 +244,24 @@ def _unknown_calls(parser, dead_lines):
 _DOTTED_TYPE = re.compile(r'(\w+)\.\w+')
 
 
-def _unknown_types(tokens, dead_lines):
-    """Проверка #131: только префикс составного имени типа Префикс.Имя.
+# Примитивные типы в справке контекста отсутствуют: добавляются к списку из HBK.
+PRIMITIVE_TYPES = frozenset(x.casefold() for x in (
+    'Строка', 'String', 'Число', 'Number', 'Дата', 'Date', 'Булево', 'Boolean',
+    'Неопределено', 'Undefined', 'Null', 'Тип', 'Type',
+    # Типы без страниц в справке (проверено по рабочей конфигурации).
+    'УправляемаяФорма', 'СтраницаФормы'))
+# Меньший список — признак неполного --help-dir: простые имена не проверяем.
+MIN_KNOWN_TYPES = 1000
 
-    Надёжного списка простых имён платформенных типов в данных репозитория нет
-    (справочник функций содержит лишь часть конструкторов), поэтому
-    `Новый Тип` (парсер не принимает `Новый А.Б`) и `Тип("Тип")` без точки
-    не проверяются. Имя после точки —
-    имя объекта конфигурации, его не проверяем никогда.
+
+def _unknown_types(tokens, dead_lines, known_types=None):
+    """Проверка #131: префикс составного имени типа Префикс.Имя.
+
+    Простые имена (`Тип("Имя")`, `Новый Имя`) проверяются только при наличии
+    справки платформы (known_types = (множество имён типов в casefold)).
+    Имя после точки — имя объекта конфигурации, его не проверяем никогда.
     """
+    types = known_types | PRIMITIVE_TYPES if known_types and len(known_types) >= MIN_KNOWN_TYPES else None
     result = []
     code = [t for t in tokens if t.kind not in {'comment', 'eof'}]
     for i, token in enumerate(code):
@@ -263,10 +272,19 @@ def _unknown_types(tokens, dead_lines):
               and i + 2 < len(code) and code[i + 1].text == '(' and code[i + 2].kind == 'string'
               and (i + 3 >= len(code) or code[i + 3].text == ')')):
             literal = code[i + 2].text
-            match = _DOTTED_TYPE.fullmatch(literal[1:-1]) if literal[:1] == literal[-1:] == '"' and '\n' not in literal else None
+            inner = literal[1:-1] if literal[:1] == literal[-1:] == '"' and '\n' not in literal else ''
+            match = _DOTTED_TYPE.fullmatch(inner)
             if not match:
+                if types is not None and re.fullmatch(r'\w+', inner) and inner.casefold() not in types:
+                    result.append(Diagnostic('UnknownTypeName', f'Тип «{inner}» не найден в справке платформы', code[i + 2].line, code[i + 2].column, 'information'))
                 continue
             prefix, at = match[1], code[i + 2]
+        elif (types is not None and token.kind == 'new' and i + 1 < len(code)
+              and code[i + 1].kind == 'identifier' and (i + 2 >= len(code) or code[i + 2].text != '.')):
+            name = code[i + 1]
+            if name.text.casefold() not in types:
+                result.append(Diagnostic('UnknownTypeName', f'Тип «{name.text}» не найден в справке платформы', name.line, name.column, 'information'))
+            continue
         else:
             continue
         if not prefix.casefold().startswith(METADATA_TYPE_PREFIXES):
@@ -278,7 +296,7 @@ def _unknown_types(tokens, dead_lines):
     return result
 
 
-def _inspect(source):
+def _inspect(source, known_types=None):
     if not source.strip():
         raise ValueError('src должен содержать текст BSL, а не пустую строку')
     if len(source.encode('utf-8')) > MAX_SOURCE_BYTES:
@@ -300,7 +318,7 @@ def _inspect(source):
             dead_lines = _preprocessor_dead_lines(tokens)
             diagnostics.extend(_semantic(nodes, conditional, dynamic_eval, dead_lines))
             diagnostics.extend(_unknown_calls(parser, dead_lines))
-            diagnostics.extend(_unknown_types(tokens, dead_lines))
+            diagnostics.extend(_unknown_types(tokens, dead_lines, known_types))
         diagnostics.extend(parser.diagnostics)
     # Строковые литералы, включая продолжения, должны сохраняться побайтно.
     protected = set()
@@ -318,8 +336,8 @@ def _inspect(source):
     return tokens, parser, diagnostics
 
 
-def analyze(source: str) -> list[dict]:
-    return [diagnostic.as_dict() for diagnostic in _inspect(source)[2]]
+def analyze(source: str, known_types=None) -> list[dict]:
+    return [diagnostic.as_dict() for diagnostic in _inspect(source, known_types)[2]]
 
 
 def format_source(source: str) -> str:
