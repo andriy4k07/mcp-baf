@@ -173,7 +173,8 @@ def main() -> None:
         sys.exit(1)
     if args.install_service:
         sys.exit(service.install_service(
-            sys.argv[1:], service.resolve_cache_dir(config.cache_dir)))
+            sys.argv[1:], config.cache_dir or os.environ.get("mcp_baf_CACHE_DIR")
+            or service.default_service_data_dir()))
     _setup_logging(config.debug, config.cache_dir)
 
     # Подсистема ПДн (issue #53): стабильный ключ токенов в кэш-каталоге

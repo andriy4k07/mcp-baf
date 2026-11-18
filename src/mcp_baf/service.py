@@ -5,8 +5,12 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
+import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -260,7 +264,8 @@ def _server_args(argv: list[str], cache_dir: str) -> list[str]:
     return [*out, "--cache-dir", cache_dir]
 
 
-def build_service_cmd(argv: list[str], cache_dir: str, env: dict[str, str]) -> str:
+def build_service_cmd(argv: list[str], cache_dir: str, env: dict[str, str],
+                      python: str | None = None) -> str:
     log = os.path.join(cache_dir, CONSOLE_LOG_NAME)
     # cmd.exe читает .cmd в OEM-кодировке: без chcp 65001 кириллица (mcp_baf_USER)
     # искажается; PYTHONIOENCODING — чтобы вывод в лог не падал на кириллице.
@@ -269,7 +274,7 @@ def build_service_cmd(argv: list[str], cache_dir: str, env: dict[str, str]) -> s
         if k.lower().startswith("mcp_baf_"):
             lines.append(f'set "{k}={v.replace("%", "%%")}"')
     cmd = " ".join(_cmd_quote(a) for a in
-                   [sys.executable, "-m", "mcp_baf", *_server_args(argv, cache_dir)])
+                   [python or sys.executable, "-m", "mcp_baf", *_server_args(argv, cache_dir)])
     lines.append(f'{cmd} >> {_cmd_quote(log)} 2>&1')
     return "\r\n".join(lines) + "\r\n"
 
@@ -287,7 +292,64 @@ def _require_admin() -> str | None:
     return None
 
 
+def app_dir() -> str:
+    return os.path.join(os.environ.get("ProgramFiles") or r"C:\Program Files", "mcp-baf")
+
+
+def default_service_data_dir() -> str:
+    return os.path.join(os.environ.get("ProgramData") or r"C:\ProgramData", "mcp-baf")
+
+
+def pip_spec(direct_url: str | None, version: str) -> str:
+    """Что ставить в venv службы: тот же источник, откуда запущен текущий процесс (PEP 610)."""
+    from urllib.parse import urlparse
+    from urllib.request import url2pathname
+
+    try:
+        info = json.loads(direct_url) if direct_url else {}
+    except ValueError:
+        info = {}
+    url = info.get("url", "")
+    if url.startswith("file:"):
+        return url2pathname(urlparse(url).path)
+    vcs = info.get("vcs_info")
+    if vcs and url:
+        rev = vcs.get("commit_id") or vcs.get("requested_revision")
+        return f"{vcs.get('vcs', 'git')}+{url}" + (f"@{rev}" if rev else "")
+    return url or f"mcp-baf=={version}"
+
+
+def _current_pip_spec() -> str:
+    from importlib import metadata
+
+    dist = metadata.distribution("mcp-baf")
+    return pip_spec(dist.read_text("direct_url.json"), dist.version)
+
+
+def _stop_quiet(cache_dir: str) -> None:
+    if cache_dir:
+        with contextlib.redirect_stdout(io.StringIO()):
+            stop(cache_dir)
+
+
+def _rmtree(path: str) -> bool:
+    import time
+
+    for attempt in (0, 1):
+        try:
+            shutil.rmtree(path)
+            return True
+        except FileNotFoundError:
+            return True
+        except OSError:
+            if attempt == 0:
+                time.sleep(1)
+    return False
+
+
 def install_service(argv: list[str], cache_dir: str) -> int:
+    import time
+
     err = _require_admin()
     if not err:
         raw = [k for k, v in os.environ.items() if k.lower() in SECRET_ENV and v]
@@ -299,10 +361,40 @@ def install_service(argv: list[str], cache_dir: str) -> int:
     if err:
         print(err, file=sys.stderr)
         return 1
+    app = app_dir()
+    venv = os.path.join(app, "venv")
+    venv_python = os.path.join(venv, "Scripts", "python.exe")
+    spec = _current_pip_spec()
+    # Старую службу (и в другом каталоге данных) останавливаем, чтобы pip мог заменить файлы.
+    old_dir = service_cache_dir()
+    if _schtasks("/query", "/tn", TASK_NAME).returncode == 0:
+        _schtasks("/end", "/tn", TASK_NAME)
+    for d in {old_dir, cache_dir}:
+        _stop_quiet(d)
+    time.sleep(2)
     os.makedirs(cache_dir, exist_ok=True)
+    acl = subprocess.run(["icacls", cache_dir, "/inheritance:r", "/grant:r",
+                          "*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F"],
+                         capture_output=True, text=True, errors="replace")
+    if acl.returncode:
+        print(f"Увага: не вдалося обмежити доступ до {cache_dir}: {acl.stdout}{acl.stderr}",
+              file=sys.stderr)
+    # shortcut: служба залежить від базового Python, з якого створено venv; якщо його
+    # видалити чи оновити мажорно — повторіть --install-service.
+    base_python = getattr(sys, "_base_executable", sys.executable)
+    steps = []
+    if not os.path.exists(venv_python):
+        os.makedirs(app, exist_ok=True)
+        steps.append([base_python, "-m", "venv", venv])
+    steps.append([venv_python, "-m", "pip", "install", "--upgrade", spec])
+    print(f"Встановлюю mcp-baf ({spec}) у {venv} — це може тривати хвилину...", flush=True)
+    for step in steps:
+        if subprocess.run(step).returncode:
+            print(f"Помилка: {' '.join(step)}\nСлужбу не створено.", file=sys.stderr)
+            return 1
     cmd_path = os.path.join(cache_dir, "run-mcp-baf.cmd")
     with open(cmd_path, "w", encoding="utf-8", newline="") as f:
-        f.write(build_service_cmd(argv, cache_dir, dict(os.environ)))
+        f.write(build_service_cmd(argv, cache_dir, dict(os.environ), venv_python))
     created = _schtasks("/create", "/tn", TASK_NAME, "/sc", "onstart", "/ru", "SYSTEM",
                         "/rl", "HIGHEST", "/f", "/tr", f'"{cmd_path}"')
     if created.returncode:
@@ -312,12 +404,14 @@ def install_service(argv: list[str], cache_dir: str) -> int:
     if started.returncode:
         print(f"schtasks /run: {started.stdout}{started.stderr}", file=sys.stderr)
         return 1
-    print(f"Службу створено й запущено: {cmd_path}\n"
+    print(f"Службу створено й запущено.\n"
+          f"Програма: {app}\n"
+          f"Дані: {cache_dir}  (запуск: {cmd_path})\n"
           f"Журнал: {os.path.join(cache_dir, CONSOLE_LOG_NAME)}\n"
-          f"Перевірити: schtasks /query /tn {TASK_NAME}\n"
-          f'Зупинити: mcp-baf --stop --cache-dir "{cache_dir}"  (або schtasks /end /tn {TASK_NAME})\n'
+          f"Перевірити: mcp-baf --status  (або schtasks /query /tn {TASK_NAME})\n"
+          f"Зупинити: mcp-baf --stop  (або schtasks /end /tn {TASK_NAME})\n"
           "Видалити: mcp-baf --uninstall-service\n"
-          "Файли токена/пароля та каталоги мають бути доступні обліковому запису SYSTEM.")
+          "Файли токена/пароля мають бути доступні обліковому запису SYSTEM.")
     return 0
 
 
@@ -326,6 +420,7 @@ def uninstall_service() -> int:
     if err:
         print(err, file=sys.stderr)
         return 1
+    data = service_cache_dir()
     _schtasks("/end", "/tn", TASK_NAME)
     deleted = _schtasks("/delete", "/tn", TASK_NAME, "/f")
     if deleted.returncode:
@@ -333,4 +428,13 @@ def uninstall_service() -> int:
               f"{(deleted.stdout + deleted.stderr).strip()}")
     else:
         print(f"Завдання {TASK_NAME} видалено.")
+    _stop_quiet(data)
+    app = app_dir()
+    if os.path.isdir(app):
+        if _rmtree(app):
+            print(f"Програму видалено: {app}")
+        else:
+            print(f"Увага: не вдалося видалити {app} — видаліть вручну.", file=sys.stderr)
+    if data:
+        print(f"Дані збережено: {data} (журнали, TLS CA, pii.key).")
     return 0
