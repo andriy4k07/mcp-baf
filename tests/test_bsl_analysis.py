@@ -479,3 +479,34 @@ def test_unknown_global_call_skips_fragment_without_declarations():
 def test_unknown_global_call_skips_dead_preprocessor_branch():
     src = 'Процедура А()\n#Если Ложь Тогда\n\tНеизвестныйМетод();\n#КонецЕсли\nКонецПроцедуры'
     assert _unknown(src) == []
+
+
+def _types(src):
+    return [d for d in analyze(src) if d['code'] == 'UnknownTypeName']
+
+
+def test_unknown_type_name_positive():
+    src = ('Процедура А()\n\tХ = Тип("СправочикСсылка.Товары");\n'
+           '\tУ = Type("Documnt.Заказ");\nКонецПроцедуры')
+    hits = _types(src)
+    assert [(d['line'], d['level']) for d in hits] == [(2, 'information'), (3, 'information')]
+
+
+def test_unknown_type_name_negative():
+    src = '''Процедура А()
+    А = Тип("СправочникСсылка.Номенклатура");
+    Б = Type("DocumentObject.Заказ");
+    В = Тип("РегистрСведенийКлючЗаписи.Цены");
+    Г = Тип("Строка");
+    Д = Новый Массив;
+    Е = Новый ОписаниеТипов("Число");
+    Ж = Тип(Имя);
+    З = Тип("Что-то.Иное " + Х);
+    К = Тип("ТаблицаЗначений.Что");
+КонецПроцедуры'''
+    assert [d['line'] for d in _types(src)] == [10]
+
+
+def test_unknown_type_name_skips_dead_branch():
+    src = 'Процедура А()\n#Если Ложь Тогда\n\tХ = Тип("Левый.Тип");\n#КонецЕсли\nКонецПроцедуры'
+    assert _types(src) == []
