@@ -41,19 +41,26 @@ set mcp_baf_USER=MCP
 set mcp_baf_PASSWORD_FILE=C:\mcp-baf\pass.txt
 mcp-baf --install-service --base http://localhost/baf/hs/mcp-baf --transport https ^
   --http-host 0.0.0.0 --http-port 8001 --http-allowed-hosts srv1c.example.com ^
-  --techlog-dir D:\techlog --mask-pii --cache-dir C:\mcp-baf\cache
+  --techlog-dir D:\techlog --mask-pii
 ```
+
+Команда сама ставить програму у `%ProgramFiles%\mcp-baf` (власний venv, пакет
+береться з того ж джерела, звідки її запущено), тож каталог запуску (наприклад
+Downloads) потім не потрібен. Дані й журнали — у `%ProgramData%\mcp-baf`
+(доступ лише SYSTEM і адміністраторам) або в `--cache-dir`. Оновлення — повторний
+`--install-service` з оновленого джерела (стару службу вона зупиняє сама).
+Служба залежить від базового Python, з якого створено venv.
 
 Команда відмовиться, якщо секрет заданий відкрито (`mcp_baf_PASSWORD`,
 `mcp_baf_HTTP_TOKEN`, `--pass`, `--http-token`). Вона пише
-`<cache-dir>\run-mcp-baf.cmd` (усі `mcp_baf_*` змінні сесії + команда запуску;
+`<дані>\run-mcp-baf.cmd` (усі `mcp_baf_*` змінні сесії + команда запуску;
 вивід — у `server-console.log`), створює завдання `mcp-baf` (SYSTEM, при старті
 ОС) і запускає його. Перевірити: `mcp-baf --status`; журнал служби —
 `mcp-baf --logs` (`server` — помилки, `audit` — виклики й відмови 1С; Ctrl+C —
 вихід). Зупинити: `mcp-baf --stop` або `schtasks /end /tn mcp-baf`. Після
 `--install-service` ці команди самі знаходять каталог служби, `--cache-dir` не потрібен.
 Шпаргалка зі змінними для служби — наприкінці `mcp-baf --help`.
-Видалити: `mcp-baf --uninstall-service`. Без `--tls-cert/--tls-key` створюється
+Видалити: `mcp-baf --uninstall-service` (прибирає завдання й програму, дані лишає). Без `--tls-cert/--tls-key` створюється
 локальний CA в `<cache-dir>\tls\` (його сертифікат потрібно довірити клієнтам);
 для спільного використання краще вказати свій сертифікат.
 

@@ -214,7 +214,11 @@ _SERVICE_HELP = r"""
   3) Встановити й запустити:
        mcp-baf --install-service --base http://localhost/<база>/hs/mcp-baf
                --transport https --http-host 0.0.0.0 --http-allowed-hosts <IP сервера>:*
-               --techlog-dir D:\LOG_1C --mask-pii --cache-dir C:\mcp-baf\cache
+               --techlog-dir D:\LOG_1C --mask-pii
+
+  Програма ставиться у %ProgramFiles%\mcp-baf (власний venv), дані й журнали —
+  у %ProgramData%\mcp-baf (або --cache-dir). Каталог, звідки запущено команду,
+  більше не потрібен. Оновлення: повторити --install-service з оновленого джерела.
 
 Керування:
   mcp-baf --status              стан служби й сервера, де журнали
