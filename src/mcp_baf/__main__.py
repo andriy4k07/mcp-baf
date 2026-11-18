@@ -136,6 +136,13 @@ def _run_install(args) -> None:
         print(f"Installation error: {exc}", file=sys.stderr)
         sys.exit(1)
     print("Extension installed successfully.")
+    if args.techlog_dir:
+        try:
+            installer.install_logcfg(
+                args.platform or installer.find_platform(), args.techlog_dir)
+        except (installer.InstallError, OSError) as exc:
+            # Расширение уже установлено: logcfg — необязательный шаг.
+            print(f"logcfg.xml step skipped: {exc}", file=sys.stderr)
     if args.dump:
         _run_dump(args, dump_extensions, db_password)
 
