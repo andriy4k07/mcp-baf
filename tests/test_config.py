@@ -36,6 +36,23 @@ def test_http_token_must_be_ascii():
         load_config(parse_args(argv))
 
 
+def test_allowed_hosts_malformed_rejected_at_load():
+    argv = ["--http-allowed-hosts", "mcp-baf:8001, [::1]x:8001"]
+    with pytest.raises(ConfigError, match="--http-allowed-hosts.*'\\[::1\\]x:8001'"):
+        load_config(parse_args(argv))
+
+
+def test_allowed_hosts_malformed_env_rejected_at_load(monkeypatch):
+    monkeypatch.setenv("mcp_baf_HTTP_ALLOWED_HOSTS", "[::1")
+    with pytest.raises(ConfigError, match="--http-allowed-hosts"):
+        load_config(parse_args([]))
+
+
+def test_allowed_hosts_valid_forms_load():
+    cfg = load_config(parse_args(["--http-allowed-hosts", "[::1]:8001, mcp-baf, mcp-baf:*"]))
+    assert cfg.http_allowed_hosts == "[::1]:8001, mcp-baf, mcp-baf:*"
+
+
 def test_audit_invalid_env_falls_back_to_default(monkeypatch):
     monkeypatch.setenv("mcp_baf_AUDIT_MAX_SIZE", "not-a-number")
     cfg = load_config(parse_args([]))
