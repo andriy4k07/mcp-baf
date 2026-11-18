@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from typing import Annotated, Literal
 
 from mcp.server.mcpserver import MCPServer
@@ -128,9 +129,10 @@ def format_search_result(
             lines.append(f"### {m.module} (строка {m.line}, score: {m.score:.3f})")
         else:
             lines.append(f"### {m.module} (строка {m.line})")
-        lines.append("```bsl")
-        lines.append(text(m.context))
-        lines.append("```")
+        context = text(m.context)
+        longest_run = max((run.end() - run.start() for run in re.finditer(r"`+", context)), default=0)
+        fence = "`" * max(3, longest_run + 1)
+        lines.extend((f"{fence}bsl", context, fence))
         lines.append("")
 
     if truncated:
