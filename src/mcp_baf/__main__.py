@@ -156,11 +156,20 @@ def main() -> None:
     if args.install:
         _run_install(args)
         return
+    from mcp_baf import service
+
+    if args.stop:
+        sys.exit(service.stop(args.cache_dir))
+    if args.uninstall_service:
+        sys.exit(service.uninstall_service())
     try:
         config = load_config(args)
     except ConfigError as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         sys.exit(1)
+    if args.install_service:
+        sys.exit(service.install_service(
+            sys.argv[1:], service.resolve_cache_dir(config.cache_dir)))
     _setup_logging(config.debug, config.cache_dir)
 
     # Подсистема ПДн (issue #53): стабильный ключ токенов в кэш-каталоге
@@ -372,8 +381,12 @@ def _http_security(config: Config, scheme: str):
 
 def _run_http(server, config: Config, tls: tuple[str, str] | None) -> None:
     """streamable-http (uvicorn) за bearer-слоем; TLS, если передан tls."""
+    import asyncio
+
     import anyio
     import uvicorn
+
+    from mcp_baf import service
 
     app = _BearerAuthASGI(
         server.streamable_http_app(
@@ -385,17 +398,38 @@ def _run_http(server, config: Config, tls: tuple[str, str] | None) -> None:
         config.http_token,
     )
 
-    async def serve() -> None:
-        await uvicorn.Server(uvicorn.Config(
-            app,
-            host=config.http_host,
-            port=config.http_port,
-            log_level="info",
-            ssl_certfile=tls[0] if tls else None,
-            ssl_keyfile=tls[1] if tls else None,
-        )).serve()
+    srv = uvicorn.Server(uvicorn.Config(
+        app,
+        host=config.http_host,
+        port=config.http_port,
+        log_level="info",
+        ssl_certfile=tls[0] if tls else None,
+        ssl_keyfile=tls[1] if tls else None,
+    ))
+    cache_dir = service.resolve_cache_dir(config.cache_dir)
+    background = False
 
-    anyio.run(serve)
+    def go_background() -> None:
+        nonlocal background
+        background = True
+        srv.should_exit = True
+
+    async def serve() -> None:
+        await srv.serve()
+
+    service.write_pid(cache_dir)
+    service.start_key_listener(go_background)
+    try:
+        anyio.run(serve)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass  # Ctrl+C: uvicorn уже остановился штатно
+    finally:
+        service.remove_pid(cache_dir)
+    if background:
+        child = service.spawn_detached(cache_dir)
+        print(f"Сервер працює у фоні, PID {child.pid}\n"
+              f"Журнал: {os.path.join(cache_dir, service.CONSOLE_LOG_NAME)}\n"
+              "Зупинити: mcp-baf --stop")
 
 
 if __name__ == "__main__":

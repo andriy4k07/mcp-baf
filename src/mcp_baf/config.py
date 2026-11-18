@@ -253,6 +253,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Force progress output to stderr even when stdin is a pipe "
              "(useful for MCP client debugging). Overridden by --quiet.",
     )
+    parser.add_argument(
+        "--stop", action="store_true",
+        help="Stop the running network-transport server (PID from "
+             "<cache-dir>/mcp-baf.pid) and exit",
+    )
+    parser.add_argument(
+        "--install-service", action="store_true",
+        help="Windows, as Administrator: register the server (all other flags) "
+             "as scheduled task 'mcp-baf' running as SYSTEM and start it",
+    )
+    parser.add_argument(
+        "--uninstall-service", action="store_true",
+        help="Windows, as Administrator: stop and remove task 'mcp-baf'",
+    )
     # Режим установки расширения.
     parser.add_argument(
         "--install", default="", metavar="DB_PATH",
