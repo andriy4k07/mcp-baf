@@ -1,137 +1,154 @@
-"""Issue #163: --mask-pii off must not cause requests to settings/PII-config.
+"""Issue #163: --mask-pii не должен порождать запросы к настройкам/ПДн-конфигу.
 
-Регресс vladimir-kharin/1c_mcp: чтение НАСТРОЕК маскирования (через список
+Регресс vladimir-kharin/1c_mcp #35: чтение настроек маскирования (через список
 пользователей ИБ) выполнялось безусловно — и пользователь без права
 «Администрирование» терял все вызовы, даже когда маскирование выключено.
 Контракт mcp-baf: маскирование ПДн считается полностью локально
-(`mcp_baf.pii`), а значит набор HTTP-запросов к 1С НЕ зависит от флага
---mask-pii. Эти тесты закрепляют контракт списком вызовов: при --mask-pii off
-к расширению уходят только эндпоинты данных, никаких /settings-подобных
-чтений в контексте вызывающего пользователя.
+(`mcp_baf.pii`), набор HTTP-запросов к 1С не зависит от флага --mask-pii,
+а каждый инструмент ходит только в свой эндпоинт (плюс /version и
+/capabilities сервера). Риск kharin живёт на стороне BSL — его закрепляет
+отдельный текстовый контракт Module.bsl ниже.
 """
 
 from __future__ import annotations
 
 import asyncio
+import re
+from pathlib import Path
 
+import httpx
 import pytest
-from mcp_baf_audit import AuditLog
+from mcp.client import Client
 
 from mcp_baf import pii
-from mcp_baf.tools import eventlog, form, objects, query
+from mcp_baf.access import TOOL_METHODS
+from mcp_baf.client import OneCClient
+from mcp_baf.config import Config
+from mcp_baf.server import EXPECTED_EXTENSION_VERSION, create_server
 
 PHONE = "0671234567"
+REF = "12345678-1234-4234-8234-123456789abc"
+MODULE = Path(__file__).parents[1]/"src/mcp_baf/extension_src/HTTPServices/MCPService/Ext/Module.bsl"
+SERVER_PATHS = {"/version", "/capabilities"}
 
-# Ожидаемый список вызовов: только эндпоинты данных инструментов.
-EXPECTED_CALLS = [
-    ("POST", "/query"),
-    ("POST", "/eventlog"),
-    ("GET", "/form/Catalog/Tovary"),
-    ("POST", "/refs"),
-]
-
-# Подстроки пути, появление которых в списке вызовов = «чтение настроек в
-# контексте вызывающего» (сценарий kharin: настройки маскирования/пользователей).
-FORBIDDEN_SUBSTRINGS = ("setting", "pii", "mask", "policy", "user", "right")
-
-
-class RecordingClient:
-    """Замена OneCClient: пишет последовательность (метод, путь) каждого вызова."""
-
-    def __init__(self, payloads: dict[str, dict]):
-        self.payloads = payloads
-        self.calls: list[tuple[str, str]] = []
-
-    async def get(self, path, **kwargs):
-        self.calls.append(("GET", path))
-        return self.payloads[path]
-
-    async def post(self, path, body=None, **kwargs):
-        self.calls.append(("POST", path))
-        return self.payloads[path]
-
-    async def aclose(self):
-        pass
+# Минимальные валидные аргументы: каждый инструмент обязан дойти до 1С.
+TOOL_ARGS = {
+    "get_metadata_tree": {},
+    "get_object_structure": {"object_type": "Catalog", "object_name": "Tovary"},
+    "get_form_structure": {"object_type": "Catalog", "object_name": "Tovary"},
+    "get_configuration_info": {},
+    "execute_query": {"query": "ВЫБРАТЬ Телефон ИЗ Справочник.Товары"},
+    "validate_query": {"query": "ВЫБРАТЬ 1"},
+    "get_event_log": {"limit": 10},
+    "find_object_references": {"ref": REF, "ref_kind": "Справочник.Товары"},
+    "get_object_link": {"mode": "make", "ref": REF, "kind": "Справочник.Товары"},
+    "get_metadata_rights": {"metadata_object": "Catalog.Tovary"},
+}
 
 
-def _payloads() -> dict[str, dict]:
-    return {
-        "/query": {"columns": ["Телефон"], "rows": [[PHONE]], "total": 1},
-        "/eventlog": {
-            "events": [{"date": "2026-11-23 10:00:00", "level": "Ошибка",
-                        "event": "Тест", "comment": f"тел {PHONE}"}],
-            "found": 1,
-        },
-        "/form/Catalog/Tovary": {"name": "ФормаТовара", "title": f"Товар {PHONE}"},
-        "/refs": {"hits": []},
-    }
+def test_tool_args_cover_every_http_tool():
+    assert TOOL_ARGS.keys() == TOOL_METHODS.keys()
 
 
-def _invoke_maskable_tools(mask_pii: bool, tmp_path):
-    """Регистрирует mask-aware инструменты с RecordingClient и вызывает каждый."""
-    # Каждый вызов сбрасывает резолв ключа (это же «рестарт» для тестов).
+def _run_all_tools(tmp_path, mask_pii: bool) -> tuple[list[str], dict[str, list[str]], str]:
+    """Полный сервер (lifespan, AccessMCP, OneCClient) поверх MockTransport.
+
+    Возвращает запросы старта, запросы каждого инструмента и вывод execute_query.
+    """
     pii.configure_pii(cache_dir=str(tmp_path), enabled=mask_pii)
-    audit = AuditLog(str(tmp_path))
-    client = RecordingClient(_payloads())
-    tools: dict = {}
+    requests: list[str] = []
 
-    class FakeMCP:
-        def tool(self, **kwargs):
-            return lambda f: tools.setdefault(kwargs.get("name", f.__name__), f)
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path.removeprefix("/hs/mcp-baf")
+        requests.append(path)
+        if path == "/capabilities":
+            return httpx.Response(200, json={"methods": list(TOOL_METHODS.values())})
+        if path == "/version":
+            return httpx.Response(200, json={"version": EXPECTED_EXTENSION_VERSION})
+        if path == "/query":
+            return httpx.Response(200, json={"columns": ["Телефон"], "rows": [[PHONE]]})
+        return httpx.Response(200, json={})
 
-    query.register(FakeMCP(), client, audit, mask_pii)
-    eventlog.register(FakeMCP(), client, audit, mask_pii)
-    form.register(FakeMCP(), client, audit, "", mask_pii)
-    objects.register(FakeMCP(), client, audit, mask_pii)
+    transport = httpx.MockTransport(handler)
+    mp = pytest.MonkeyPatch()
+    mp.setattr("mcp_baf.server.OneCClient", lambda config, **kw: OneCClient(config, transport, **kw))
+    try:
+        server = create_server(Config(base_url="http://test/hs/mcp-baf",
+                                      cache_dir=str(tmp_path), mask_pii=mask_pii))
+    finally:
+        mp.undo()
 
     async def scenario():
-        return {
-            "query": await tools["execute_query"](
-                query="ВЫБРАТЬ Телефон ИЗ Справочник.Товары"),
-            "eventlog": await tools["get_event_log"](limit=10),
-            "form": await tools["get_form_structure"](
-                object_type="Catalog", object_name="Tovary"),
-            "refs": await tools["find_object_references"](
-                ref="12345678-1234-4234-8234-123456789abc",
-                ref_kind="Справочник.Товары"),
-        }
+        per_tool: dict[str, list[str]] = {}
+        query_out = ""
+        async with Client(server) as client:
+            for _ in range(100):  # проверка версии — фоновая задача lifespan
+                if "/version" in requests:
+                    break
+                await asyncio.sleep(0.01)
+            await client.list_tools()
+            startup = list(requests)
+            for name, args in TOOL_ARGS.items():
+                before = len(requests)
+                result = await client.call_tool(name, args)
+                per_tool[name] = requests[before:]
+                if name == "execute_query":
+                    query_out = "".join(getattr(c, "text", "") for c in result.content)
+        return startup, per_tool, query_out
 
-    return client, asyncio.run(scenario())
-
-
-def test_mask_off_no_settings_or_pii_config_requests(tmp_path):
-    """--mask-pii off: список вызовов совпадает с ожидаемым буквально.
-
-    Любая новая строка в списке («почитаю настройки маскирования перед
-    вызовом») — это будущий kharin-регресс: нереагистрированное чтение
-    настроек в контексте вызывающего ломает неадминистраторов.
-    """
-    client, outputs = _invoke_maskable_tools(mask_pii=False, tmp_path=tmp_path)
-    assert client.calls == EXPECTED_CALLS
-    for _, path in client.calls:
-        low = path.lower()
-        assert not any(f in low for f in FORBIDDEN_SUBSTRINGS), (
-            f"запрос к настроечному эндпоинту при --mask-pii off: {path}"
-        )
-    # Выключенный флаг не создаёт и ключевую подсистему (pii.key не трогаем).
-    assert not (tmp_path / pii.PII_KEY_FILENAME).exists()
-    # off — данные идут открытым текстом (маскирование действительно выключено).
-    assert PHONE in outputs["query"]
+    try:
+        return asyncio.run(scenario())
+    finally:
+        pii.configure_pii(cache_dir="", enabled=False)
 
 
-@pytest.mark.parametrize("flag", [True, False], ids=["mask-on", "mask-off"])
-def test_call_list_independent_of_mask_flag(tmp_path, flag):
-    """Набор HTTP-запросов не зависит от --mask-pii: маскирование локальное.
+@pytest.mark.parametrize("mask_pii", [False, True], ids=["mask-off", "mask-on"])
+def test_each_tool_hits_only_its_own_endpoint(tmp_path, mask_pii):
+    startup, per_tool, _ = _run_all_tools(tmp_path, mask_pii)
+    assert set(startup) == SERVER_PATHS
+    for name, paths in per_tool.items():
+        endpoint = "/" + TOOL_METHODS[name].rsplit(".", 1)[0]
+        own = [p for p in paths if p.split("/")[:2] == endpoint.split("/")]
+        assert own, f"{name}: не дошёл до {endpoint}"
+        extra = [p for p in paths if p not in own and p not in SERVER_PATHS]
+        assert not extra, f"{name}: лишние запросы {extra}"
 
-    Флаг меняет только постобработку ответа, не сеть: при включённом
-    маскировании запросов «за настройками» быть не больше, чем при
-    выключенном, — иначе включение флага стало бы правами-зависимым.
-    """
-    client_on, outputs_on = _invoke_maskable_tools(mask_pii=True, tmp_path=tmp_path / "on")
-    client_off, outputs_off = _invoke_maskable_tools(mask_pii=False, tmp_path=tmp_path / "off")
-    assert client_on.calls == client_off.calls == EXPECTED_CALLS
-    # Флаг при этом genuinely wired: on — телефон схлопнут в токен PII:xxxx.
-    assert PHONE not in outputs_on["query"] and "PII:" in outputs_on["query"]
-    assert PHONE not in outputs_on["eventlog"]
-    assert PHONE not in outputs_on["form"]
-    assert PHONE in outputs_off["query"]
+
+def test_request_set_independent_of_mask_flag(tmp_path):
+    startup_off, off, out_off = _run_all_tools(tmp_path/"off", mask_pii=False)
+    startup_on, on, out_on = _run_all_tools(tmp_path/"on", mask_pii=True)
+    assert set(startup_off) == set(startup_on)
+    # кэш /capabilities может дать разное число повторов — сравниваем эндпоинты
+    assert {k: set(v) - SERVER_PATHS for k, v in off.items()} == \
+           {k: set(v) - SERVER_PATHS for k, v in on.items()}
+    # флаг реально подключён: off — открытый текст, on — токен PII:
+    assert PHONE in out_off
+    assert PHONE not in out_on and "PII:" in out_on
+    # выключенный флаг не создаёт ключ
+    assert not (tmp_path/"off"/pii.PII_KEY_FILENAME).exists()
+
+
+def _bsl_code() -> str:
+    text = MODULE.read_text(encoding="utf-8-sig")
+    return "\n".join(line.split("//", 1)[0] for line in text.splitlines())
+
+
+def test_extension_reads_no_settings_storage():
+    # kharin #35: чтение хранилищ настроек требует прав, которых нет у неадмина
+    code = _bsl_code()
+    for api in ("ХранилищеОбщихНастроек", "ХранилищеСистемныхНастроек",
+                "ХранилищеНастроекДанныхФорм", "ХранилищеПользовательскихНастроекОтчетов"):
+        assert api not in code, api
+
+
+def test_infobase_users_read_only_after_admin_check():
+    # ПользователиИнформационнойБазы доступен только администратору: каждое
+    # обращение должно стоять после явной проверки «Администрирование» в той же
+    # процедуре, иначе неадмин получит ошибку вместо 403.
+    code = _bsl_code()
+    hits = [m.start() for m in re.finditer(r"ПользователиИнформационнойБазы\.", code)]
+    assert hits
+    for pos in hits:
+        starts = [m.start() for m in re.finditer(r"^\s*(?:Процедура|Функция)\s", code[:pos], re.M)]
+        body = code[starts[-1] if starts else 0:pos]
+        assert 'ПравоДоступа("Администрирование"' in body, code[:pos].count("\n") + 1
