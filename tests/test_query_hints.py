@@ -154,9 +154,9 @@ _TS_NAMED_LIKE_VT = [
     # Даже «вызов с параметрами» от справочника не делает источник виртуальным:
     # суффикс виртуальной таблицы привязан к типу-регистру, а не к имени.
     "ВЫБРАТЬ Т.Поле ИЗ Справочник.Партии.Остатки(&Д) КАК Т ГДЕ Т.Склад = &С",
-    # Английский синтаксис: псевдонимы виртуальных имён не поддерживаются,
-    # и тем более ТЧ каталога/документа не может стать виртуальной таблицей.
-    "SELECT T.Field FROM Catalog.Goods.Balances AS T WHERE T.Warehouse = &W",
+    # Английский синтаксис: ТЧ каталога/документа не становится виртуальной таблицей.
+    "SELECT T.Field FROM Catalog.Goods.Balance AS T WHERE T.Warehouse = &W",
+    "SELECT T.Field FROM Catalog.Goods.Balance(&D) AS T WHERE T.Warehouse = &W",
     "SELECT T.Amt FROM Document.Sale.Turnovers AS T WHERE T.Partner = &P",
     # Обычное имя ТЧ — остаётся обычной таблицей (ничего не подсказываем).
     "ВЫБРАТЬ Т.Поле ИЗ Справочник.Партии.Состав КАК Т ГДЕ Т.Склад = &С",
@@ -192,3 +192,37 @@ def test_validate_query_tabular_section_suffix_trimmed_for_hint(tmp_path):
     text = call(server, client, "validate_query",
                 query="ВЫБРАТЬ Т.Поле ИЗ Справочник.Партии.Остаткы КАК Т")
     assert "`Справочник.Партии`" in text
+
+
+@pytest.mark.parametrize("q, vt", [
+    # английский синтаксис настоящей виртуальной таблицы (#162)
+    ("SELECT T.F FROM AccumulationRegister.Goods.Balance(&D) AS T WHERE T.Wh = &W", "Balance"),
+    ("SELECT C.P FROM InformationRegister.Prices.SliceLast(&D) AS C WHERE C.Item IN (&I)", "SliceLast"),
+    # Обороты: условие — 4-й параметр; с тремя ещё есть что подсказать
+    ("ВЫБРАТЬ О.Сумма ИЗ РегистрНакопления.Продажи.Обороты(&Н, &К, Период) КАК О ГДЕ О.Склад = &С", "Обороты"),
+    # регистр букв не важен
+    ("выбрать т.ф из регистрнакопления.товары.остатки(&Д) как т где т.склад = &С", "остатки"),
+])
+def test_advisor_virtual_table_where_tip(q, vt):
+    tips = advise_query(q)
+    assert len(tips) == 1 and f"`.{vt}`" in tips[0]
+
+
+@pytest.mark.parametrize("q", [
+    # 4-й параметр Обороты/BalanceAndTurnovers передан — совет не нужен
+    "ВЫБРАТЬ О.Сумма ИЗ РегистрНакопления.Продажи.Обороты(&Н, &К, Период, Склад = &С) КАК О ГДЕ О.Склад = &С",
+    "SELECT T.F FROM AccumulationRegister.Goods.BalanceAndTurnovers(&A, &B, Period, Wh = &W) AS T WHERE T.Wh = &W",
+    # ТЧ с виртуальным именем без псевдонима
+    "ВЫБРАТЬ Поле ИЗ Справочник.Партии.Остатки ГДЕ Склад = &С",
+])
+def test_advisor_virtual_table_no_tip(q):
+    assert advise_query(q) == []
+
+
+def test_advisor_tabular_section_and_real_virtual_table_in_one_query():
+    tips = advise_query(
+        "ВЫБРАТЬ Т.Поле ИЗ Справочник.Партии.Остатки КАК Т ЛЕВОЕ СОЕДИНЕНИЕ "
+        "РегистрНакопления.Товары.Остатки(&Д) КАК Р ПО Т.Номенклатура = Р.Номенклатура "
+        "ГДЕ Т.Склад = &С И Р.Склад = &С"
+    )
+    assert len(tips) == 1 and "`Р.Склад`" in tips[0]
