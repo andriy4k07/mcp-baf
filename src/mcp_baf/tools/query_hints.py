@@ -51,7 +51,8 @@ _ALIAS_RE = re.compile(
     r"\b(" + "|".join(sorted(_PREFIX_TO_TYPE, key=len, reverse=True)) + r")\.(\w+)\s+(?:КАК\s+)?(\w+)", re.I
 )
 _NOT_ALIAS = {"ГДЕ", "ЛЕВОЕ", "ПРАВОЕ", "ВНУТРЕННЕЕ", "ПОЛНОЕ", "СОЕДИНЕНИЕ", "СГРУППИРОВАТЬ",
-              "УПОРЯДОЧИТЬ", "ОБЪЕДИНИТЬ", "ИТОГИ", "ИЗ"}
+              "УПОРЯДОЧИТЬ", "ОБЪЕДИНИТЬ", "ИТОГИ", "ИЗ",
+              "WHERE", "LEFT", "RIGHT", "INNER", "FULL", "JOIN", "GROUP", "ORDER", "UNION", "TOTALS", "FROM"}
 _MAX_ITEMS = 3
 
 
@@ -138,9 +139,12 @@ async def error_hints(
 _COMMENT_RE = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
 _STRING_RE = re.compile(r"\"(?:[^\"]|\"\")*\"")
 _VT_RE = re.compile(
-    r"Регистр(?:Накопления|Сведений|Бухгалтерии)\.\w+\."
-    r"(Остатки|Обороты|ОстаткиИОбороты|СрезПоследних|СрезПервых)\s*\(", re.I
+    r"(?:Регистр(?:Накопления|Сведений|Бухгалтерии)|(?:Accumulation|Information|Accounting)Register)\.\w+\."
+    r"(Остатки|Обороты|ОстаткиИОбороты|СрезПоследних|СрезПервых"
+    r"|Balance|Turnovers|BalanceAndTurnovers|SliceLast|SliceFirst)\s*\(", re.I
 )
+# Условие — 4-й параметр у оборотных таблиц, 2-й у остальных.
+_VT_TURNOVERS = {"обороты", "остаткииобороты", "turnovers", "balanceandturnovers"}
 _SKIP_WHERE_FIELDS = {"период", "регистратор", "моментвремени", "активность"}
 
 
@@ -163,15 +167,14 @@ def advise_query(query: str) -> list[str]:
 
     for m in _VT_RE.finditer(text):
         args, end = _args_count(text, m.end())
-        # Условие — 2-й параметр Остатки/Срез*, 4-й у Обороты*.
-        if args >= (4 if m.group(1).lower() in {"обороты", "остаткииобороты"} else 2):
+        if args >= (4 if m.group(1).lower() in _VT_TURNOVERS else 2):
             continue
-        alias = re.match(r"\s*(?:КАК\s+)?(\w+)", text[end:], re.I)
-        where = re.search(r"\bГДЕ\b", text[end:], re.I)
+        alias = re.match(r"\s*(?:(?:КАК|AS)\s+)?(\w+)", text[end:], re.I)
+        where = re.search(r"\b(?:ГДЕ|WHERE)\b", text[end:], re.I)
         if not alias or not where or alias.group(1).upper() in _NOT_ALIAS:
             continue
         conds = re.finditer(
-            rf"\b{re.escape(alias.group(1))}\.(\w+)\s*(?:=|<>|В\s*\(|В\s+ИЕРАРХИИ)",
+            rf"\b{re.escape(alias.group(1))}\.(\w+)\s*(?:=|<>|(?:В|IN)\s*\(|(?:В|IN)\s+(?:ИЕРАРХИИ|HIERARCHY))",
             text[end + where.end():], re.I,
         )
         field = next((c.group(1) for c in conds if c.group(1).lower() not in _SKIP_WHERE_FIELDS), None)
