@@ -5,6 +5,8 @@ monkeypatch до того, как HelpVectorStore/HelpIndex успеют их д
 """
 
 import sqlite3
+import threading
+import time
 
 import pytest
 from test_helpindex import FIXTURE, make_hbk
@@ -225,5 +227,153 @@ def test_vector_mode_dead_embedder_after_build_reports_cleanly(tmp_path, monkeyp
         monkeypatch.setattr(hv, "embed_texts", dead)
         with pytest.raises(RuntimeError, match="векторный индекс недоступен"):
             index.search("Запрос", mode="vector")
+    finally:
+        index.close()
+
+
+# ---------------------------------------------------------------------------
+# Покрыття гепів, знайдених ревью (rev01 пункт 2 + korrectnist E): cold-build
+# fallback, ре-ембед зміненої сторінки, чистка видалених, MCP-схема, секційна
+# валідація у vector та порядок текстів помилок сумісний з main.
+# ---------------------------------------------------------------------------
+
+
+def vector_sources(db_path):
+    with sqlite3.connect(db_path) as connection:
+        return {row[0] for row in connection.execute("SELECT source FROM vec")}
+
+
+def test_vector_mode_during_cold_build_degrades_to_bm25_with_note(tmp_path, monkeypatch):
+    # (a) Поки cold build стоїть на першій пачці: vector видає BM25 + примітку, не помилку.
+    gate = threading.Event()
+
+    def slow_embed(url, model, texts):
+        assert gate.wait(10), "embed mock wedged: test bug"
+        return fake_embed(url, model, texts)
+
+    monkeypatch.setattr(hv, "embed_texts", slow_embed)
+    index, _ = create_index_with(tmp_path, embed_url=EMBED)
+    try:
+        deadline = time.monotonic() + 10  # дочекатись, доки потік-будівник перелічить сторінки
+        while index._vectors.total == 0 and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert index._vectors.total > 0
+        assert not index._vectors.ready.is_set() and index._vectors.error is None
+        rows, note = index.search_with_note("Запрос", mode="vector")
+        assert [r["title"] for r in rows] == [r["title"] for r in index.search("Запрос")]
+        assert "векторный индекс строится" in note and "BM25" in note
+    finally:
+        gate.set()
+        index.close()
+
+
+def test_changed_page_text_reembeds_only_that_page(tmp_path, monkeypatch):
+    # (b) Правка тексту наявної .hbk-сторінки: sha256-ключ змінюється -> ре-ембед РІВНО її.
+    from mcp_baf.helpindex.hbk import read_pages
+
+    calls = []
+    monkeypatch.setattr(hv, "embed_texts", lambda url, model, texts: (calls.extend(texts), fake_embed(url, model, texts))[1])
+    index, root = create_index_with(tmp_path, embed_url=EMBED)
+    try:
+        assert index.wait_vectors(10) is True
+        assert len(calls) == page_count(index)
+    finally:
+        index.close()
+
+    pages = dict(read_pages(FIXTURE))
+    victim = next(path for path, html in pages.items() if "СтрНайти" in html)
+    pages[victim] = pages[victim].replace("СтрНайти", "СтрНайтиОновлена")
+    (root / "platform.hbk").write_bytes(make_hbk(pages))
+    n = page_count(index)
+    # Створюємо HelpIndex напряму: create_index_with перезаписав би файл вихідним FIXTURE.
+    reopened = HelpIndex(str(root), str(tmp_path / "cache"), embed_url=EMBED)
+    try:
+        assert reopened.wait_ready(5) and reopened.error is None
+        assert reopened.wait_vectors(10) is True
+        assert page_count(reopened) == n
+        assert len(calls) == n + 1  # +1: пере-ембеджено лише відредатовану сторінку
+        assert "СтрНайтиОновлена" in calls[-1]
+        assert vector_rows(vector_db(tmp_path)) == n
+    finally:
+        reopened.close()
+
+
+def test_deleted_page_purges_vector_cache_row(tmp_path, monkeypatch):
+    # (c) Сторінка зникла з .hbk -> її рядок випаровується з векторного кешу.
+    monkeypatch.setattr(hv, "embed_texts", fake_embed)
+    index, root = create_index_with(tmp_path, embed_url=EMBED)
+    try:
+        assert index.wait_vectors(10) is True
+    finally:
+        index.close()
+    (root / "extra.hbk").write_bytes(make_hbk(
+        {"functions/number.html": "<title>Число (Number)</title><p>Синтаксис: Число(Значение)</p>"}))
+    index = create_index_with(tmp_path, embed_url=EMBED)[0]
+    try:
+        assert index.wait_vectors(10) is True
+        assert vector_rows(vector_db(tmp_path)) == page_count(index)
+        assert any(s.startswith("extra.hbk::") for s in vector_sources(vector_db(tmp_path)))
+    finally:
+        index.close()
+    (root / "extra.hbk").unlink()
+    index = create_index_with(tmp_path, embed_url=EMBED)[0]
+    try:
+        assert index.wait_vectors(10) is True
+        assert vector_rows(vector_db(tmp_path)) == page_count(index)
+        assert not any(s.startswith("extra.hbk::") for s in vector_sources(vector_db(tmp_path)))
+    finally:
+        index.close()
+
+
+def test_mcp_schema_mode_enum_and_default(tmp_path):
+    # (d) MCP-контракт: обидва тули несуть enum + default bm25, mode не обов'язковий.
+    import asyncio
+
+    from mcp.server.mcpserver import MCPServer
+
+    from mcp_baf.config import Config
+    from mcp_baf.server import create_server
+
+    server = create_server(Config(base_url="http://test", cache_dir=str(tmp_path), help_dir=str(tmp_path)))
+    tools = asyncio.run(MCPServer.list_tools(server))
+    seen = set()
+    for tool in tools:
+        if tool.name not in ("search_platform_help", "get_platform_element"):
+            continue
+        seen.add(tool.name)
+        props = tool.input_schema["properties"]
+        assert props["mode"]["enum"] == ["bm25", "vector", "hybrid"]
+        assert props["mode"]["default"] == "bm25"
+        assert "mode" not in (tool.input_schema.get("required") or [])
+    assert seen == {"search_platform_help", "get_platform_element"}
+
+
+def test_vector_mode_rejects_invalid_section(tmp_path, monkeypatch):
+    # (e) vector/hybrid з недійсним section: ValueError, а не мовчазні [] від -inf-фільтра.
+    monkeypatch.setattr(hv, "embed_texts", fake_embed)
+    index, _ = create_index_with(tmp_path, embed_url=EMBED)
+    try:
+        assert index.wait_vectors(10) is True  # вектори готові: старий шлях повертав [] без помилки
+        with pytest.raises(ValueError, match="section: functions, types, operators, vtables, skd"):
+            index.search("Запрос", mode="vector", section="bogus")
+        with pytest.raises(ValueError, match="section:"):
+            index.search("Запрос", mode="hybrid", section="bogus")
+    finally:
+        index.close()
+
+
+def test_error_text_compatibility_section_before_query(tmp_path, monkeypatch):
+    # (f) Сумісність тексту/порядку помилок з main: mode -> section -> query.
+    block_network(monkeypatch)
+    index, _ = create_index_with(tmp_path)
+    try:
+        with pytest.raises(ValueError, match="mode: bm25, vector, hybrid"):
+            index.search("   ", 5, "bogus", mode="smart")  # mode перший
+        with pytest.raises(ValueError, match="section: functions, types, operators, vtables, skd"):
+            index.search("   ", 5, "bogus")  # два невалідних: section перший (як у main)
+        with pytest.raises(ValueError, match="query должен"):
+            index.search("   ", 5, "")
+        with pytest.raises(ValueError, match="query должен"):
+            index.search_with_note("   ", 5, "", mode="vector")  # валідатор і до диспетчера vector
     finally:
         index.close()
