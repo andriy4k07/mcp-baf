@@ -48,6 +48,32 @@ PII_COLUMN_MARKERS = tuple(m.lower() for m in (
     "Логін", "ІмяКористувача", "Ім'яКористувача", "Серія",
     "Password", "Login", "Token",
     "СНИЛС", "НомерКарты", "ЛицевойСчет", "Серия", "Номер", "КемВыдан",
+    # Issue #164 (upstream vladimir-kharin/1c_mcp PR #36): латиница и
+    # ЄДРПОУ-копии идентификаторов юрлиц — кириллические маркеры их не ловили.
+    # «inn»/«ipn» подстрокой цепляют и нейтральные латинские имена
+    # (Inner...): сознательное перемаскивание — business-колонки BAF
+    # кириллические, ложный токен безопаснее открытого идентификатора.
+    "INN", "IPN", "ЄДРПОУ", "ЕДРПОУ", "EDRPOU",
+))
+# Issue #164: контекстные слова ролей-копий идентификаторов (журнал
+# счетов-фактур: ИННПродавца, ИННКонтрагента + ИННКонтрагентаДоИзменения,
+# ИННСубкомиссионера). Апстрим искал «ИНН» только возле слов о физлице/
+# покупце и терял копии юрлиц; наши маркеры — подстроки, поэтому любое
+# «ИНН…/ІПН…» маскировалось и раньше. Здесь — роль+идентификатор, где поле
+# названо без слова «ИНН» (КонтрагентЄДРПОУ, ПродавецINN, КодДРФО контрагента).
+# Роль сама по себе («Контрагент») маркером НЕ является: в этих колонках BAF
+# живёт наименование организации, глушить их — ломать инструмент; ПДн здесь
+# только тандем роль+идентификатор.
+PII_ROLE_WORDS = tuple(w.lower() for w in (
+    "Продавец", "Продавца", "Продавця",
+    "Поставщик", "Поставщика", "Поставника",
+    "Покупатель", "Покупателя", "Покупця",
+    "Контрагент", "Контрагента",
+    "Субкомиссионер", "Субкомиссионера", "Субкомісіонер", "Субкомісіонера",
+))
+PII_IDENTIFIER_WORDS = tuple(w.lower() for w in (
+    "ИНН", "ІПН", "INN", "IPN", "ЄДРПОУ", "ЕДРПОУ", "EDRPOU",
+    "РНОКПП", "ДРФО", "Паспорт",
 ))
 # Токены для поиска алиасов: строковый литерал ("" — экранирование) и
 # комментарий пропускаются, чтобы запятые/скобки внутри не резали выражение.
@@ -341,7 +367,17 @@ def audit_text(text: str | None) -> str:
 
 
 def _is_pii_name(name: str) -> bool:
-    return any(m in name.lower() for m in PII_COLUMN_MARKERS + _extra_markers)
+    low = name.lower()
+    return (any(m in low for m in PII_COLUMN_MARKERS + _extra_markers)
+            or _is_role_identifier(low))
+
+
+def _is_role_identifier(low: str) -> bool:
+    """Тандем роль+идентификатор (issue #164): ИННПродавца-копии без слова
+    «ИНН» в имени (КонтрагентЄДРПОУ, ПродавецINN). Оба члена ищутся
+    раздельно — порядок и склейка токенов не важны."""
+    return (any(w in low for w in PII_ROLE_WORDS)
+            and any(w in low for w in PII_IDENTIFIER_WORDS))
 
 
 def _pii_aliases(query: str) -> set[str]:
@@ -372,7 +408,9 @@ def _pii_aliases(query: str) -> set[str]:
         elif tok == ",":
             local.clear()
         elif expect_alias:
-            if any(_is_pii_name(w) for w in local):
+            # роль+идентификатор может быть разрезан точкой на токены
+            # (Контрагент.ЄДРПОУ) — проверяем и склейку выражения (#164).
+            if any(_is_pii_name(w) for w in local) or _is_role_identifier("".join(local).lower()):
                 aliases.add(tok.lower())
             local.clear()
         elif tok.lower() in _ALIAS_WORDS and not cast:
@@ -406,6 +444,9 @@ def mask_pii_result(r: dict[str, Any], query: str | None = None) -> dict[str, An
         _is_pii_name(str(c).rsplit(".", 1)[-1])
         or str(c).rsplit(".", 1)[-1].lower() in aliases
         or any(_is_pii_name(w) for w in src)
+        # роль+идентификатор по всему происхождению колонки (#164):
+        # слова приходят раздельно (Контрагент.ЄДРПОУ -> два токена)
+        or _is_role_identifier("".join(src))
         for c, src in zip(columns, lineage)
     ]
 
