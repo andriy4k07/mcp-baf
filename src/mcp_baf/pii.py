@@ -48,7 +48,14 @@ PII_COLUMN_MARKERS = tuple(m.lower() for m in (
     "Логін", "ІмяКористувача", "Ім'яКористувача", "Серія",
     "Password", "Login", "Token",
     "СНИЛС", "НомерКарты", "ЛицевойСчет", "Серия", "Номер", "КемВыдан",
+    # Issue #164 (upstream vladimir-kharin/1c_mcp PR #36): ЄДРПОУ/ДРФО-копии
+    # идентификаторов юрлиц и контрагентов (КонтрагентЄДРПОУ, КодДРФО).
+    "ЄДРПОУ", "ЕДРПОУ", "ДРФО",
 ))
+# Латинские идентификаторы (#164) сравниваются целым словом (CamelCase/
+# разделители): подстрокой «inn» маскировал бы Inner/Winner/Beginning.
+PII_LATIN_WORDS = frozenset(("inn", "ipn", "edrpou"))
+_LATIN_WORD_RE = re.compile(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+")
 # Токены для поиска алиасов: строковый литерал ("" — экранирование) и
 # комментарий пропускаются, чтобы запятые/скобки внутри не резали выражение.
 # shortcut: алиас маскируется, только если в его выражении есть имя поля с
@@ -341,7 +348,9 @@ def audit_text(text: str | None) -> str:
 
 
 def _is_pii_name(name: str) -> bool:
-    return any(m in name.lower() for m in PII_COLUMN_MARKERS + _extra_markers)
+    low = name.lower()
+    return (any(m in low for m in PII_COLUMN_MARKERS + _extra_markers)
+            or any(w.lower() in PII_LATIN_WORDS for w in _LATIN_WORD_RE.findall(name)))
 
 
 def _pii_aliases(query: str) -> set[str]:
