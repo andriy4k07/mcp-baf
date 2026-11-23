@@ -36,8 +36,12 @@ def register(mcp, index, audit):
                 return truncate_output(card(pages[0], full=True))
             if pages:
                 return "Имя неоднозначно; уточните полный заголовок и source из списка:\n\n" + "\n".join(f"- {p['title']} ({p['source']})" for p in pages)
-            candidates, _ = await asyncio.to_thread(index.search_with_note, name, 5, "", mode)
+            candidates, note = await asyncio.to_thread(index.search_with_note, name, 5, "", mode)
             if not candidates:
                 return "Элемент не найден, похожих заголовков в локальной справке нет."
-            return "Элемент не найден. Ближайшие результаты:\n\n" + "\n".join(f"- {p['title']}" for p in candidates)
+            text = "Элемент не найден. Ближайшие результаты:\n\n" + "\n".join(f"- {p['title']}" for p in candidates)
+            if note:
+                # Примітку деградації не ковтаємо: рендеримо її, як у search_platform_help.
+                text += f"\n\n> {note}"
+            return text
         return await traced_text(audit, "get_platform_element", run, args={"name": name, "source": source, "mode": mode})

@@ -206,6 +206,8 @@ class HelpIndex:
                         if not pages or pages != indexed:
                             raise sqlite3.DatabaseError("Incomplete help cache")
                         with self._lock:
+                            if self._stop.is_set():  # close() вже відпрацював: не воскрешаємо закритий індекс
+                                return
                             self._connection = connection
                         connection = None
                         return
@@ -251,6 +253,9 @@ class HelpIndex:
             os.replace(temporary, self.database)
             temporary = None
             with self._lock:
+                if self._stop.is_set():
+                    # close() вже відбувся: пізній побудові не можна відновлювати з'єднання.
+                    return
                 self._connection = sqlite3.connect(self.database, check_same_thread=False)
         except Exception as exc:
             self.error = exc
@@ -281,20 +286,32 @@ class HelpIndex:
         return rows
 
     def search_with_note(self, query: str, limit=10, section="", mode="bm25") -> tuple[list[dict], str]:
-        """Как search(), но вторым значением — текстовое примечание о деградации ('' если всё ок)."""
+        """Как search(), но вторым значением — текстовое примечание о деградации ('' если всё ок).
+
+        Валидация централизована для всех режимов и в порядке main: mode -> section
+        -> токены query (section-ошибка раньше query-ошибки). Непригодный section
+        отсекается и в vector/hybrid, а не превращается молча в пустую выдачу.
+        Запит токенизируется один раз и передаётся в BM25.
+        """
         if mode not in SEARCH_MODES:
             raise ValueError("mode: " + ", ".join(SEARCH_MODES))
-        self._tokens(query)  # один и тот же валидатор запроса для всех режимов
+        self._check_section(section)
+        tokens = self._tokens(query)
         if mode == "hybrid":
-            return self._search_hybrid(query, limit, section)
+            return self._search_hybrid(query, limit, section, tokens)
         if mode == "vector":
-            return self._search_vector(query, limit, section)
-        return self._search_bm25(query, limit, section), ""
+            return self._search_vector(query, limit, section, tokens)
+        return self._search_bm25(query, limit, section, tokens), ""
 
-    def _search_bm25(self, query: str, limit=10, section="") -> list[dict]:
+    @staticmethod
+    def _check_section(section: str) -> None:
         if section and section not in SECTIONS:
             raise ValueError("section: " + ", ".join(SECTIONS))
-        tokens = self._tokens(query)
+
+    def _search_bm25(self, query: str, limit=10, section="", tokens: list[str] | None = None) -> list[dict]:
+        self._check_section(section)  # перепроверка для прямых вызовов мимо search_with_note
+        if tokens is None:
+            tokens = self._tokens(query)
         synonyms = build_synonym_map()
         # Префиксный поиск: по началу имени и по частям CamelCase из aliases.
         terms = ['("' + t + '"* OR "' + synonyms[t] + '"*)' if t in synonyms else '"' + t + '"*' for t in tokens]
@@ -311,7 +328,8 @@ class HelpIndex:
                     return rows
             return []
 
-    def _search_vector(self, query: str, limit: int, section: str) -> tuple[list[dict], str]:
+    def _search_vector(self, query: str, limit: int, section: str,
+                       tokens: list[str] | None = None) -> tuple[list[dict], str]:
         """Чистый семантический поиск по косинусу; при недоступности — понятное сообщение."""
         vi = self._vectors
         if vi is None:
@@ -320,7 +338,7 @@ class HelpIndex:
             raise RuntimeError(f"векторный индекс недоступен: {vi.error}")
         if not vi.ready.is_set():
             # Ещё строится: не валим запрос, а отдаём BM25 с честным примечанием.
-            return self._search_bm25(query, limit, section), (
+            return self._search_bm25(query, limit, section, tokens), (
                 f"векторный индекс строится: {vi.done}/{vi.total}; показан только BM25"
             )
         try:
@@ -337,20 +355,21 @@ class HelpIndex:
                     rows.append(dict(zip(names, row), score=score))
         return rows, ""
 
-    def _search_hybrid(self, query: str, limit: int, section: str) -> tuple[list[dict], str]:
+    def _search_hybrid(self, query: str, limit: int, section: str,
+                       tokens: list[str] | None = None) -> tuple[list[dict], str]:
         """BM25-кандидаты (top HYBRID_CANDIDATES) -> rerank_scores -> top limit."""
-        candidates = self._search_bm25(query, max(limit, HYBRID_CANDIDATES), section)
+        candidates = self._search_bm25(query, max(limit, HYBRID_CANDIDATES), section, tokens)
         if not candidates:
             return [], ""
         if not self._rerank_url:
             return candidates[:limit], (
                 "векторный индекс недоступен: реранкер не настроен (запустите с --rerank-url); показан только BM25"
             )
-        from mcp_baf.dumpindex.vectors import CHUNK_CHAR_BUDGET
         from mcp_baf.helpindex import (
             vectors as help_vectors,  # лениво: тот же клиент, что у dumpindex
         )
-        docs = [f"{c['title']}\n{c['content']}"[:CHUNK_CHAR_BUDGET] for c in candidates]
+        # Один источник правды для конвертации страницы в doc: page_chunk, а не инлайн-формула.
+        docs = [help_vectors.page_chunk(c["title"], c["content"]) for c in candidates]
         try:
             scores = help_vectors.rerank_scores(self._rerank_url, self._rerank_model, query, docs)
         except Exception as exc:  # noqa: BLE001 — реранкер лёг: отдаём BM25 с примечанием, без падения
