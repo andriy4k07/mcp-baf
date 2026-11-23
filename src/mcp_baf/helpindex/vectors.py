@@ -1,9 +1,10 @@
 """Опциональный векторный кэш страниц справки платформы (issue #170).
 
-Embed/rerank-клиент НЕ дублируем: `embed_texts`, `rerank_scores` и `endpoint`
-переиспользуются из `mcp_baf.dumpindex.vectors` (тот же OpenAI-совместимый
-/v1/embeddings и реранкер Qwen3). Нumpy нужен только при включённом
---embed-url, поэтому импортируется лениво в `_np`.
+Embed/rerank-клиент и общие примитивы НЕ дублируем: `embed_texts`,
+`rerank_scores`, `endpoint`, а также `chunk_key`, `embed_in_batches` и
+`top_k_by_cosine` переиспользуются из `mcp_baf.dumpindex.vectors` (тот же
+OpenAI-совместимый /v1/embeddings и реранкер Qwen3). Нumpy нужен только при
+включённом --embed-url, поэтому импортируется лениво в `_np`.
 
 - чанк = одна страница (.hbk): заголовок + текст, обрезанный по бюджету
   эмбеддера (`CHUNK_CHAR_BUDGET`); длинная страница не режется на куски —
@@ -17,20 +18,22 @@ Embed/rerank-клиент НЕ дублируем: `embed_texts`, `rerank_scores
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import sqlite3
 import threading
 from collections.abc import Callable, Iterable
-from concurrent.futures import ThreadPoolExecutor
 
 from mcp_baf.dumpindex.vectors import (
     CHUNK_CHAR_BUDGET,
     EMBED_BATCH,
     EMBED_WORKERS,
+    _np as load_numpy,
+    chunk_key,
+    embed_in_batches,
     embed_texts,
     endpoint,
     rerank_scores,
+    top_k_by_cosine,
 )
 
 # Реэкспорт клиента из dumpindex (второй embed/rerank-клиент запрещён): их зовёт
@@ -43,15 +46,14 @@ logger = logging.getLogger("mcp_baf.helpindex.vectors")
 # Версия схемы векторного кэша; при её подъёме старые векторы сбрасываются.
 CACHE_SCHEMA_VERSION = 1
 
+# Явная ошибка остановленной сборки: wait_vectors не висит до таймаута (опрашивает
+# error), а примітка режимів не бреше «індекс строится» на мёртвой побудові.
+STOPPED_ERROR = "побудова зупинена"
+
 
 def _np():
-    try:
-        import numpy
-    except ImportError as exc:
-        raise RuntimeError(
-            "vector search needs numpy: pip install mcp-baf[rag]"
-        ) from exc
-    return numpy
+    """Ленивый numpy с сообщением про vector-режим (примітив спільний з dumpindex)."""
+    return load_numpy("vector")
 
 
 def page_chunk(title: str, content: str) -> str:
@@ -80,7 +82,7 @@ class HelpVectorStore:
         self._matrix = None
 
     def _key(self, text: str) -> str:
-        return hashlib.sha256((self._model + "\0" + text).encode("utf-8")).hexdigest()
+        return chunk_key(self._model, text)
 
     def build(self, batches: Iterable[list[tuple]], should_stop: Callable[[], bool]) -> None:
         """batches: списки (source, section, text). Ошибка -> self.error."""
@@ -110,6 +112,7 @@ class HelpVectorStore:
             pending = 0
             for batch in batches:
                 if should_stop():
+                    self.error = RuntimeError(STOPPED_ERROR)
                     return
                 for source, section, text in batch:
                     h = self._key(text)
@@ -120,6 +123,8 @@ class HelpVectorStore:
             self.total = len(pages)
             self.done = self.total - pending  # прогресс: страницы с готовым вектором
 
+            blobs: dict[str, bytes] = {}
+
             def flush():
                 """Готовые векторы сразу в кэш: прерванная сборка возобновляется."""
                 rows = [(source, section, h, blobs[h])
@@ -127,24 +132,19 @@ class HelpVectorStore:
                 db.executemany("INSERT OR REPLACE INTO vec(source, section, h, v) VALUES (?,?,?,?)", rows)
                 db.commit()
 
-            blobs: dict[str, bytes] = {}
-            todo = list(new_texts.items())
-            # Пачки в несколько потоков, как VectorIndex.dumpindex: полный каталог
-            # справки (~47k страниц) собирается минуты, а не часы.
-            with ThreadPoolExecutor(EMBED_WORKERS) as pool:
-                for off in range(0, len(todo), EMBED_BATCH * EMBED_WORKERS):
-                    if should_stop():
-                        return
-                    parts = [todo[o:o + EMBED_BATCH]
-                             for o in range(off, min(off + EMBED_BATCH * EMBED_WORKERS, len(todo)), EMBED_BATCH)]
-                    results = pool.map(
-                        lambda p: embed_texts(self._url, self._model, [t for _, t in p]), parts
-                    )
-                    for part, vecs in zip(parts, results):
-                        for (h, _), vector in zip(part, vecs):
-                            blobs[h] = self._pack(vector)
-                    flush()
-                    self.done = self.total - pending + min(off + EMBED_BATCH * EMBED_WORKERS, len(todo))
+            def on_batch(rows: list[tuple[str, bytes]]) -> None:
+                for h, blob in rows:
+                    blobs[h] = blob
+                flush()
+                self.done += len(rows)
+
+            # Пачки в несколько потоков — спільний драйвер dumpindex: полный каталог
+            # справки (~47k страниц) собирается минуты, а не часы. embed_texts берём
+            # зі свого namespace, щоб офлайн-тести могли його підміняти.
+            if not embed_in_batches(self._url, self._model, list(new_texts.items()),
+                                    on_batch, should_stop, embed_texts):
+                self.error = RuntimeError(STOPPED_ERROR)
+                return
 
             # Не менявшиеся страницы: их векторы уже лежат в кэше под тем же хэшем.
             missing = sorted({h for _, _, h in pages if h not in blobs})
@@ -170,24 +170,12 @@ class HelpVectorStore:
         finally:
             db.close()
 
-    def _pack(self, vector: list[float]) -> bytes:
-        np = self._np
-        v = np.asarray(vector, dtype=np.float32)
-        norm = float(np.linalg.norm(v)) or 1.0
-        return (v / norm).astype(np.float16).tobytes()
-
     def search(self, query: str, k: int, section: str = "") -> list[tuple[str, float]]:
         """Топ-k (source, косинус) по смыслу; пустой section — без фильтра."""
-        np = self._np
-        q = np.asarray(embed_texts(self._url, self._model, [query])[0], dtype=np.float32)
-        q = (q / (np.linalg.norm(q) or 1.0)).astype(np.float16)
-        scores = (self._matrix @ q).astype(np.float32)
+        mask = None
         if section:
-            keep = np.fromiter((s == section for s in self._sections), dtype=bool, count=len(self._sections))
-            scores[~keep] = -np.inf
-        k = min(k, len(scores))
-        if k <= 0:
-            return []
-        top = np.argpartition(-scores, k - 1)[:k]
-        top = top[np.argsort(-scores[top])]
-        return [(self._sources[i], float(scores[i])) for i in top if scores[i] > -np.inf]
+            mask = self._np.fromiter((s == section for s in self._sections),
+                                     dtype=bool, count=len(self._sections))
+        hits = top_k_by_cosine(self._np, embed_texts, self._url, self._model,
+                               self._matrix, query, k, mask)
+        return [(self._sources[i], score) for i, score in hits]
