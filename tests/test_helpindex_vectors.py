@@ -13,6 +13,13 @@ import mcp_baf.dumpindex.vectors as dv
 import mcp_baf.helpindex.vectors as hv
 from mcp_baf.helpindex import HelpIndex
 
+# Vector/hybrid search needs numpy (the [rag] extra); CI runs without it,
+# so the whole module skips cleanly instead of failing (same guard as
+# tests/test_vectors.py).
+pytest.importorskip(
+    "numpy", reason="vector search needs the [rag] extra: pip install mcp-baf[rag]"
+)
+
 EMBED = "http://embed.invalid/v1"
 RERANK = "http://rerank.invalid/v1"
 # Заголовки страниц tests/testdata/platform.hbk — на них строим фейковый эмбеддер.
