@@ -39,8 +39,10 @@ CLOSE_JOIN_TIMEOUT = 10.0
 STALE_BUILD_AGE = 3600.0
 # Режимы search(): bm25 — чистый FTS (без сети), vector/hybrid — с векторным шаром.
 SEARCH_MODES = ("bm25", "vector", "hybrid")
-# hybrid: сколько BM25-кандидатов уходит в реранкер (как HYBRID_TOP в dumpindex).
-HYBRID_CANDIDATES = 40
+# hybrid: сколько кандидатов берётся из BM25 и из векторов, и сколько уходит в реранкер
+# (как HYBRID_TOP/RERANK_TOP в dumpindex).
+HYBRID_TOP = 50
+RERANK_TOP = 30
 # Сколько страниц за одно взятие блокировки читает поток-строитель векторов.
 VECTOR_SCAN_BATCH = 200
 
@@ -129,9 +131,13 @@ class HelpIndex:
                 HelpVectorStore,  # numpy нужен только здесь
             )
 
-            # Отдельный SQLite рядом с кэшем helpindex (не vectors.db dumpindex).
-            self._vectors = HelpVectorStore(embed_url, embed_model,
-                                            str(base / f"help-vectors-{digest}.sqlite"))
+            try:
+                # Отдельный SQLite рядом с кэшем helpindex (не vectors.db dumpindex).
+                self._vectors = HelpVectorStore(embed_url, embed_model,
+                                                str(base / f"help-vectors-{digest}.sqlite"))
+            except RuntimeError as exc:  # нет numpy: справка остаётся на BM25, сервер не падает
+                logger.error("Help vector search disabled: %s", exc)
+        if self._vectors is not None:
             self._vector_thread = threading.Thread(
                 target=self._build_vectors, name="help-vector-build", daemon=True
             )
@@ -206,7 +212,7 @@ class HelpIndex:
                         if not pages or pages != indexed:
                             raise sqlite3.DatabaseError("Incomplete help cache")
                         with self._lock:
-                            if self._stop.is_set():  # close() вже відпрацював: не воскрешаємо закритий індекс
+                            if self._stop.is_set():  # close() уже отработал: не воскрешаем закрытый индекс
                                 return
                             self._connection = connection
                         connection = None
@@ -254,7 +260,7 @@ class HelpIndex:
             temporary = None
             with self._lock:
                 if self._stop.is_set():
-                    # close() вже відбувся: пізній побудові не можна відновлювати з'єднання.
+                    # close() уже был: поздняя сборка не должна восстанавливать соединение.
                     return
                 self._connection = sqlite3.connect(self.database, check_same_thread=False)
         except Exception as exc:
@@ -357,24 +363,45 @@ class HelpIndex:
 
     def _search_hybrid(self, query: str, limit: int, section: str,
                        tokens: list[str] | None = None) -> tuple[list[dict], str]:
-        """BM25-кандидаты (top HYBRID_CANDIDATES) -> rerank_scores -> top limit."""
-        candidates = self._search_bm25(query, max(limit, HYBRID_CANDIDATES), section, tokens)
-        if not candidates:
-            return [], ""
-        if not self._rerank_url:
-            return candidates[:limit], (
-                "векторный индекс недоступен: реранкер не настроен (запустите с --rerank-url); показан только BM25"
+        """BM25 + векторы -> RRF по source страницы -> (опционально) реранкер."""
+        vi = self._vectors
+        if vi is None:
+            raise ValueError("hybrid mode is disabled: start with --embed-url")
+        bm25 = self._search_bm25(query, HYBRID_TOP, section, tokens)
+        if not vi.ready.is_set():
+            return bm25[:limit], (
+                f"векторный индекс недоступен: {vi.error}; показан только BM25" if vi.error
+                else f"векторный индекс строится: {vi.done}/{vi.total}; показан только BM25"
             )
-        from mcp_baf.helpindex import (
-            vectors as help_vectors,  # лениво: тот же клиент, что у dumpindex
-        )
-        # Один источник правды для конвертации страницы в doc: page_chunk, а не инлайн-формула.
-        docs = [help_vectors.page_chunk(c["title"], c["content"]) for c in candidates]
+        from mcp_baf.dumpindex.vectors import rrf_fuse
+        from mcp_baf.helpindex import vectors as help_vectors  # тот же клиент, что у dumpindex
+
         try:
-            scores = help_vectors.rerank_scores(self._rerank_url, self._rerank_model, query, docs)
-        except Exception as exc:  # noqa: BLE001 — реранкер лёг: отдаём BM25 с примечанием, без падения
-            return candidates[:limit], f"векторный индекс недоступен: {exc}; показан только BM25"
-        ranked = [dict(c, score=s) for c, s in sorted(zip(candidates, scores), key=lambda cs: -cs[1])]
+            vec = vi.search(query, HYBRID_TOP, section)
+        except Exception as exc:  # noqa: BLE001 — эмбеддер лёг: BM25 с примечанием, без падения
+            return bm25[:limit], f"векторный индекс недоступен: {exc}; показан только BM25"
+        cands = {row["source"]: row for row in bm25}
+        with self._lock:
+            self._check()
+            for source, _ in vec:
+                if source not in cands:
+                    cursor = self._connection.execute("SELECT * FROM pages WHERE source=?", (source,))
+                    names = [d[0] for d in cursor.description]
+                    if row := cursor.fetchone():
+                        cands[source] = dict(zip(names, row))
+        fused = [(s, score) for s, score in rrf_fuse([[r["source"] for r in bm25], [s for s, _ in vec]])
+                 if s in cands]
+        top = [dict(cands[s], score=score) for s, score in fused[:RERANK_TOP if self._rerank_url else limit]]
+        if not self._rerank_url or not top:
+            return top[:limit], ""
+        try:
+            scores = help_vectors.rerank_scores(
+                self._rerank_url, self._rerank_model, query,
+                [help_vectors.page_chunk(r["title"], r["content"]) for r in top],
+            )
+        except Exception as exc:  # noqa: BLE001 — реранкер необязателен: остаёмся на порядке RRF
+            return top[:limit], f"реранкер недоступен: {exc}; порядок RRF"
+        ranked = [dict(r, score=s) for r, s in sorted(zip(top, scores), key=lambda rs: -rs[1])]
         return ranked[:limit], ""
 
     def get(self, name: str, source: str = "") -> list[dict]:
