@@ -47,12 +47,12 @@ logger = logging.getLogger("mcp_baf.helpindex.vectors")
 CACHE_SCHEMA_VERSION = 1
 
 # Явная ошибка остановленной сборки: wait_vectors не висит до таймаута (опрашивает
-# error), а примітка режимів не бреше «індекс строится» на мёртвой побудові.
-STOPPED_ERROR = "побудова зупинена"
+# error), а примечание режимов не врёт «индекс строится» на мёртвой сборке.
+STOPPED_ERROR = "сборка остановлена"
 
 
 def _np():
-    """Ленивый numpy с сообщением про vector-режим (примітив спільний з dumpindex)."""
+    """Ленивый numpy с сообщением про vector-режим (примитив общий с dumpindex)."""
     return load_numpy("vector")
 
 
@@ -124,23 +124,23 @@ class HelpVectorStore:
             self.done = self.total - pending  # прогресс: страницы с готовым вектором
 
             blobs: dict[str, bytes] = {}
-
-            def flush():
-                """Готовые векторы сразу в кэш: прерванная сборка возобновляется."""
-                rows = [(source, section, h, blobs[h])
-                        for source, section, h in pages if h in blobs]
-                db.executemany("INSERT OR REPLACE INTO vec(source, section, h, v) VALUES (?,?,?,?)", rows)
-                db.commit()
+            by_hash: dict[str, list[tuple[str, str]]] = {}  # хэш -> [(source, section)]
+            for source, section, h in pages:
+                by_hash.setdefault(h, []).append((source, section))
 
             def on_batch(rows: list[tuple[str, bytes]]) -> None:
-                for h, blob in rows:
-                    blobs[h] = blob
-                flush()
+                """Пачка сразу в кэш (только её страницы): прерванная сборка возобновляется."""
+                db.executemany(
+                    "INSERT OR REPLACE INTO vec(source, section, h, v) VALUES (?,?,?,?)",
+                    [(source, section, h, blob) for h, blob in rows for source, section in by_hash[h]],
+                )
+                db.commit()
+                blobs.update(rows)
                 self.done += len(rows)
 
-            # Пачки в несколько потоков — спільний драйвер dumpindex: полный каталог
+            # Пачки в несколько потоков — общий драйвер dumpindex: полный каталог
             # справки (~47k страниц) собирается минуты, а не часы. embed_texts берём
-            # зі свого namespace, щоб офлайн-тести могли його підміняти.
+            # из своего namespace, чтобы офлайн-тесты могли его подменять.
             if not embed_in_batches(self._url, self._model, list(new_texts.items()),
                                     on_batch, should_stop, embed_texts):
                 self.error = RuntimeError(STOPPED_ERROR)
