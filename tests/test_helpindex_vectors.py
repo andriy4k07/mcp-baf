@@ -1,6 +1,6 @@
-"""Векторні та гібридні режими search_platform_help (issue #170): офлайн-кейси з моками.
+"""Векторный и гибридный режимы search_platform_help (issue #170): офлайн-кейсы с моками.
 
-Справжніх сетейых вызовов здесь нет: embed_texts/rerank_scores подменяются
+Настоящих сетевых вызовов здесь нет: embed_texts/rerank_scores подменяются
 monkeypatch до того, как HelpVectorStore/HelpIndex успеют их дёрнуть.
 """
 
@@ -94,49 +94,101 @@ def test_mode_validation(tmp_path, monkeypatch):
         index.close()
 
 
-def test_hybrid_without_reranker_degrades_to_bm25_with_note(tmp_path, monkeypatch):
-    def boom(*args, **kwargs):
-        raise AssertionError("reranker is not configured: must not be called")
-    monkeypatch.setattr(hv, "rerank_scores", boom)
-    index, _ = create_index_with(tmp_path)  # ни embed, ни rerank
+def test_hybrid_without_embed_url_is_disabled(tmp_path, monkeypatch):
+    block_network(monkeypatch)
+    index, _ = create_index_with(tmp_path, rerank_url=RERANK)  # реранкер без эмбеддингов не включает hybrid
     try:
-        assert index.has_vectors() is False
-        rows, note = index.search_with_note("Запрос", mode="hybrid")
-        assert [r["title"] for r in rows] == [r["title"] for r in index.search("Запрос")]
-        assert "векторный индекс недоступен" in note and "реранкер" in note
+        with pytest.raises(ValueError, match="hybrid mode is disabled"):
+            index.search("Запрос", mode="hybrid")
     finally:
         index.close()
 
 
-def test_hybrid_dead_reranker_falls_back_to_bm25_with_note(tmp_path, monkeypatch):
+def test_hybrid_fuses_bm25_and_vectors_without_reranker(tmp_path, monkeypatch):
+    monkeypatch.setattr(hv, "embed_texts", fake_embed)
+    monkeypatch.setattr(hv, "rerank_scores", lambda *a: pytest.fail("reranker is not configured"))
+    index, _ = create_index_with(tmp_path, embed_url=EMBED)
+    try:
+        assert index.wait_vectors(10) is True
+        rows, note = index.search_with_note("HTTPСоединение", mode="hybrid")
+        assert note == ""
+        assert rows[0]["title"].startswith("HTTPСоединение")  # первая и в BM25, и в векторах
+        assert rows == sorted(rows, key=lambda r: -r["score"])
+        assert len({r["source"] for r in rows}) == len(rows)  # RRF дедуплицирует по source
+    finally:
+        index.close()
+
+
+def test_hybrid_adds_vector_only_hits(tmp_path, monkeypatch):
+    # Смысловой запрос без лексического совпадения: BM25 пуст, векторы находят страницу.
+    monkeypatch.setattr(hv, "embed_texts", lambda url, model, texts: [
+        [1.0, 0, 0, 0, 0, 0] if t == "выборка данных" else v for t, v in zip(texts, fake_embed(url, model, texts))])
+    index, _ = create_index_with(tmp_path, embed_url=EMBED)
+    try:
+        assert index.wait_vectors(10) is True
+        assert index.search("выборка данных") == []
+        rows, note = index.search_with_note("выборка данных", mode="hybrid")
+        assert note == "" and rows and rows[0]["title"].startswith("Запрос")
+    finally:
+        index.close()
+
+
+def test_hybrid_dead_reranker_keeps_rrf_order_with_note(tmp_path, monkeypatch):
+    monkeypatch.setattr(hv, "embed_texts", fake_embed)
     def dead(url, model, query, docs):
         raise ConnectionError("connection refused")
     monkeypatch.setattr(hv, "rerank_scores", dead)
-    index, _ = create_index_with(tmp_path, rerank_url=RERANK)
+    index, _ = create_index_with(tmp_path, embed_url=EMBED, rerank_url=RERANK)
     try:
+        assert index.wait_vectors(10) is True
         rows, note = index.search_with_note("Запрос", mode="hybrid")
-        assert [r["title"] for r in rows] == [r["title"] for r in index.search("Запрос")]
-        assert "векторный индекс недоступен" in note and "connection refused" in note
+        assert rows and "реранкер недоступен" in note and "connection refused" in note and "RRF" in note
     finally:
         index.close()
 
 
-def test_hybrid_reranks_bm25_candidates(tmp_path, monkeypatch):
+def test_hybrid_reranks_fused_candidates(tmp_path, monkeypatch):
+    monkeypatch.setattr(hv, "embed_texts", fake_embed)
     seen = {}
     def scoring(url, model, query, docs):
         seen["docs"] = docs
-        return [float(i) for i in range(len(docs))]  # инвертирует порядок BM25
+        return [float(i) for i in range(len(docs))]  # инвертирует порядок RRF
     monkeypatch.setattr(hv, "rerank_scores", scoring)
-    index, _ = create_index_with(tmp_path, rerank_url=RERANK)
+    index, _ = create_index_with(tmp_path, embed_url=EMBED, rerank_url=RERANK)
     try:
-        bm25 = index.search("Запрос", limit=50)
+        assert index.wait_vectors(10) is True
         rows, note = index.search_with_note("Запрос", limit=2, mode="hybrid")
-        assert note == ""
-        assert len(rows) == 2
-        assert rows[0]["title"] == bm25[len(bm25) - 1]["title"]  # реранкер перевернул выдачу
+        assert note == "" and len(rows) == 2
         assert rows[0]["score"] > rows[1]["score"]
-        assert len(seen["docs"]) == len(bm25)  # кандидатов не больше HYBRID_CANDIDATES
-        assert all(d.startswith(c["title"]) for d, c in zip(seen["docs"], bm25))
+        assert rows[0]["content"] in seen["docs"][-1]  # последний RRF-кандидат стал первым
+        assert len(seen["docs"]) <= 30  # в реранкер не больше RERANK_TOP
+    finally:
+        index.close()
+
+
+def test_hybrid_dead_embedder_after_build_falls_back_to_bm25(tmp_path, monkeypatch):
+    monkeypatch.setattr(hv, "embed_texts", fake_embed)
+    index, _ = create_index_with(tmp_path, embed_url=EMBED)
+    try:
+        assert index.wait_vectors(10) is True
+        def dead(url, model, texts):
+            raise ConnectionError("embed down")
+        monkeypatch.setattr(hv, "embed_texts", dead)
+        rows, note = index.search_with_note("Запрос", mode="hybrid")
+        assert [r["title"] for r in rows] == [r["title"] for r in index.search("Запрос")]
+        assert "векторный индекс недоступен" in note and "embed down" in note
+    finally:
+        index.close()
+
+
+def test_missing_numpy_disables_vectors_without_crash(tmp_path, monkeypatch):
+    def no_numpy(*args, **kwargs):
+        raise RuntimeError("vector search needs numpy: pip install mcp-baf[rag]")
+    monkeypatch.setattr(hv, "HelpVectorStore", no_numpy)
+    index, _ = create_index_with(tmp_path, embed_url=EMBED)
+    try:
+        assert index.has_vectors() is False
+        assert index.search("Запрос")[0]["title"] == "Запрос"
     finally:
         index.close()
 
@@ -232,9 +284,9 @@ def test_vector_mode_dead_embedder_after_build_reports_cleanly(tmp_path, monkeyp
 
 
 # ---------------------------------------------------------------------------
-# Покрыття гепів, знайдених ревью (rev01 пункт 2 + korrectnist E): cold-build
-# fallback, ре-ембед зміненої сторінки, чистка видалених, MCP-схема, секційна
-# валідація у vector та порядок текстів помилок сумісний з main.
+# Пробелы, найденные ревью: BM25-фолбэк при холодной сборке, переэмбеддинг
+# изменённой страницы, чистка удалённых, MCP-схема, валидация section в vector
+# и совместимый с main порядок текстов ошибок.
 # ---------------------------------------------------------------------------
 
 
@@ -244,7 +296,7 @@ def vector_sources(db_path):
 
 
 def test_vector_mode_during_cold_build_degrades_to_bm25_with_note(tmp_path, monkeypatch):
-    # (a) Поки cold build стоїть на першій пачці: vector видає BM25 + примітку, не помилку.
+    # (a) Пока холодная сборка стоит на первой пачке: vector отдаёт BM25 + примечание, не ошибку.
     gate = threading.Event()
 
     def slow_embed(url, model, texts):
@@ -254,7 +306,7 @@ def test_vector_mode_during_cold_build_degrades_to_bm25_with_note(tmp_path, monk
     monkeypatch.setattr(hv, "embed_texts", slow_embed)
     index, _ = create_index_with(tmp_path, embed_url=EMBED)
     try:
-        deadline = time.monotonic() + 10  # дочекатись, доки потік-будівник перелічить сторінки
+        deadline = time.monotonic() + 10  # дождаться, пока поток-строитель перечислит страницы
         while index._vectors.total == 0 and time.monotonic() < deadline:
             time.sleep(0.05)
         assert index._vectors.total > 0
@@ -268,7 +320,7 @@ def test_vector_mode_during_cold_build_degrades_to_bm25_with_note(tmp_path, monk
 
 
 def test_changed_page_text_reembeds_only_that_page(tmp_path, monkeypatch):
-    # (b) Правка тексту наявної .hbk-сторінки: sha256-ключ змінюється -> ре-ембед РІВНО її.
+    # (b) Правка текста существующей .hbk-страницы: sha256-ключ меняется -> переэмбеддинг РОВНО её.
     from mcp_baf.helpindex.hbk import read_pages
 
     calls = []
@@ -285,13 +337,13 @@ def test_changed_page_text_reembeds_only_that_page(tmp_path, monkeypatch):
     pages[victim] = pages[victim].replace("СтрНайти", "СтрНайтиОновлена")
     (root / "platform.hbk").write_bytes(make_hbk(pages))
     n = page_count(index)
-    # Створюємо HelpIndex напряму: create_index_with перезаписав би файл вихідним FIXTURE.
+    # Создаём HelpIndex напрямую: create_index_with перезаписал бы файл исходным FIXTURE.
     reopened = HelpIndex(str(root), str(tmp_path / "cache"), embed_url=EMBED)
     try:
         assert reopened.wait_ready(5) and reopened.error is None
         assert reopened.wait_vectors(10) is True
         assert page_count(reopened) == n
-        assert len(calls) == n + 1  # +1: пере-ембеджено лише відредатовану сторінку
+        assert len(calls) == n + 1  # +1: переэмбеддена только отредактированная страница
         assert "СтрНайтиОновлена" in calls[-1]
         assert vector_rows(vector_db(tmp_path)) == n
     finally:
@@ -299,7 +351,7 @@ def test_changed_page_text_reembeds_only_that_page(tmp_path, monkeypatch):
 
 
 def test_deleted_page_purges_vector_cache_row(tmp_path, monkeypatch):
-    # (c) Сторінка зникла з .hbk -> її рядок випаровується з векторного кешу.
+    # (c) Страница пропала из .hbk -> её строка удаляется из векторного кэша.
     monkeypatch.setattr(hv, "embed_texts", fake_embed)
     index, root = create_index_with(tmp_path, embed_url=EMBED)
     try:
@@ -325,8 +377,7 @@ def test_deleted_page_purges_vector_cache_row(tmp_path, monkeypatch):
         index.close()
 
 
-def test_mcp_schema_mode_enum_and_default(tmp_path):
-    # (d) MCP-контракт: обидва тули несуть enum + default bm25, mode не обов'язковий.
+def mode_schemas(tmp_path, **config):
     import asyncio
 
     from mcp.server.mcpserver import MCPServer
@@ -334,26 +385,30 @@ def test_mcp_schema_mode_enum_and_default(tmp_path):
     from mcp_baf.config import Config
     from mcp_baf.server import create_server
 
-    server = create_server(Config(base_url="http://test", cache_dir=str(tmp_path), help_dir=str(tmp_path)))
+    server = create_server(Config(base_url="http://test", cache_dir=str(tmp_path), help_dir=str(tmp_path), **config))
     tools = asyncio.run(MCPServer.list_tools(server))
-    seen = set()
-    for tool in tools:
-        if tool.name not in ("search_platform_help", "get_platform_element"):
-            continue
-        seen.add(tool.name)
-        props = tool.input_schema["properties"]
-        assert props["mode"]["enum"] == ["bm25", "vector", "hybrid"]
-        assert props["mode"]["default"] == "bm25"
-        assert "mode" not in (tool.input_schema.get("required") or [])
-    assert seen == {"search_platform_help", "get_platform_element"}
+    return {t.name: t.input_schema for t in tools if t.name in ("search_platform_help", "get_platform_element")}
+
+
+@pytest.mark.parametrize("embed_url, enum", [("", ["bm25"]), (EMBED, ["bm25", "vector", "hybrid"])])
+def test_mcp_schema_mode_enum_and_default(tmp_path, monkeypatch, embed_url, enum):
+    # (d) MCP-контракт: vector/hybrid в схеме только при --embed-url (как hybrid в search_code).
+    monkeypatch.setattr(hv, "embed_texts", fake_embed)
+    schemas = mode_schemas(tmp_path, embed_url=embed_url)
+    assert set(schemas) == {"search_platform_help", "get_platform_element"}
+    for schema in schemas.values():
+        mode = schema["properties"]["mode"]
+        assert mode.get("enum", [mode.get("const")]) == enum
+        assert mode["default"] == "bm25"
+        assert "mode" not in (schema.get("required") or [])
 
 
 def test_vector_mode_rejects_invalid_section(tmp_path, monkeypatch):
-    # (e) vector/hybrid з недійсним section: ValueError, а не мовчазні [] від -inf-фільтра.
+    # (e) vector/hybrid с недопустимым section: ValueError, а не молчаливый [] от -inf-фильтра.
     monkeypatch.setattr(hv, "embed_texts", fake_embed)
     index, _ = create_index_with(tmp_path, embed_url=EMBED)
     try:
-        assert index.wait_vectors(10) is True  # вектори готові: старий шлях повертав [] без помилки
+        assert index.wait_vectors(10) is True  # векторы готовы: старый путь возвращал [] без ошибки
         with pytest.raises(ValueError, match="section: functions, types, operators, vtables, skd"):
             index.search("Запрос", mode="vector", section="bogus")
         with pytest.raises(ValueError, match="section:"):
@@ -363,17 +418,17 @@ def test_vector_mode_rejects_invalid_section(tmp_path, monkeypatch):
 
 
 def test_error_text_compatibility_section_before_query(tmp_path, monkeypatch):
-    # (f) Сумісність тексту/порядку помилок з main: mode -> section -> query.
+    # (f) Совместимость текста/порядка ошибок с main: mode -> section -> query.
     block_network(monkeypatch)
     index, _ = create_index_with(tmp_path)
     try:
         with pytest.raises(ValueError, match="mode: bm25, vector, hybrid"):
             index.search("   ", 5, "bogus", mode="smart")  # mode перший
         with pytest.raises(ValueError, match="section: functions, types, operators, vtables, skd"):
-            index.search("   ", 5, "bogus")  # два невалідних: section перший (як у main)
+            index.search("   ", 5, "bogus")  # два невалидных: section первым (как в main)
         with pytest.raises(ValueError, match="query должен"):
             index.search("   ", 5, "")
         with pytest.raises(ValueError, match="query должен"):
-            index.search_with_note("   ", 5, "", mode="vector")  # валідатор і до диспетчера vector
+            index.search_with_note("   ", 5, "", mode="vector")  # валидатор и до диспетчера vector
     finally:
         index.close()
