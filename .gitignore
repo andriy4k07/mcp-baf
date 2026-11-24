@@ -38,11 +38,9 @@ Thumbs.db
 # claude
 .claude/
 
-# graphify (graph.json, GRAPH_REPORT.md, manifest.json are committed)
-graphify-out/cost.json
-graphify-out/graph.html
-graphify-out/.graphify_root
-graphify-out/cache/
 
 # Local secrets (docker compose)
 .env
+
+# graphify artifacts (fully untracked; removed from git history 2026-11-24)
+graphify-out/
