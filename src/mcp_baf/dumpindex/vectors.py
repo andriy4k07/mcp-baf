@@ -4,6 +4,11 @@
 и numpy не нужен. Код и запросы уходят на указанный сервер эмбеддингов
 (OpenAI-совместимый /v1/embeddings) и, если задан --rerank-url, на реранкер.
 
+Модуль — также единственный дом общих примитивов векторной слойки
+(chunk_key/pack_vector/embed_in_batches/top_k_by_cosine): их потребляют и
+VectorIndex (чанки BSL), и helpindex.HelpVectorStore (страницы .hbk). Держать
+вторую копию в helpindex запрещено — кэши тихо разойдутся.
+
 - чанк = один метод BSL (с комментариями над ним); модуль без методов — один
   «головной» чанк; код вне методов пропускается;
 - кэш — отдельный SQLite-файл рядом с index.db: sha256(модель + текст чанка)
@@ -145,14 +150,79 @@ def rrf_fuse(rankings: Iterable[list], k: int = RRF_K) -> list[tuple[object, flo
     return sorted(scores.items(), key=lambda kv: -kv[1])
 
 
-def _np():
+def _np(feature: str = "hybrid"):
     try:
         import numpy
     except ImportError as exc:
         raise RuntimeError(
-            "hybrid search needs numpy: pip install mcp-baf[rag]"
+            f"{feature} search needs numpy: pip install mcp-baf[rag]"
         ) from exc
     return numpy
+
+
+# ---------------------------------------------------------------------------
+# Общие примитивы векторной слойки. Их потребляют VectorIndex (чанки BSL) и
+# helpindex.HelpVectorStore (страницы .hbk): одинаковый ключ кэша, одинаковое
+# пакование float16, один драйвер пачкового эмбеддинга и один top-k по косинусу.
+# ---------------------------------------------------------------------------
+
+def chunk_key(model: str, text: str) -> str:
+    """Ключ кэша чанка: sha256(модель + \\0 + текст)."""
+    return hashlib.sha256((model + "\0" + text).encode("utf-8")).hexdigest()
+
+
+def pack_vector(np, vector: list[float]) -> bytes:
+    """Нормированный float16-blob: float32 -> /||v|| -> float16."""
+    v = np.asarray(vector, dtype=np.float32)
+    norm = float(np.linalg.norm(v)) or 1.0
+    return (v / norm).astype(np.float16).tobytes()
+
+
+def embed_in_batches(url: str, model: str, todo: list[tuple],
+                     on_batch: Callable[[list[tuple]], None],
+                     should_stop: Callable[[], bool] | None = None,
+                     embed: Callable[[str, str, list[str]], list[list[float]]] | None = None) -> bool:
+    """Эмбедит пары (ключ, текст) пачками EMBED_BATCH в EMBED_WORKERS потоков.
+
+    on_batch получает [(ключ, float16-blob)] на каждую пачку: вызывающий коммитит
+    в свой кэш на лету, поэтому прерванная сборка возобновляется с того же места.
+    embed — инъекция клиента (helpindex передаёт свой ре-экспорт, чтобы офлайн-
+    тесты патчили hv.embed_texts); по умолчанию — embed_texts этого модуля.
+    Возвращает False, если should_stop остановил цикл (готовое — уже в кэше).
+    """
+    embed = embed_texts if embed is None else embed
+    np = _np()
+    with ThreadPoolExecutor(EMBED_WORKERS) as pool:
+        for off in range(0, len(todo), EMBED_BATCH * EMBED_WORKERS):
+            if should_stop is not None and should_stop():
+                return False
+            parts = [todo[o:o + EMBED_BATCH]
+                     for o in range(off, min(off + EMBED_BATCH * EMBED_WORKERS, len(todo)), EMBED_BATCH)]
+            results = pool.map(lambda p: embed(url, model, [t for _, t in p]), parts)
+            for part, vecs in zip(parts, results):
+                on_batch([(k, pack_vector(np, v)) for (k, _), v in zip(part, vecs)])
+    return True
+
+
+def top_k_by_cosine(np, embed, url: str, model: str, matrix, query: str, k: int,
+                    mask=None) -> list[tuple[int, float]]:
+    """Топ-k по косинусу: эмбеддинг запроса -> matrix @ q -> argpartition/argsort.
+
+    mask — булев фильтр строк матрицы (section/category/module): выключенные
+    становятся -inf и выпадают из выдачи. Возвращает [(индекс строки, косинус)]
+    по убыванию скора; пустой список при k<=0 или пустой матрице.
+    """
+    q = np.asarray(embed(url, model, [query])[0], dtype=np.float32)
+    q = (q / (np.linalg.norm(q) or 1.0)).astype(np.float16)
+    scores = (matrix @ q).astype(np.float32)
+    if mask is not None:
+        scores[~mask] = -np.inf
+    k = min(k, len(scores))
+    if k <= 0:
+        return []
+    top = np.argpartition(-scores, k - 1)[:k]
+    top = top[np.argsort(-scores[top])]
+    return [(int(i), float(scores[i])) for i in top if scores[i] > -np.inf]
 
 
 class VectorIndex:
@@ -171,7 +241,7 @@ class VectorIndex:
         self._by_name: dict[str, list[tuple[int, int, int]]] = {}
 
     def _key(self, text: str) -> str:
-        return hashlib.sha256((self._model + "\0" + text).encode("utf-8")).hexdigest()
+        return chunk_key(self._model, text)
 
     def build(self, batches: Iterable[list[tuple]], should_stop: Callable[[], bool]) -> None:
         """batches: списки (doc_id, name, category, module_type, content). Ошибка -> self.error."""
@@ -204,23 +274,13 @@ class VectorIndex:
             self.total = len(chunks)
             self.done = self.total - len(texts)  # прогресс: чанки, уже имеющие вектор
 
-            todo = list(texts.items())
-            with ThreadPoolExecutor(EMBED_WORKERS) as pool:
-                for off in range(0, len(todo), EMBED_BATCH * EMBED_WORKERS):
-                    if should_stop():
-                        return
-                    parts = [todo[o:o + EMBED_BATCH]
-                             for o in range(off, min(off + EMBED_BATCH * EMBED_WORKERS, len(todo)), EMBED_BATCH)]
-                    results = pool.map(
-                        lambda p: embed_texts(self._url, self._model, [t for _, t in p]), parts
-                    )
-                    rows = []
-                    for part, vecs in zip(parts, results):
-                        for (k, _), v in zip(part, vecs):
-                            rows.append((k, self._pack(v)))
-                    db.executemany("INSERT OR REPLACE INTO vec VALUES (?, ?)", rows)
-                    db.commit()  # каждая пачка сразу в кэш: прерванная сборка возобновляется
-                    self.done += len(rows)
+            def on_batch(rows):
+                db.executemany("INSERT OR REPLACE INTO vec VALUES (?, ?)", rows)
+                db.commit()  # каждая пачка сразу в кэш: прерванная сборка возобновляется
+                self.done += len(rows)
+
+            if not embed_in_batches(self._url, self._model, list(texts.items()), on_batch, should_stop):
+                return
 
             # Матрица в порядке чанков; заодно чистим устаревшие строки кэша.
             vecs = {}
@@ -255,12 +315,6 @@ class VectorIndex:
             ))
         return out
 
-    def _pack(self, vector: list[float]) -> bytes:
-        np = self._np
-        v = np.asarray(vector, dtype=np.float32)
-        norm = float(np.linalg.norm(v)) or 1.0
-        return (v / norm).astype(np.float16).tobytes()
-
     def chunk_at(self, module: str, line: int) -> int | None:
         """Индекс чанка-метода, содержащего строку модуля; None — строка вне методов."""
         for start, end, i in self._by_name.get(module, ()):
@@ -270,20 +324,12 @@ class VectorIndex:
 
     def search(self, query: str, k: int, category: str = "", module: str = "") -> list[int]:
         """Индексы топ-k чанков по косинусной близости (с фильтрами category/module)."""
-        np = self._np
-        q = np.asarray(embed_texts(self._url, self._model, [query])[0], dtype=np.float32)
-        q = (q / (np.linalg.norm(q) or 1.0)).astype(np.float16)
-        scores = (self._matrix @ q).astype(np.float32)
+        mask = None
         if category or module:
-            keep = np.fromiter(
+            mask = self._np.fromiter(
                 ((not category or c.category == category) and (not module or c.module_type == module)
                  for c in self.chunks),
                 dtype=bool, count=len(self.chunks),
             )
-            scores[~keep] = -np.inf
-        k = min(k, len(scores))
-        if k <= 0:
-            return []
-        top = np.argpartition(-scores, k - 1)[:k]
-        top = top[np.argsort(-scores[top])]
-        return [int(i) for i in top if scores[i] > -np.inf]
+        return [i for i, _ in top_k_by_cosine(self._np, embed_texts, self._url, self._model,
+                                              self._matrix, query, k, mask)]

@@ -11,6 +11,7 @@ import sqlite3
 import struct
 import tempfile
 import threading
+import time
 import unicodedata
 import zipfile
 import zlib
@@ -36,6 +37,14 @@ logger = logging.getLogger(__name__)
 CLOSE_JOIN_TIMEOUT = 10.0
 # Временные файлы сборки старше часа — сироты после SIGKILL/OOM.
 STALE_BUILD_AGE = 3600.0
+# Режимы search(): bm25 — чистый FTS (без сети), vector/hybrid — с векторным шаром.
+SEARCH_MODES = ("bm25", "vector", "hybrid")
+# hybrid: сколько кандидатов берётся из BM25 и из векторов, и сколько уходит в реранкер
+# (как HYBRID_TOP/RERANK_TOP в dumpindex).
+HYBRID_TOP = 50
+RERANK_TOP = 30
+# Сколько страниц за одно взятие блокировки читает поток-строитель векторов.
+VECTOR_SCAN_BATCH = 200
 
 
 class PageParser(HTMLParser):
@@ -99,7 +108,9 @@ def normalize(value: str) -> str:
 
 
 class HelpIndex:
-    def __init__(self, help_dir: str, cache_dir: str = "", reindex: bool = False):
+    def __init__(self, help_dir: str, cache_dir: str = "", reindex: bool = False,
+                 embed_url: str = "", rerank_url: str = "",
+                 embed_model: str = "qwen3-embedding", rerank_model: str = "qwen3-reranker"):
         self.root = Path(help_dir).expanduser().resolve()
         digest = hashlib.sha256(str(self.root).encode()).hexdigest()[:16]
         base = Path(cache_dir) if cache_dir else Path(user_cache_dir()) / "mcp-baf"
@@ -110,11 +121,75 @@ class HelpIndex:
         self._connection = None
         self.error: Exception | None = None
         self._type_names = None
+        self._rerank_url = rerank_url
+        self._rerank_model = rerank_model
+        # Векторный шар — только при явном --embed-url: без него bm25 не дёргает сеть.
+        self._vectors = None
+        self._vector_thread = None
+        if embed_url:
+            from mcp_baf.helpindex.vectors import (
+                HelpVectorStore,  # numpy нужен только здесь
+            )
+
+            try:
+                # Отдельный SQLite рядом с кэшем helpindex (не vectors.db dumpindex).
+                self._vectors = HelpVectorStore(embed_url, embed_model,
+                                                str(base / f"help-vectors-{digest}.sqlite"))
+            except RuntimeError as exc:  # нет numpy: справка остаётся на BM25, сервер не падает
+                logger.error("Help vector search disabled: %s", exc)
+        if self._vectors is not None:
+            self._vector_thread = threading.Thread(
+                target=self._build_vectors, name="help-vector-build", daemon=True
+            )
+            self._vector_thread.start()
         self._thread = threading.Thread(target=self._build, args=(reindex,), daemon=True)
         self._thread.start()
 
     def wait_ready(self, timeout=None):
         return self._ready.wait(timeout)
+
+    def has_vectors(self) -> bool:
+        """Включён ли векторный шар (--embed-url)."""
+        return self._vectors is not None
+
+    def wait_vectors(self, timeout: float | None = None) -> bool:
+        """Ждёт готовности векторов; False — выключен, ошибка сборки или таймаут."""
+        vi = self._vectors
+        if vi is None:
+            return False
+        deadline = None if timeout is None else time.monotonic() + timeout
+        # ready ставится только при успехе: ошибку сборки ловим опросом, а не ждём таймаут.
+        while not vi.ready.wait(1.0):
+            if vi.error is not None or (deadline is not None and time.monotonic() >= deadline):
+                return False
+        return True
+
+    def _build_vectors(self):
+        """Векторы строятся после готовности FTS: читают pages пачками (паттерн dumpindex)."""
+        from mcp_baf.helpindex.vectors import (
+            page_chunk,  # лениво: numpy/httpx только при векторе
+        )
+
+        while not self._ready.wait(1.0):
+            if self._stop.is_set() or self.error is not None:
+                return
+
+        def batches():
+            last = ""
+            while not self._stop.is_set():
+                with self._lock:
+                    if self._connection is None:
+                        return
+                    rows = self._connection.execute(
+                        "SELECT source, section, title, content FROM pages WHERE source > ? ORDER BY source LIMIT ?",
+                        (last, VECTOR_SCAN_BATCH),
+                    ).fetchall()
+                if not rows:
+                    return
+                last = rows[-1][0]
+                yield [(source, section, page_chunk(title, content)) for source, section, title, content in rows]
+
+        self._vectors.build(batches(), lambda: self._stop.is_set())
 
     def _build(self, reindex):
         temporary = None
@@ -137,6 +212,8 @@ class HelpIndex:
                         if not pages or pages != indexed:
                             raise sqlite3.DatabaseError("Incomplete help cache")
                         with self._lock:
+                            if self._stop.is_set():  # close() уже отработал: не воскрешаем закрытый индекс
+                                return
                             self._connection = connection
                         connection = None
                         return
@@ -182,6 +259,9 @@ class HelpIndex:
             os.replace(temporary, self.database)
             temporary = None
             with self._lock:
+                if self._stop.is_set():
+                    # close() уже был: поздняя сборка не должна восстанавливать соединение.
+                    return
                 self._connection = sqlite3.connect(self.database, check_same_thread=False)
         except Exception as exc:
             self.error = exc
@@ -200,12 +280,44 @@ class HelpIndex:
         if self._connection is None:
             raise RuntimeError("Индекс справки закрыт")
 
-    def search(self, query: str, limit=10, section="") -> list[dict]:
-        if section and section not in SECTIONS:
-            raise ValueError("section: " + ", ".join(SECTIONS))
+    def _tokens(self, query: str) -> list[str]:
         tokens = re.findall(r"\w+", normalize(query))
         if not tokens:
             raise ValueError("query должен содержать название или слова для поиска")
+        return tokens
+
+    def search(self, query: str, limit=10, section="", mode="bm25") -> list[dict]:
+        """Страницы справки; mode: bm25 (по умолчанию, без сети), vector, hybrid."""
+        rows, _ = self.search_with_note(query, limit, section, mode)
+        return rows
+
+    def search_with_note(self, query: str, limit=10, section="", mode="bm25") -> tuple[list[dict], str]:
+        """Как search(), но вторым значением — текстовое примечание о деградации ('' если всё ок).
+
+        Валидация централизована для всех режимов и в порядке main: mode -> section
+        -> токены query (section-ошибка раньше query-ошибки). Непригодный section
+        отсекается и в vector/hybrid, а не превращается молча в пустую выдачу.
+        Запит токенизируется один раз и передаётся в BM25.
+        """
+        if mode not in SEARCH_MODES:
+            raise ValueError("mode: " + ", ".join(SEARCH_MODES))
+        self._check_section(section)
+        tokens = self._tokens(query)
+        if mode == "hybrid":
+            return self._search_hybrid(query, limit, section, tokens)
+        if mode == "vector":
+            return self._search_vector(query, limit, section, tokens)
+        return self._search_bm25(query, limit, section, tokens), ""
+
+    @staticmethod
+    def _check_section(section: str) -> None:
+        if section and section not in SECTIONS:
+            raise ValueError("section: " + ", ".join(SECTIONS))
+
+    def _search_bm25(self, query: str, limit=10, section="", tokens: list[str] | None = None) -> list[dict]:
+        self._check_section(section)  # перепроверка для прямых вызовов мимо search_with_note
+        if tokens is None:
+            tokens = self._tokens(query)
         synonyms = build_synonym_map()
         # Префиксный поиск: по началу имени и по частям CamelCase из aliases.
         terms = ['("' + t + '"* OR "' + synonyms[t] + '"*)' if t in synonyms else '"' + t + '"*' for t in tokens]
@@ -221,6 +333,76 @@ class HelpIndex:
                 if rows := [dict(zip(names, row)) for row in cursor.fetchall()]:
                     return rows
             return []
+
+    def _search_vector(self, query: str, limit: int, section: str,
+                       tokens: list[str] | None = None) -> tuple[list[dict], str]:
+        """Чистый семантический поиск по косинусу; при недоступности — понятное сообщение."""
+        vi = self._vectors
+        if vi is None:
+            raise ValueError("vector mode is disabled: start with --embed-url")
+        if vi.error is not None:
+            raise RuntimeError(f"векторный индекс недоступен: {vi.error}")
+        if not vi.ready.is_set():
+            # Ещё строится: не валим запрос, а отдаём BM25 с честным примечанием.
+            return self._search_bm25(query, limit, section, tokens), (
+                f"векторный индекс строится: {vi.done}/{vi.total}; показан только BM25"
+            )
+        try:
+            hits = vi.search(query, limit, section)
+        except Exception as exc:  # эмбеддер умер после сборки: деградация вместо падения
+            raise RuntimeError(f"векторный индекс недоступен: {exc}") from exc
+        rows = []
+        with self._lock:
+            self._check()
+            for source, score in hits:
+                cursor = self._connection.execute("SELECT * FROM pages WHERE source=?", (source,))
+                names = [d[0] for d in cursor.description]
+                if row := cursor.fetchone():
+                    rows.append(dict(zip(names, row), score=score))
+        return rows, ""
+
+    def _search_hybrid(self, query: str, limit: int, section: str,
+                       tokens: list[str] | None = None) -> tuple[list[dict], str]:
+        """BM25 + векторы -> RRF по source страницы -> (опционально) реранкер."""
+        vi = self._vectors
+        if vi is None:
+            raise ValueError("hybrid mode is disabled: start with --embed-url")
+        bm25 = self._search_bm25(query, HYBRID_TOP, section, tokens)
+        if not vi.ready.is_set():
+            return bm25[:limit], (
+                f"векторный индекс недоступен: {vi.error}; показан только BM25" if vi.error
+                else f"векторный индекс строится: {vi.done}/{vi.total}; показан только BM25"
+            )
+        from mcp_baf.dumpindex.vectors import rrf_fuse
+        from mcp_baf.helpindex import vectors as help_vectors  # тот же клиент, что у dumpindex
+
+        try:
+            vec = vi.search(query, HYBRID_TOP, section)
+        except Exception as exc:  # noqa: BLE001 — эмбеддер лёг: BM25 с примечанием, без падения
+            return bm25[:limit], f"векторный индекс недоступен: {exc}; показан только BM25"
+        cands = {row["source"]: row for row in bm25}
+        with self._lock:
+            self._check()
+            for source, _ in vec:
+                if source not in cands:
+                    cursor = self._connection.execute("SELECT * FROM pages WHERE source=?", (source,))
+                    names = [d[0] for d in cursor.description]
+                    if row := cursor.fetchone():
+                        cands[source] = dict(zip(names, row))
+        fused = [(s, score) for s, score in rrf_fuse([[r["source"] for r in bm25], [s for s, _ in vec]])
+                 if s in cands]
+        top = [dict(cands[s], score=score) for s, score in fused[:RERANK_TOP if self._rerank_url else limit]]
+        if not self._rerank_url or not top:
+            return top[:limit], ""
+        try:
+            scores = help_vectors.rerank_scores(
+                self._rerank_url, self._rerank_model, query,
+                [help_vectors.page_chunk(r["title"], r["content"]) for r in top],
+            )
+        except Exception as exc:  # noqa: BLE001 — реранкер необязателен: остаёмся на порядке RRF
+            return top[:limit], f"реранкер недоступен: {exc}; порядок RRF"
+        ranked = [dict(r, score=s) for r, s in sorted(zip(top, scores), key=lambda rs: -rs[1])]
+        return ranked[:limit], ""
 
     def get(self, name: str, source: str = "") -> list[dict]:
         with self._lock:
@@ -249,6 +431,8 @@ class HelpIndex:
     def close(self):
         self._stop.set()
         self._thread.join(timeout=CLOSE_JOIN_TIMEOUT)
+        if self._vector_thread is not None:
+            self._vector_thread.join(timeout=CLOSE_JOIN_TIMEOUT)
         with self._lock:
             if self._connection is not None:
                 self._connection.close()

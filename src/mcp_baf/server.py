@@ -100,7 +100,11 @@ def create_server(config: Config) -> MCPServer:
 
     # Индекс строится в фоновом потоке — сервер стартует, не дожидаясь его.
     index = None
-    help_index = HelpIndex(config.help_dir, config.cache_dir, config.reindex) if config.help_dir else None
+    help_index = HelpIndex(
+        config.help_dir, config.cache_dir, config.reindex,
+        embed_url=config.embed_url, rerank_url=config.rerank_url,
+        embed_model=config.embed_model, rerank_model=config.rerank_model,
+    ) if config.help_dir else None
     if config.dump_dir:
         index = DumpIndex(
             config.dump_dir,
