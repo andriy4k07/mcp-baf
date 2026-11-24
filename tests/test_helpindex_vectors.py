@@ -461,3 +461,15 @@ def test_get_platform_element_keeps_note_when_nothing_found():
     result = asyncio.run(mcp.call_tool("get_platform_element", {"name": "Нечто", "mode": "hybrid"}))
     text = str(result)
     assert "похожих заголовков" in text and "строится" in text
+
+
+@pytest.mark.parametrize("done, total, expected", [
+    (0, 0, "строится: 0/0"),  # страницы ещё не перечислены
+    (10, 47, "строится: 10/47"),
+    (47, 47, "загружается из кэша"),  # все векторы в кэше: идёт только загрузка матрицы
+])
+def test_pending_note_distinguishes_cache_load(done, total, expected):
+    from types import SimpleNamespace
+
+    note = HelpIndex._pending_note(SimpleNamespace(done=done, total=total))
+    assert expected in note and "BM25" in note

@@ -334,6 +334,13 @@ class HelpIndex:
                     return rows
             return []
 
+    @staticmethod
+    def _pending_note(vi) -> str:
+        """Примечание до готовности векторов: все векторы уже в кэше — идёт только загрузка матрицы."""
+        if vi.total and vi.done >= vi.total:
+            return "векторный индекс загружается из кэша; показан только BM25"
+        return f"векторный индекс строится: {vi.done}/{vi.total}; показан только BM25"
+
     def _search_vector(self, query: str, limit: int, section: str,
                        tokens: list[str] | None = None) -> tuple[list[dict], str]:
         """Чистый семантический поиск по косинусу; при недоступности — понятное сообщение."""
@@ -345,7 +352,7 @@ class HelpIndex:
         if not vi.ready.is_set():
             # Ещё строится: не валим запрос, а отдаём BM25 с честным примечанием.
             return self._search_bm25(query, limit, section, tokens), (
-                f"векторный индекс строится: {vi.done}/{vi.total}; показан только BM25"
+                self._pending_note(vi)
             )
         try:
             hits = vi.search(query, limit, section)
@@ -371,7 +378,7 @@ class HelpIndex:
         if not vi.ready.is_set():
             return bm25[:limit], (
                 f"векторный индекс недоступен: {vi.error}; показан только BM25" if vi.error
-                else f"векторный индекс строится: {vi.done}/{vi.total}; показан только BM25"
+                else self._pending_note(vi)
             )
         from mcp_baf.dumpindex.vectors import rrf_fuse
         from mcp_baf.helpindex import vectors as help_vectors  # тот же клиент, что у dumpindex
