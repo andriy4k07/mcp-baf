@@ -432,3 +432,32 @@ def test_error_text_compatibility_section_before_query(tmp_path, monkeypatch):
             index.search_with_note("   ", 5, "", mode="vector")  # валидатор и до диспетчера vector
     finally:
         index.close()
+
+
+def test_get_platform_element_keeps_note_when_nothing_found():
+    # Пустые кандидаты во время сборки векторов: примечание «строится» не теряется.
+    import asyncio
+
+    from mcp.server.mcpserver import MCPServer
+
+    from mcp_baf.tools import platform_help
+
+    class Index:
+        def has_vectors(self):
+            return True
+
+        def get(self, name, source=""):
+            return []
+
+        def search_with_note(self, query, limit, section, mode):
+            return [], "векторный индекс строится: 1/2; показан только BM25"
+
+    class Audit:
+        def write(self, *args, **kwargs):
+            pass
+
+    mcp = MCPServer("test")
+    platform_help.register(mcp, Index(), Audit())
+    result = asyncio.run(mcp.call_tool("get_platform_element", {"name": "Нечто", "mode": "hybrid"}))
+    text = str(result)
+    assert "похожих заголовков" in text and "строится" in text

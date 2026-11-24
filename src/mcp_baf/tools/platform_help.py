@@ -46,9 +46,8 @@ def register(mcp, index, audit):
             if pages:
                 return "Имя неоднозначно; уточните полный заголовок и source из списка:\n\n" + "\n".join(f"- {p['title']} ({p['source']})" for p in pages)
             candidates, note = await asyncio.to_thread(index.search_with_note, name, 5, "", mode)
-            if not candidates:
-                return "Элемент не найден, похожих заголовков в локальной справке нет."
-            text = "Элемент не найден. Ближайшие результаты:\n\n" + "\n".join(f"- {p['title']}" for p in candidates)
+            text = ("Элемент не найден. Ближайшие результаты:\n\n" + "\n".join(f"- {p['title']}" for p in candidates)
+                    if candidates else "Элемент не найден, похожих заголовков в локальной справке нет.")
             if note:
                 # Примечание о деградации не глотаем: рендерим, как в search_platform_help.
                 text += f"\n\n> {note}"
