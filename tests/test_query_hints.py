@@ -226,3 +226,51 @@ def test_advisor_tabular_section_and_real_virtual_table_in_one_query():
         "ГДЕ Т.Склад = &С И Р.Склад = &С"
     )
     assert len(tips) == 1 and "`Р.Склад`" in tips[0]
+
+
+# Issue #161 (upstream monitor wave 2026-11-23): аудит ТЧ vs виртуальная
+# таблица в советнике. Настоящие английские имена виртуальных таблиц
+# платформы (Balances/Turnovers/BalancesAndTurnovers/LatestRecord/FirstRecord)
+# раньше не распознавались — молчание там, где совет нужен (false negative).
+# ТЧ с теми же именами под НЕрегистровыми префиксами остаются обычными
+# таблицами (правило суффикса привязано к типу-регистру, issue #162).
+
+@pytest.mark.parametrize("q, vt", [
+    # настоящие английские имена: вызов с пропущенным условием даёт совет
+    ("SELECT T.F FROM AccumulationRegister.Goods.Balances(&D) AS T WHERE T.Wh = &W",
+     "Balances"),
+    ("SELECT T.F FROM AccumulationRegister.Goods.Turnovers(&A, &B, Period) AS T WHERE T.Wh = &W",
+     "Turnovers"),
+    ("SELECT T.F FROM AccumulationRegister.Goods.BalancesAndTurnovers(&A, &B, Period) AS T WHERE T.Wh = &W",
+     "BalancesAndTurnovers"),
+    ("SELECT C.P FROM InformationRegister.Prices.LatestRecord(&D) AS C WHERE C.Item = &I",
+     "LatestRecord"),
+    ("SELECT C.P FROM InformationRegister.Prices.FirstRecord(&D) AS C WHERE C.Item = &I",
+     "FirstRecord"),
+    # регистр букв не важен
+    ("select t.f from accumulationregister.goods.balances(&d) as t where t.wh = &w",
+     "balances"),
+])
+def test_advisor_real_english_virtual_names_tip(q, vt):
+    tips = advise_query(q)
+    assert len(tips) == 1 and f"`.{vt}`" in tips[0]
+
+
+@pytest.mark.parametrize("q", [
+    # условие передано параметром BalancesAndTurnovers (4-й) — совета нет
+    "SELECT T.F FROM AccumulationRegister.Goods.BalancesAndTurnovers(&A, &B, Period, Wh = &W) AS T WHERE T.Wh = &W",
+    # служебные поля регистра по-английски в ГДЕ — не повод для совета
+    "SELECT T.F FROM AccumulationRegister.Goods.Balances(&D) AS T WHERE T.Period = &P",
+    "SELECT T.F FROM AccumulationRegister.Goods.Balances(&D) AS T WHERE T.Recorder = &R",
+    "SELECT C.P FROM InformationRegister.Prices.LatestRecord() AS C WHERE C.Active = ИСТИНА",
+    "SELECT C.P FROM InformationRegister.Prices.FirstRecord() AS C WHERE C.MomentTime = &M",
+    # ТЧ справочника/документа, названная как виртуальная таблица (английские
+    # имена) — обычная таблица: префикс не регистр, скобка не спасает
+    "SELECT T.F FROM Catalog.Goods.Balances AS T WHERE T.Wh = &W",
+    "SELECT T.F FROM Catalog.Parties.Balances(&D) AS T WHERE T.Wh = &W",
+    "SELECT T.Amt FROM Document.Sale.Turnovers AS T WHERE T.Partner = &P",
+    "SELECT T.F FROM Document.Report.BalancesAndTurnovers AS T WHERE T.Wh = &W",
+    "SELECT C.P FROM Catalog.Parties.LatestRecord(&D) AS C WHERE C.Item = &I",
+])
+def test_advisor_english_names_no_false_positive(q):
+    assert advise_query(q) == []
