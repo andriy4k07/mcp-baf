@@ -648,3 +648,12 @@ def test_ukrainian_inn_columns_reported_in_masked_columns():
         ["ІННСубкомісіонера", "Сума"], [["12345678", 10]],
     ))
     assert out["masked_columns"] == ["ІННСубкомісіонера"]
+
+
+@pytest.mark.parametrize("column", [
+    # «інн» внутри слова — не идентификатор: маркер «ІНН» сравнивается целым
+    # словом, иначе ценники магазина и города маскировались бы
+    "Цінник", "ЦінникТовару", "ЦінніПапери", "Вінниця", "МістоВінниця", "Інновація",
+])
+def test_ukrainian_inn_inside_word_not_masked(column):
+    assert mask_pii_result(_r([column], [["ТОВ Ромашка"]]))["rows"][0][0] == "ТОВ Ромашка"
