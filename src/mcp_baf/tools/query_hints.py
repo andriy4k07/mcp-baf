@@ -140,23 +140,18 @@ _COMMENT_RE = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
 _STRING_RE = re.compile(r"\"(?:[^\"]|\"\")*\"")
 # Суффикс виртуальной таблицы привязан к типу-регистру и скобке параметров —
 # табличные части (ТЧ) справочников/документов с именами Остатки/Обороты/...
-# под правила не попадают (issue #162). Issue #161: расширены настоящие
-# английские имена платформы — Balances/Turnovers/BalancesAndTurnovers/
-# LatestRecord/FirstRecord (Balance/SliceLast/SliceFirst оставлены: встречались
-# в ранних фикстурах, ложных срабатываний не дают). Более длинный
-# BalancesAndTurnovers стоит перед Balances — иначе префикс «съедает» имя.
+# под правила не попадают (issue #162). Английские имена сверены с живой базой
+# через validate_query (#161): Balances/LatestRecord/FirstRecord не существуют.
 _VT_RE = re.compile(
     r"(?:Регистр(?:Накопления|Сведений|Бухгалтерии)|(?:Accumulation|Information|Accounting)Register)\.\w+\."
     r"(Остатки|Обороты|ОстаткиИОбороты|СрезПоследних|СрезПервых"
-    r"|BalancesAndTurnovers|Balances?|Turnovers?|LatestRecord|FirstRecord"
-    r"|Balance|SliceLast|SliceFirst)\s*\(", re.I
+    r"|Balance|Turnovers|BalanceAndTurnovers|SliceLast|SliceFirst)\s*\(", re.I
 )
 # Условие — 4-й параметр у оборотных таблиц, 2-й у остальных.
-_VT_TURNOVERS = {"обороты", "остаткииобороты", "turnovers", "balanceandturnovers",
-                 "balancesandturnovers"}
-# Поля служебных измерений регистров, ru и настоящие английские имена (#161).
+_VT_TURNOVERS = {"обороты", "остаткииобороты", "turnovers", "balanceandturnovers"}
+# Служебные поля регистров, ru и английские имена платформы (#161).
 _SKIP_WHERE_FIELDS = {"период", "регистратор", "моментвремени", "активность",
-                      "period", "recorder", "momenttime", "active"}
+                      "period", "recorder", "pointintime", "active"}
 
 
 def _args_count(text: str, start: int) -> tuple[int, int]:
