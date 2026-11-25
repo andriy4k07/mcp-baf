@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import re
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
@@ -13,7 +14,7 @@ from mcp_baf_audit import AuditWriter
 from mcp_baf.client import OneCClient, OneCError
 from mcp_baf.pii import MASKING_NOTE, audit_text, mask_pii_result
 from mcp_baf.tools.common import (
-    clamp_limit, escape_pipe, format_cell, traced_text, truncate_output,
+    MAX_TOOL_OUTPUT_CHARS, clamp_limit, escape_pipe, format_cell, traced_text,
 )
 
 DEFAULT_QUERY_LIMIT = 100
@@ -21,6 +22,9 @@ MAX_QUERY_LIMIT = 1000
 # Глубокий offset стоит полного прохода результата: расширение 1С отдаёт 400
 # выше этого потолка (Module.bsl: «offset: не более 10000»).
 MAX_QUERY_OFFSET = 10000
+# Запас бюджета под шапку и хвост (сноски о курсоре/маскировании), которые
+# добавляются после строк и не должны быть обрезаны.
+_FOOTER_RESERVE = 800
 
 # Комментарии языка запросов 1С: // до конца строки и /* ... */.
 _QUERY_COMMENT_RE = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
@@ -51,7 +55,10 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter,
             "Перечисление.X — таблица только с полями Ссылка и Порядок; конкретное значение — ЗНАЧЕНИЕ(Перечисление.Имя.Значение) в WHERE/CASE. "
             "Виртуальные таблицы регистров: РегистрНакопления.X.Остатки(&Период), .Обороты(&НачалоПериода, &КонецПериода), "
             "РегистрСведений.X.СрезПоследних(&Период). "
-            "Имена полей бери из get_object_structure. " + MASKING_NOTE
+            "Имена полей бери из get_object_structure. "
+            "Вывод ограничен по размеру: если строки не поместились, в конце указан "
+            "точный offset следующей страницы. format=json отдаёт компактный JSON "
+            "(columns, rows, truncated, next_offset) вместо markdown-таблицы. " + MASKING_NOTE
         ),
         annotations=ToolAnnotations(read_only_hint=True),
     )
@@ -77,6 +84,10 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter,
             "Параметры запроса в виде пар ключ-значение. Ключ — имя параметра без амперсанда. "
             'Пример: {"Контрагент": "ООО Ромашка", "ДатаНачала": "2026-01-01"}'
         ))] = None,
+        format: Annotated[Literal["markdown", "json"], Field(description=(
+            "Формат ответа: markdown (таблица, по умолчанию) или json "
+            "(columns, rows, truncated, next_offset; total — если известен)"
+        ))] = "markdown",
     ) -> str:
         effective_limit = clamp_limit(limit, DEFAULT_QUERY_LIMIT, MAX_QUERY_LIMIT)
 
@@ -106,9 +117,10 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter,
                         "таблица/поле не найдены, с подсказками."
                     ) from exc
                 raise
-            return truncate_output(format_query_result(
-                mask_pii_result(result, query) if mask_pii else result, offset
-            ))
+            result = mask_pii_result(result, query) if mask_pii else result
+            if format == "json":
+                return format_query_result_json(result, offset)
+            return format_query_result(result, offset)
 
         return await traced_text(
             audit, "execute_query", run,
@@ -116,12 +128,50 @@ def register(mcp: MCPServer, client: OneCClient, audit: AuditWriter,
                 "query": audit_text(query),
                 "limit": effective_limit,
                 "offset": offset,
+                "format": format,
                 "parameters": sorted(parameters) if parameters else [],
             },
         )
 
 
-def format_query_result(r: dict[str, Any], offset: int = 0) -> str:
+def _fit_rows(costs: list[int], budget: int) -> int:
+    """Сколько первых строк влезает в бюджет (минимум одна, чтобы курсор двигался)."""
+    used = 0
+    for i, cost in enumerate(costs):
+        if used + cost > budget and i > 0:
+            return i
+        used += cost
+    return len(costs)
+
+
+def format_query_result_json(
+    r: dict[str, Any], offset: int = 0, budget: int = MAX_TOOL_OUTPUT_CHARS
+) -> str:
+    """Компактный JSON: columns, rows, truncated, next_offset (+ total, masked_columns).
+
+    Строки обрезаются целиком по бюджету символов, JSON не режется посреди значения.
+    """
+    columns = r.get("columns") or []
+    rows = r.get("rows") or []
+
+    def dump(v: Any) -> str:
+        return json.dumps(v, ensure_ascii=False, separators=(",", ":"), default=str)
+
+    shown = _fit_rows([len(dump(row)) + 1 for row in rows], budget - _FOOTER_RESERVE)
+    truncated = bool(r.get("truncated")) or shown < len(rows)
+    out: dict[str, Any] = {"columns": columns, "rows": rows[:shown]}
+    if isinstance(r.get("total"), int):
+        out["total"] = r["total"]
+    out["truncated"] = truncated
+    out["next_offset"] = offset + shown if truncated else None
+    if r.get("masked_columns"):
+        out["masked_columns"] = r["masked_columns"]
+    return dump(out)
+
+
+def format_query_result(
+    r: dict[str, Any], offset: int = 0, budget: int = MAX_TOOL_OUTPUT_CHARS
+) -> str:
     """Форматирует результат запроса как markdown-таблицу.
 
     Ключи ответа 1С: `count` — размер этой страницы, `total` — сколько строк
@@ -148,10 +198,20 @@ def format_query_result(r: dict[str, Any], offset: int = 0) -> str:
 
     lines.append("| " + " | ".join(escape_pipe(c) for c in columns) + " |")
     lines.append("|" + "---|" * len(columns))
-    for row in rows:
-        lines.append("| " + " | ".join(format_cell(cell) for cell in row) + " |")
+    cells = ["| " + " | ".join(format_cell(cell) for cell in row) + " |" for row in rows]
+    used = sum(len(x) + 1 for x in lines)
+    shown = _fit_rows([len(x) + 1 for x in cells], budget - _FOOTER_RESERVE - used)
+    lines.extend(cells[:shown])
 
-    if r.get("truncated"):
+    if shown < len(rows):
+        # Хвост после обрезки строк: курсор следующей страницы не должен теряться.
+        lines.append("")
+        lines.append(
+            f"> Результат усечён: превышен лимит вывода ({budget} символов). "
+            f"Показано строк: {shown} из {len(rows)}. "
+            f"Следующая страница: offset={offset + shown}."
+        )
+    elif r.get("truncated"):
         lines.append("")
         lines.append(
             "> Результат усечён. Показаны записи начиная с offset "

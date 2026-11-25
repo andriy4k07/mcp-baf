@@ -159,3 +159,37 @@ def test_query_output_is_limited_by_total_size(tmp_path):
     text = call(tools, client, query="ВЫБРАТЬ 1", limit=1000)
     assert len(text) <= MAX_TOOL_OUTPUT_CHARS + 400
     assert "усечён" in text
+
+
+def test_budget_trimmed_markdown_keeps_next_offset_footer(tmp_path):
+    rows = [["я" * 1500] for _ in range(200)]
+    tools, client, _ = setup(tmp_path, {"columns": ["Текст"], "rows": rows, "truncated": True})
+    text = call(tools, client, query="ВЫБРАТЬ 1", limit=200, offset=50)
+    shown = text.count("| я")
+    assert 0 < shown < 200
+    assert len(text) <= MAX_TOOL_OUTPUT_CHARS
+    assert text.rstrip().endswith(f"offset={50 + shown}.")
+
+
+def test_json_format_shape(tmp_path):
+    tools, client, _ = setup(tmp_path, {"columns": ["A", "B"], "rows": [[1, "x"], [2, None]], "total": 2})
+    out = json.loads(call(tools, client, query="ВЫБРАТЬ 1", format="json"))
+    assert out == {"columns": ["A", "B"], "rows": [[1, "x"], [2, None]],
+                   "total": 2, "truncated": False, "next_offset": None}
+
+
+def test_json_format_budget_truncation_is_valid_json(tmp_path):
+    rows = [["я" * 3000] for _ in range(100)]
+    tools, client, _ = setup(tmp_path, {"columns": ["Текст"], "rows": rows})
+    text = call(tools, client, query="ВЫБРАТЬ 1", limit=100, offset=7, format="json")
+    out = json.loads(text)
+    assert out["truncated"] is True
+    assert 0 < len(out["rows"]) < 100
+    assert out["next_offset"] == 7 + len(out["rows"])
+    assert len(text) <= MAX_TOOL_OUTPUT_CHARS
+
+
+def test_json_format_passes_through_1c_truncated(tmp_path):
+    tools, client, _ = setup(tmp_path, {"columns": ["A"], "rows": [[1], [2]], "truncated": True})
+    out = json.loads(call(tools, client, query="ВЫБРАТЬ 1", offset=10, format="json"))
+    assert out["truncated"] is True and out["next_offset"] == 12
