@@ -327,6 +327,87 @@ def test_warm_cache_rebuilds_when_ext_roots_change(tmp_path):
         idx.close()
 
 
+# ── Issue #161 (upstream monitor wave 2026-11-23): франшиза однострочных
+# расширений. Несколько dump-выгрузок расширений под одним dump-корнём на
+# РАЗНЫХ уровнях вложенности обязаны различаться ПОЛНЫМ ПУТЁМ (аналог фикса
+# feenlace/mcp-1c v1.24.2-4): ни идентичный однострочный код, ни коллизия
+# имён из манифестов не должны потерять или смешать модули.
+
+def test_single_line_extensions_at_different_depths_by_full_path(tmp_path):
+    # Два однострочных расширения с идентичным модулем и кодом: глубина 1 и
+    # глубина 2 (обёртка/расширение). Разные имена манифестов — разные
+    # пространства ext.<имя>.; identical content — оба совпадения найдены.
+    mk_bsl(tmp_path, "Catalogs/Х/Ext/ObjectModule.bsl", "Маркер = 1;")
+    mk_manifest(tmp_path, "РасшОдин", "МоеРасш")
+    mk_bsl(tmp_path, "РасшОдин/Catalogs/Одно/Ext/ObjectModule.bsl", "Маркер = 1;")
+    mk_manifest(tmp_path, "ОбёрткаВ/РасшДва", "ДругоеРасш")
+    mk_bsl(tmp_path, "ОбёрткаВ/РасшДва/Catalogs/Одно/Ext/ObjectModule.bsl", "Маркер = 1;")
+    idx = DumpIndex(str(tmp_path), use_cache=False)
+    assert idx.wait_ready(BUILD_TIMEOUT), idx.build_error()
+    try:
+        matches, total = idx.search(SearchParams(query="Маркер = 1;", mode="exact", limit=10))
+        assert total == 3  # основной + оба расширения, молчание запрещено
+        assert {m.module for m in matches} == {
+            "Справочник.Х.МодульОбъекта",
+            "ext.МоеРасш.Справочник.Одно.МодульОбъекта",
+            "ext.ДругоеРасш.Справочник.Одно.МодульОбъекта",
+        }
+    finally:
+        idx.close()
+
+
+def test_same_named_nested_extensions_collapse_to_distinct_path_keys(tmp_path, caplog):
+    # Коллизия имён манифестов на разных глубинах (depth 1 vs depth 2):
+    # спорные записи снимаются ОБЕ (никто не «настоящий»), модули получают
+    # path-ключи из ПОЛНОГО пути — первые сегменты различают обёртки, файлы
+    # не перезаписывают друг друга (rel_path в docs UNIQUE).
+    mk_manifest(tmp_path, "ОбёрткаА", "Близнецы")
+    mk_bsl(tmp_path, "ОбёрткаА/Catalogs/Одно/Ext/ObjectModule.bsl", "Маркер = 1;")
+    mk_manifest(tmp_path, "ОбёрткаБ/Внутри", "Близнецы")
+    mk_bsl(tmp_path, "ОбёрткаБ/Внутри/Catalogs/Одно/Ext/ObjectModule.bsl", "Маркер = 2;")
+    with caplog.at_level("WARNING"):
+        idx = DumpIndex(str(tmp_path), use_cache=False)
+        assert idx.wait_ready(BUILD_TIMEOUT), idx.build_error()
+    try:
+        assert "Близнецы" in caplog.text  # коллизия видна в логе, не молчит
+        _, total = idx.search(SearchParams(query="Маркер = 1;", mode="exact"))
+        assert total == 1
+        _, total = idx.search(SearchParams(query="Маркер = 2;", mode="exact"))
+        assert total == 1
+        matches, _ = idx.search(SearchParams(query="Маркер", mode="regex", limit=10))
+        modules = {m.module for m in matches}
+        assert modules == {"ОбёрткаА.Catalogs.МодульОбъекта",
+                           "ОбёрткаБ.Внутри.МодульОбъекта"}
+    finally:
+        idx.close()
+
+
+def test_warm_cache_extension_xml_rename_refreshes_namespace(tmp_path):
+    # Изменился ТОЛЬКО XML расширения (манифест переименован), .bsl не
+    # тронуты. Ответ на вопрос issue #161: индекс НЕ устаревает — карта
+    # discover_extension_roots перечитывается на каждой сборке и сверяется с
+    # meta['ext_roots'] кэша; несовпадение -> полный перестрой (см.
+    # _open_cache_and_diff_locked). Ручной аналог --reindex уже есть
+    # (config.reindex / --reindex) — отдельный флаг под XML-изменения не нужен.
+    dump, cache = tmp_path / "dump", tmp_path / "cache"
+    mk_bsl(dump, "Обёртка/расш/CommonModules/М/Module.bsl", "Б = 2;")
+    mk_manifest(dump, "Обёртка/расш", "Расш")
+    idx = DumpIndex(str(dump), cache_dir=str(cache))
+    assert idx.wait_ready(BUILD_TIMEOUT), idx.build_error()
+    idx.close()
+
+    # Только Configuration.xml: имя из манифеста переименовано.
+    mk_manifest(dump, "Обёртка/расш", "РасшПереименовано")
+    idx = DumpIndex(str(dump), cache_dir=str(cache))
+    assert idx.wait_ready(BUILD_TIMEOUT), idx.build_error()
+    try:
+        matches, _ = idx.search(SearchParams(query="Б = 2;", mode="exact"))
+        assert len(matches) == 1
+        assert matches[0].module == "ext.РасшПереименовано.ОбщийМодуль.М.Модуль"
+    finally:
+        idx.close()
+
+
 def test_oversized_bsl_is_skipped_in_fresh_and_warm_cache(tmp_path, caplog):
     dump, cache = tmp_path / "dump", tmp_path / "cache"
     dump.mkdir()
