@@ -226,3 +226,51 @@ def test_advisor_tabular_section_and_real_virtual_table_in_one_query():
         "ГДЕ Т.Склад = &С И Р.Склад = &С"
     )
     assert len(tips) == 1 and "`Р.Склад`" in tips[0]
+
+
+# Issue #161 (upstream monitor wave 2026-11-23): аудит ТЧ vs виртуальная
+# таблица в советнике. Английские имена сверены с живой базой (validate_query):
+# Balance/Turnovers/BalanceAndTurnovers/SliceLast/SliceFirst существуют,
+# Balances/BalancesAndTurnovers/LatestRecord/FirstRecord — нет.
+
+@pytest.mark.parametrize("q, vt", [
+    ("SELECT T.F FROM AccumulationRegister.Goods.Balance(&D) AS T WHERE T.Wh = &W",
+     "Balance"),
+    ("SELECT T.F FROM AccumulationRegister.Goods.Turnovers(&A, &B, Period) AS T WHERE T.Wh = &W",
+     "Turnovers"),
+    # регресс: «Balances?» перед «Balance» съедал префикс и терял это имя
+    ("SELECT T.F FROM AccumulationRegister.Goods.BalanceAndTurnovers(&A, &B, Period) AS T WHERE T.Wh = &W",
+     "BalanceAndTurnovers"),
+    ("SELECT C.P FROM InformationRegister.Prices.SliceLast(&D) AS C WHERE C.Item = &I",
+     "SliceLast"),
+    ("SELECT C.P FROM InformationRegister.Prices.SliceFirst(&D) AS C WHERE C.Item = &I",
+     "SliceFirst"),
+    ("select t.f from accumulationregister.goods.balance(&d) as t where t.wh = &w",
+     "balance"),
+])
+def test_advisor_english_virtual_names_tip(q, vt):
+    tips = advise_query(q)
+    assert len(tips) == 1 and f"`.{vt}`" in tips[0]
+
+
+@pytest.mark.parametrize("q", [
+    # условие передано параметром BalanceAndTurnovers (4-й) — совета нет
+    "SELECT T.F FROM AccumulationRegister.Goods.BalanceAndTurnovers(&A, &B, Period, Wh = &W) AS T WHERE T.Wh = &W",
+    # служебные поля регистра по-английски в ГДЕ — не повод для совета
+    "SELECT T.F FROM AccumulationRegister.Goods.Balance(&D) AS T WHERE T.Period = &P",
+    "SELECT T.F FROM AccumulationRegister.Goods.Balance(&D) AS T WHERE T.Recorder = &R",
+    "SELECT C.P FROM InformationRegister.Prices.SliceLast() AS C WHERE C.Active = ИСТИНА",
+    "SELECT C.P FROM InformationRegister.Prices.SliceFirst() AS C WHERE C.PointInTime = &M",
+    # несуществующие в платформе имена — не виртуальные таблицы
+    "SELECT T.F FROM AccumulationRegister.Goods.Balances(&D) AS T WHERE T.Wh = &W",
+    "SELECT C.P FROM InformationRegister.Prices.LatestRecord(&D) AS C WHERE C.Item = &I",
+    # ТЧ справочника/документа, названная как виртуальная таблица (английские
+    # имена) — обычная таблица: префикс не регистр, скобка не спасает
+    "SELECT T.F FROM Catalog.Goods.Balance AS T WHERE T.Wh = &W",
+    "SELECT T.F FROM Catalog.Parties.Balance(&D) AS T WHERE T.Wh = &W",
+    "SELECT T.Amt FROM Document.Sale.Turnovers AS T WHERE T.Partner = &P",
+    "SELECT T.F FROM Document.Report.BalanceAndTurnovers AS T WHERE T.Wh = &W",
+    "SELECT C.P FROM Catalog.Parties.SliceLast(&D) AS C WHERE C.Item = &I",
+])
+def test_advisor_english_names_no_false_positive(q):
+    assert advise_query(q) == []

@@ -138,6 +138,10 @@ async def error_hints(
 
 _COMMENT_RE = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
 _STRING_RE = re.compile(r"\"(?:[^\"]|\"\")*\"")
+# Суффикс виртуальной таблицы привязан к типу-регистру и скобке параметров —
+# табличные части (ТЧ) справочников/документов с именами Остатки/Обороты/...
+# под правила не попадают (issue #162). Английские имена сверены с живой базой
+# через validate_query (#161): Balances/LatestRecord/FirstRecord не существуют.
 _VT_RE = re.compile(
     r"(?:Регистр(?:Накопления|Сведений|Бухгалтерии)|(?:Accumulation|Information|Accounting)Register)\.\w+\."
     r"(Остатки|Обороты|ОстаткиИОбороты|СрезПоследних|СрезПервых"
@@ -145,7 +149,9 @@ _VT_RE = re.compile(
 )
 # Условие — 4-й параметр у оборотных таблиц, 2-й у остальных.
 _VT_TURNOVERS = {"обороты", "остаткииобороты", "turnovers", "balanceandturnovers"}
-_SKIP_WHERE_FIELDS = {"период", "регистратор", "моментвремени", "активность"}
+# Служебные поля регистров, ru и английские имена платформы (#161).
+_SKIP_WHERE_FIELDS = {"период", "регистратор", "моментвремени", "активность",
+                      "period", "recorder", "pointintime", "active"}
 
 
 def _args_count(text: str, start: int) -> tuple[int, int]:
